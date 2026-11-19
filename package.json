@@ -1,0 +1,18 @@
+{
+  "name": "ghostchat",
+  "version": "1.0.0",
+  "description": "Anonymous WhatsApp-style messenger: no phone number, end-to-end encrypted",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ws": "^8.23.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

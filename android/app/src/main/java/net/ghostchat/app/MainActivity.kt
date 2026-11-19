@@ -1,0 +1,208 @@
+package net.ghostchat.app
+
+import android.Manifest
+import android.annotation.SuppressLint
+import android.app.Activity
+import android.app.ActivityManager
+import android.bluetooth.BluetoothAdapter
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
+import android.content.Context
+import android.webkit.CookieManager
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
+import android.webkit.WebStorage
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.webkit.WebViewAssetLoader
+import org.json.JSONObject
+import java.io.IOException
+
+/**
+ * GhostChat for Android.
+ *  - The whole app (HTML/JS/crypto) is bundled inside the APK and served from a private
+ *    in-app address, so its code is never downloaded from the server.
+ *  - FLAG_SECURE blocks screenshots, screen recording and casting, and blanks the
+ *    app in the recent-apps switcher.
+ */
+class MainActivity : Activity() {
+    lateinit var web: WebView
+    lateinit var mesh: Mesh
+    private var fileCallback: ValueCallback<Array<Uri>>? = null
+    private var pendingMeshId: String? = null
+
+    @SuppressLint("SetJavaScriptEnabled")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        WebView.setWebContentsDebuggingEnabled(false)
+
+        val loader = WebViewAssetLoader.Builder()
+            .setDomain(HOST)
+            .addPathHandler("/", WebViewAssetLoader.PathHandler { path -> asset(path) })
+            .build()
+
+        web = SecureWebView(this)
+        web.filterTouchesWhenObscured = true // ignore taps while another app draws over us (tapjacking, VAPT fix A3)
+        setContentView(web)
+        web.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            allowFileAccess = false
+            allowContentAccess = false
+            // the page is on the in-app https address; the server is a plain-http .onion (encrypted by Tor)
+            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            setSupportMultipleWindows(false)
+            javaScriptCanOpenWindowsAutomatically = false
+        }
+        web.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
+                if (request.url.host == HOST) loader.shouldInterceptRequest(request.url) else null
+
+            // never navigate away from the bundled app
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
+                request.url.host != HOST
+        }
+        web.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(view: WebView, cb: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
+                fileCallback?.onReceiveValue(null)
+                fileCallback = cb
+                return try {
+                    startActivityForResult(params.createIntent(), REQ_FILE); true
+                } catch (e: Exception) {
+                    fileCallback = null; false
+                }
+            }
+        }
+
+        mesh = Mesh(this) { to, mid, env ->
+            runOnUiThread {
+                web.evaluateJavascript("window.ghostMeshReceive&&ghostMeshReceive(${q(to)},${q(mid)},${q(env)})", null)
+            }
+        }
+        web.addJavascriptInterface(GhostBridge(this), "GhostNative")
+        web.loadUrl("https://$HOST/index.html")
+    }
+
+    /** Serves files from assets/www/ with a strict security policy: scripts may only come from the app itself. */
+    private fun asset(path: String): WebResourceResponse? {
+        val p = if (path.isEmpty()) "index.html" else path
+        if (p.contains("..")) return null
+        val mime = when (p.substringAfterLast('.', "")) {
+            "html" -> "text/html"
+            "js" -> "text/javascript"
+            "css" -> "text/css"
+            "svg" -> "image/svg+xml"
+            "json", "webmanifest" -> "application/json"
+            else -> "application/octet-stream"
+        }
+        return try {
+            WebResourceResponse(mime, "utf-8", assets.open("www/$p")).apply {
+                responseHeaders = mapOf("Content-Security-Policy" to CSP, "Cache-Control" to "no-store", "Referrer-Policy" to "no-referrer")
+            }
+        } catch (e: IOException) {
+            null
+        }
+    }
+
+    // ---------- Bluetooth mesh ----------
+    private fun btPerms(): Array<String> =
+        if (Build.VERSION.SDK_INT >= 31) arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE)
+        else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    fun startMesh(id: String) {
+        val missing = btPerms().filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        if (missing.isNotEmpty()) {
+            pendingMeshId = id
+            requestPermissions(missing.toTypedArray(), REQ_BT)
+            return
+        }
+        mesh.start(id)
+    }
+
+    fun makeVisible() {
+        try {
+            startActivityForResult(Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300), REQ_VISIBLE)
+        } catch (e: Exception) { }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_BT && grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+            pendingMeshId?.let { mesh.start(it) }
+        }
+        pendingMeshId = null
+    }
+
+    // ---------- panic: wipe everything, then ask Android to uninstall ----------
+    fun panic() {
+        try { mesh.stop(); mesh.clear() } catch (e: Exception) { }
+        try {
+            web.clearCache(true); web.clearHistory(); web.clearFormData()
+            WebStorage.getInstance().deleteAllData()
+            CookieManager.getInstance().removeAllCookies(null)
+        } catch (e: Exception) { }
+        // 1) Android's own "Uninstall GhostChat?" prompt. One tap. (Android never allows any app to uninstall itself silently.)
+        try {
+            startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:$packageName")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (e: Exception) { }
+        // 2) Erase every byte of app data (IndexedDB, WebView storage, settings) and stop the app.
+        web.postDelayed({
+            try { (getSystemService(ACTIVITY_SERVICE) as ActivityManager).clearApplicationUserData() } catch (e: Exception) { finishAndRemoveTask() }
+        }, 700)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == REQ_FILE) {
+            fileCallback?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data))
+            fileCallback = null
+            return
+        }
+        super.onActivityResult(requestCode, resultCode, data)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        // Back closes an open chat; otherwise the app goes to the background (it auto-locks there).
+        web.evaluateJavascript("(function(){try{if(typeof current!=='undefined'&&current){closeChat();return 1}}catch(e){}return 0})()") { r ->
+            if (r != "1") moveTaskToBack(true)
+        }
+    }
+
+    override fun onPause() { super.onPause(); web.onPause() }
+    override fun onResume() { super.onResume(); web.onResume() }
+    override fun onDestroy() {
+        try { mesh.stop() } catch (e: Exception) { }
+        web.destroy()
+        super.onDestroy()
+    }
+
+    companion object {
+        const val HOST = "appassets.androidplatform.net"
+        const val REQ_FILE = 1
+        const val REQ_BT = 2
+        const val REQ_VISIBLE = 3
+        const val CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; " +
+            "connect-src 'self' http: https: ws: wss:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+        fun q(s: String): String = JSONObject.quote(s)
+    }
+}
+
+/** Tells the keyboard not to learn or remember anything typed in GhostChat (VAPT fix A4). */
+class SecureWebView(ctx: Context) : WebView(ctx) {
+    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
+        val ic = super.onCreateInputConnection(outAttrs)
+        outAttrs.imeOptions = outAttrs.imeOptions or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+        return ic
+    }
+}

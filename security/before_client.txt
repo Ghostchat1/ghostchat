@@ -1,0 +1,12 @@
+[PASS] C01 Stored XSS via message text / nickname / group name (5 payloads) :: executed=False, injected elements=0
+[FAIL] C02 HTML attribute injection via crafted group id :: attacker-controlled attribute landed in Bob's DOM
+[FAIL] C03 HTML attribute injection via crafted message id :: attacker-controlled attribute landed in Bob's DOM
+[PASS] C04 Content-Security-Policy as a second line of defence :: no inline script reached the page
+[FAIL] C05 Forged-sender packet forces a session reset (message loss) :: Alice's in-flight message was LOST after Eve's forged packet
+[PASS] C06 Impersonating a contact (sending as Alice) :: rejected: Bob still has 1 genuine message(s) from Alice, none forged
+[PASS] C07 Group takeover by a non-admin :: name=Real, admin is Alice=True
+[PASS] C08 Message injection into a group by a non-member :: ignored
+[PASS] C09 Oversized message (300,000 chars) :: stored length 47
+[FAIL] C10 Spell-check enabled on text fields (enhanced spell-check sends text to Google) :: fields: ['ob-server', 'ob-name', 'search', 'msg-input']
+[INFO] C11 Offline brute force of a stolen vault (PBKDF2-SHA-384 ×600k) :: 278 ms per guess here; a GPU rig does ~10³–10⁴ guesses/s, so an 8-char lowercase passcode (2×10¹¹) falls in months-to-years, a 4-word passphrase is out of reach
+[INFO] C12 What an attacker sees in browser storage without the passcode :: localStorage keys ['gc3_fails', 'gc3_seen']; IndexedDB: two equal-size encrypted slots

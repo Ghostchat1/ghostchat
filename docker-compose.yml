@@ -1,0 +1,28 @@
+# GhostChat + Tor. Run:  docker compose up -d --build
+# Then get your address: docker compose exec tor cat /var/lib/tor/ghostchat/hostname
+# No ports are published to the internet; the only way in is the .onion address.
+services:
+  app:
+    build: .
+    restart: always
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    logging: { driver: "none" }
+    networks:
+      internal: { ipv4_address: 172.29.0.10 }
+  tor:
+    build: ./deploy/tor
+    restart: always
+    depends_on: [app]
+    security_opt: ["no-new-privileges:true"]
+    volumes: ["onion-keys:/var/lib/tor"]
+    logging: { driver: "none" }
+    networks: [internal, outside]
+networks:
+  internal:                      # app has no internet access at all
+    internal: true
+    ipam: { config: [{ subnet: 172.29.0.0/24 }] }
+  outside: {}
+volumes:
+  onion-keys:                    # keeps the same .onion address across restarts

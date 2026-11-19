@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1117" />
+  <meta name="referrer" content="no-referrer" />
+  <title>GhostChat</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon.svg" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Onboarding -->
+    <section id="onboard" class="screen hidden">
+      <div class="ob-wrap">
+        <img src="/icon.svg" class="ob-logo" alt="" />
+        <h1>GhostChat</h1>
+        <p class="ob-tag">No phone. No email. No name. No trace.</p>
+        <ul class="ob-points">
+          <li><b>Random ID only.</b> Nothing ties it to you.</li>
+          <li><b>Sealed sender.</b> Even the server can't tell who sent a message.</li>
+          <li><b>Forward secrecy.</b> Keys rotate and old keys are destroyed, so past messages stay locked even if a key leaks later.</li>
+          <li><b>Quantum-safe.</b> Hybrid ML-KEM-768 + P-384 encryption, so recorded traffic stays locked even against future quantum computers.</li>
+          <li><b>Locked vault.</b> Everything on this device is encrypted with your passcode.</li>
+        </ul>
+        <label class="field hidden" id="ob-server-wrap"><span>Server address <em>(the .onion address you were given)</em></span>
+          <input id="ob-server" placeholder="http://xxxxxxxx.onion" autocomplete="off" autocapitalize="off" /></label>
+        <label class="field"><span>Nickname <em>(optional — only your contacts see it)</em></span>
+          <input id="ob-name" maxlength="30" placeholder="e.g. Shadow" autocomplete="off" /></label>
+        <label class="field"><span>Passcode <em>(min 10 characters — a few random words is best)</em></span>
+          <input id="ob-pass" type="password" autocomplete="new-password" placeholder="e.g. river lamp mango seven" /></label>
+        <label class="field"><span>Confirm passcode</span>
+          <input id="ob-pass2" type="password" autocomplete="new-password" /></label>
+        <p id="ob-err" class="err"></p>
+        <button id="ob-create" class="btn primary">Create anonymous ID</button>
+        <button id="ob-restore" class="btn ghost">Restore from encrypted backup</button>
+        <p class="muted small ob-foot">There is no "forgot passcode". Nobody — including us — can recover it.</p>
+      </div>
+    </section>
+
+    <!-- Calculator disguise -->
+    <section id="calc" class="screen hidden">
+      <div class="calc-wrap">
+        <div id="calc-display" class="calc-display">0</div>
+        <div id="calc-keys" class="calc-keys">
+          <button data-k="C" id="calc-clear" class="fn">C</button><button data-k="±" class="fn">±</button><button data-k="%" class="fn">%</button><button data-k="÷" class="op">÷</button>
+          <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button><button data-k="×" class="op">×</button>
+          <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button><button data-k="-" class="op">−</button>
+          <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button><button data-k="+" class="op">+</button>
+          <button data-k="0" class="zero">0</button><button data-k=".">.</button><button data-k="=" class="op">=</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Lock screen -->
+    <section id="lock" class="screen hidden">
+      <div class="ob-wrap">
+        <img src="/icon.svg" class="ob-logo" id="lock-logo" alt="" draggable="false" />
+        <h2>GhostChat is locked</h2>
+        <form id="unlock-form" autocomplete="off">
+          <input id="unlock-pass" type="password" placeholder="Passcode" autocomplete="current-password" />
+          <p id="unlock-err" class="err"></p>
+          <button class="btn primary" id="unlock-btn">Unlock</button>
+        </form>
+        <p class="muted small">After 10 wrong attempts everything on this device is erased.</p>
+      </div>
+    </section>
+
+    <!-- Main -->
+    <section id="main" class="screen hidden">
+      <aside id="list-pane">
+        <header class="bar">
+          <div class="bar-title">GhostChat <span id="conn" class="conn off" title="Connecting…"></span></div>
+          <button class="icon" id="btn-lock" aria-label="Lock (hold 2 s to erase everything)" title="Tap: lock · Hold 2 s: erase everything">🔒</button>
+          <button class="icon" id="btn-menu" aria-label="Menu">⋮</button>
+        </header>
+        <div class="search"><input id="search" placeholder="Search chats" /></div>
+        <div id="chat-list"></div>
+        <div id="empty-list" class="empty hidden">
+          <p>No chats yet.</p>
+          <p class="muted">Share your ID or invite link, or tap <b>+</b> to message someone by their ID.</p>
+          <button class="btn primary small" id="btn-share-empty">Share my ID</button>
+        </div>
+        <button id="fab" class="fab" aria-label="New chat">+</button>
+      </aside>
+
+      <main id="chat-pane">
+        <div id="no-chat" class="no-chat">
+          <img src="/icon.svg" alt="" />
+          <p>Select a chat to start messaging.</p>
+          <p class="muted small">🔒 Sealed-sender, end-to-end encrypted.</p>
+        </div>
+        <div id="chat" class="hidden">
+          <header class="bar">
+            <button class="icon" id="btn-back" aria-label="Back">‹</button>
+            <div class="avatar" id="chat-avatar"></div>
+            <div class="chat-head">
+              <div id="chat-name"></div>
+              <div id="chat-sub" class="muted small"></div>
+            </div>
+            <button class="icon" id="btn-chat-menu" aria-label="Chat menu">⋮</button>
+          </header>
+          <div id="messages"></div>
+          <form id="composer" autocomplete="off">
+            <button type="button" class="attach" id="btn-attach" aria-label="Send photo">📎</button>
+            <input type="file" id="file" accept="image/*" class="hidden" />
+            <textarea id="msg-input" rows="1" placeholder="Message" maxlength="4000"></textarea>
+            <button class="send" aria-label="Send">➤</button>
+          </form>
+        </div>
+      </main>
+    </section>
+  </div>
+
+  <div id="modal" class="modal hidden">
+    <div class="sheet">
+      <h3 id="modal-title"></h3>
+      <div id="modal-body"></div>
+      <div id="modal-actions" class="actions"></div>
+    </div>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+  <div id="viewer" class="viewer hidden"><img id="viewer-img" alt="" /><p>Tap to close</p></div>
+  <div id="shield" class="shield hidden"><img src="/icon.svg" alt="" /></div>
+
+  <script src="/pq.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

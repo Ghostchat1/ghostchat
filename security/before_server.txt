@@ -1,0 +1,23 @@
+[PASS] H01 Security headers on pages :: CSP, XFO, nosniff, no-referrer, no-store present
+[PASS] H02 No server fingerprint headers :: {}
+[INFO] H03 No HSTS header :: expected: served over Tor .onion (http); add HSTS only if also hosted on https
+[PASS] H04 Path traversal (12 variants) :: no file outside public/ served
+[PASS] H05 Oversized body to /api/register :: connection closed by server (body >8 KB refused)
+[PASS] H06 Malformed JSON → no stack trace :: 400 b'{"error":"bad request"}'
+[INFO] H07 TRACE/PUT on static files :: TRACE → 200 (served as GET; no reflection of request headers)
+[PASS] H08 Registration input validation (7 forged/malformed cases) :: all rejected with 400
+[PASS] H09 Valid registration; server derives same ID as client :: 8NG4-RN5J-PXV6
+[PASS] H10 Account takeover by re-registering victim's public key :: status 400; victim keys unchanged=True
+[PASS] H11 Key lookup injection (__proto__, traversal, huge, NUL) :: all 404/4xx, no crash
+[PASS] H12 CORS: arbitrary origin denied :: no ACAO header
+[PASS] H13 CORS: only the Android app origin allowed :: preflight 204
+[FAIL] H14 Cross-site 'wipe' link (CSRF on destructive endpoint) :: GET /wipe returns Clear-Site-Data — any link/redirect to /wipe erases a victim's account
+[PASS] W01 Privileged WS commands before auth (ack/spk/delete_account) :: ignored
+[PASS] W02 Auth as another user with attacker's signature :: {'t': 'error', 'error': 'auth failed'}
+[PASS] W03 Replay of a captured auth signature on a new connection :: {'t': 'error', 'error': 'auth failed'}
+[PASS] W04 Drop validation (unknown recipient, bad mid, oversize) :: error/error/{'closed': 'Expecting value: line 1 column 1 (char 0'}
+[PASS] W05 Per-connection flood limit :: 120 sent in burst → 40 accepted
+[FAIL] W06 Queue flushing by anonymous senders :: 1000 queued for victim; legit message EVICTED
+[FAIL] W07 Mass registration (no cost / no global cap) :: 300/300 accounts in 1.0s ≈ 292/s from one client
+[FAIL] W08 Connection exhaustion (no global connection cap) :: 400 idle sockets accepted
+[FAIL] W09 Malformed / prototype-pollution WS frames :: SERVER DOWN

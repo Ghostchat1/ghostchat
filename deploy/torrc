@@ -1,0 +1,13 @@
+## GhostChat onion service — append to /etc/tor/torrc (setup-onion.sh does this for you)
+## The app listens on 127.0.0.1:3000 only. Tor publishes it as a .onion address.
+## Your server's real IP is never revealed to users, and users' IPs are never revealed to you.
+
+HiddenServiceDir /var/lib/tor/ghostchat/
+HiddenServiceVersion 3
+HiddenServicePort 80 127.0.0.1:3000
+
+## Anti-DDoS: make attackers solve proof-of-work puzzles during floods (Tor 0.4.8+)
+HiddenServicePoWDefensesEnabled 1
+HiddenServiceEnableIntroDoSDefense 1
+HiddenServiceMaxStreams 200
+HiddenServiceMaxStreamsCloseCircuit 1
