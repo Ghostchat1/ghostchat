@@ -841,11 +841,12 @@ async function backupDialog() {
   modal("Encrypted backup", `
     <p>Your ID, keys, contacts and messages, <b>locked with your passcode</b>. To restore it you need this backup and your passcode.</p>
     <p class="muted small">Tor Browser erases site data when it closes. Keep this backup somewhere safe to restore your account next time.</p>
-    <div class="keybox" id="bk"></div>`,
-    [["Copy backup", () => { copy(key, "Backup copied"); return true; }, "primary"],
-     ["Download as file", () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([key], { type: "text/plain" })); a.download = "backup.txt"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); return true; }],
+    <p class="small warn">Tap “Copy backup”, then paste it into Notes. If copying doesn't work: tap the box below, Select All, Copy.</p>
+    <textarea class="keybox" id="bk" rows="6" readonly></textarea>`,
+    [["Copy backup", () => { copy(key, "Backup copied — paste it into Notes"); return true; }, "primary"],
+     ...(BUILTIN_CRYPTO ? [] : [["Download as file", () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([key], { type: "text/plain" })); a.download = "backup.txt"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); return true; }]]),
      ["Done", () => {}]]);
-  $("#bk").textContent = key.slice(0, 500) + "…";
+  const bk = $("#bk"); bk.value = key; bk.onfocus = bk.onclick = () => { bk.select(); bk.setSelectionRange(0, key.length); };
 }
 function restoreDialog() {
   modal("Restore from backup", `<p class="muted small">Paste your backup (starts with GHOST3:) or open the backup file, then enter its passcode.</p>
@@ -1280,7 +1281,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "GhostChat v5.4 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "GhostChat v5.5 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions
