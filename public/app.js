@@ -58,31 +58,61 @@ const GID_RE = /^G[A-Za-z0-9_-]{8,24}$/, MID_RE = /^[A-Za-z0-9_-]{4,40}$/; // VA
 const safeMid = (x) => (typeof x === "string" && MID_RE.test(x) ? x : rid(12));
 
 // Proof-of-work for signup (VAPT fix W07): makes creating accounts in bulk expensive.
-function sha256(msg) {
-  const K = sha256.K || (sha256.K = Uint32Array.from([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]));
-  const l = msg.length, nb = ((l + 9 + 63) >> 6) << 6, m = new Uint8Array(nb); m.set(msg); m[l] = 0x80;
-  const dv = new DataView(m.buffer); dv.setUint32(nb - 4, l * 8);
-  let h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a, h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
-  const w = new Uint32Array(64);
-  for (let o = 0; o < nb; o += 64) {
-    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(o + i * 4);
-    for (let i = 16; i < 64; i++) { const a = w[i - 15], b = w[i - 2]; w[i] = (((a >>> 7) | (a << 25)) ^ ((a >>> 18) | (a << 14)) ^ (a >>> 3)) + w[i - 16] + (((b >>> 17) | (b << 15)) ^ ((b >>> 19) | (b << 13)) ^ (b >>> 10)) + w[i - 7]; }
-    let a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
-    for (let i = 0; i < 64; i++) {
-      const t1 = (h + (((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7))) + ((e & f) ^ (~e & g)) + K[i] + w[i]) | 0;
-      const t2 = ((((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10))) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
-      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
-    }
-    h0 = (h0 + a) | 0; h1 = (h1 + b) | 0; h2 = (h2 + c) | 0; h3 = (h3 + d) | 0; h4 = (h4 + e) | 0; h5 = (h5 + f) | 0; h6 = (h6 + g) | 0; h7 = (h7 + h) | 0;
+// A small, allocation-free SHA-256 core: also used for the vault key on phones whose browser
+// hides WebCrypto (Onion Browser), where every hash runs in plain JavaScript, often without JIT.
+const SHA_K = Int32Array.from([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+const SHA_IV = Int32Array.from([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]);
+// compress one 64-byte block (first 16 words of W) into state H, in place
+function shaBlock(H, W) {
+  for (let i = 16; i < 64; i++) { const a = W[i - 15], b = W[i - 2]; W[i] = ((((a >>> 7) | (a << 25)) ^ ((a >>> 18) | (a << 14)) ^ (a >>> 3)) + W[i - 16] + (((b >>> 17) | (b << 15)) ^ ((b >>> 19) | (b << 13)) ^ (b >>> 10)) + W[i - 7]) | 0; }
+  let a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+  for (let i = 0; i < 64; i++) {
+    const t1 = (h + (((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7))) + ((e & f) ^ (~e & g)) + SHA_K[i] + W[i]) | 0;
+    const t2 = ((((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10))) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+    h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
   }
-  return [h0, h1, h2, h3, h4, h5, h6, h7];
+  H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0; H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;
 }
-function solvePow(sign, bits) {
-  const pre = "gc-pow:" + sign + ":";
+// hash bytes `m` continuing from state H (already absorbed `done` bytes); returns new state
+function shaFinish(H0, m, done) {
+  const H = Int32Array.from(H0), W = new Int32Array(64), l = m.length, nb = ((l + 9 + 63) >> 6) << 6, p = new Uint8Array(nb);
+  p.set(m); p[l] = 0x80; const bits = (done + l) * 8; p[nb - 4] = bits >>> 24; p[nb - 3] = bits >>> 16; p[nb - 2] = bits >>> 8; p[nb - 1] = bits;
+  for (let o = 0; o < nb; o += 64) { for (let i = 0; i < 16; i++) W[i] = (p[o + 4 * i] << 24) | (p[o + 4 * i + 1] << 16) | (p[o + 4 * i + 2] << 8) | p[o + 4 * i + 3]; shaBlock(H, W); }
+  return H;
+}
+function shaAbsorb(m) { // hash the whole 64-byte blocks of m; returns [state, leftover bytes]
+  const H = Int32Array.from(SHA_IV), W = new Int32Array(64), full = m.length & ~63;
+  for (let o = 0; o < full; o += 64) { for (let i = 0; i < 16; i++) W[i] = (m[o + 4 * i] << 24) | (m[o + 4 * i + 1] << 16) | (m[o + 4 * i + 2] << 8) | m[o + 4 * i + 3]; shaBlock(H, W); }
+  return [H, m.subarray(full), full];
+}
+const sha256 = (m) => Array.from(shaFinish(SHA_IV, m, 0), (x) => x >>> 0);
+let powStop = false;
+async function solvePow(sign, bits) {
+  const [mid, rest, done] = shaAbsorb(enc.encode("gc-pow:" + sign + ":")); // hash the fixed prefix only once
+  const tail = new Uint8Array(rest.length + 16); tail.set(rest);
   for (let n = 0; ; n++) {
-    const h = sha256(enc.encode(pre + n.toString(36)))[0];
-    if (bits <= 32 ? h >>> (32 - bits) === 0 : false) return n.toString(36);
+    const ns = n.toString(36); for (let i = 0; i < ns.length; i++) tail[rest.length + i] = ns.charCodeAt(i);
+    const h = shaFinish(mid, tail.subarray(0, rest.length + ns.length), done)[0];
+    if ((h >>> (32 - bits)) === 0) return ns;
+    if ((n & 4095) === 4095) { await sleep(0); if (powStop) throw new Error("stopped"); } // keep the page responsive
   }
+}
+// PBKDF2-HMAC-SHA-256, 32-byte output (gives exactly the same result as WebCrypto's PBKDF2)
+async function pbkdf2s256(pass, salt, iter) {
+  let key = pass.length > 64 ? Uint8Array.from(sha256(pass).flatMap((x) => [x >>> 24, (x >>> 16) & 255, (x >>> 8) & 255, x & 255])) : pass;
+  const kp = new Uint8Array(64); kp.set(key);
+  const pad = (v) => shaAbsorb(kp.map((x) => x ^ v))[0];
+  const IP = pad(0x36), OP = pad(0x5c), W = new Int32Array(64), I = new Int32Array(8), O = new Int32Array(8), T = new Int32Array(8);
+  const hmacWords = (U) => { // U (8 words, 32-byte message) -> HMAC, in place
+    I.set(IP); W.fill(0); W.set(U); W[8] = 0x80000000 | 0; W[15] = 768; shaBlock(I, W);
+    O.set(OP); W.fill(0); W.set(I); W[8] = 0x80000000 | 0; W[15] = 768; shaBlock(O, W); U.set(O);
+  };
+  const s1 = concat(salt, new Uint8Array([0, 0, 0, 1]));
+  const inner = shaFinish(IP, s1, 64), U = new Int32Array(8);
+  const outer = shaFinish(OP, Uint8Array.from(Array.from(inner).flatMap((x) => [x >>> 24, (x >>> 16) & 255, (x >>> 8) & 255, x & 255])), 64);
+  U.set(outer); T.set(U);
+  for (let i = 1; i < iter; i++) { hmacWords(U); for (let j = 0; j < 8; j++) T[j] ^= U[j]; if ((i & 1023) === 0) await sleep(0); }
+  return Uint8Array.from(Array.from(T).flatMap((x) => [x >>> 24, (x >>> 16) & 255, (x >>> 8) & 255, x & 255]));
 }
 
 // ---------------- native Android app bridge (absent in a browser) ----------------
@@ -149,21 +179,32 @@ const FALLBACK = {
 if (!window.indexedDB) { IDB.get = FALLBACK.get; IDB.set = FALLBACK.set; }
 let S = null, vaultKey = null, vaultSalt = null, slot = "a"; // S = decrypted state, memory only
 const otherSlot = () => (slot === "a" ? "b" : "a");
-async function deriveVaultKey(pass, salt, iter) {
-  const base = await subtle.importKey("raw", enc.encode(pass.normalize("NFKC")), "PBKDF2", false, ["deriveKey"]);
-  return subtle.deriveKey({ name: "PBKDF2", salt, iterations: iter, hash: "SHA-384" }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+// Vault key settings. Normal browsers: PBKDF2-SHA-384, 600k rounds (WebCrypto, fast).
+// Built-in crypto (Onion Browser): PBKDF2-SHA-256 with rounds tuned to ~3 s on this phone,
+// because plain JavaScript there can be 50–100× slower and 600k rounds would take minutes.
+let vaultKdf = { iter: PBKDF2_ITER, h: "SHA-384" };
+async function localKdf() {
+  if (!BUILTIN_CRYPTO) return { iter: PBKDF2_ITER, h: "SHA-384" };
+  const t = performance.now(); await pbkdf2s256(enc.encode("calibrate"), rand(16), 3000); const ms = Math.max(1, performance.now() - t);
+  return { iter: Math.min(PBKDF2_ITER, Math.max(20000, Math.round((3000 * 3000) / ms / 1000) * 1000)), h: "SHA-256" };
 }
-async function sealVault(state = S, key = vaultKey, salt = vaultSalt) {
+async function deriveVaultKey(pass, salt, iter, h = "SHA-384") {
+  if (h === "SHA-256" && BUILTIN_CRYPTO) return subtle.importKey("raw", await pbkdf2s256(enc.encode(pass.normalize("NFKC")), salt, iter), { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  const base = await subtle.importKey("raw", enc.encode(pass.normalize("NFKC")), "PBKDF2", false, ["deriveKey"]);
+  return subtle.deriveKey({ name: "PBKDF2", salt, iterations: iter, hash: h }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+async function sealVault(state = S, key = vaultKey, salt = vaultSalt, kdf = vaultKdf) {
   const data = enc.encode(JSON.stringify(state)), iv = rand(12);
   const ct = await aesEnc(key, iv, padTo(data, Math.ceil((data.length + 4) / VAULT_BUCKET) * VAULT_BUCKET), enc.encode("gc3-vault"));
-  return { v: 3, salt, iter: PBKDF2_ITER, iv, ct };
+  return { v: 3, salt, iter: kdf.iter, h: kdf.h, iv, ct };
 }
 async function openVault(blob, pass) {
-  const key = await deriveVaultKey(pass, blob.salt, blob.iter);
+  const kdf = { iter: blob.iter, h: blob.h || "SHA-384" };
+  const key = await deriveVaultKey(pass, blob.salt, kdf.iter, kdf.h);
   const pt = await aesDec(key, blob.iv, blob.ct, enc.encode("gc3-vault")); // throws on wrong passcode / dummy slot
-  return { state: JSON.parse(dec.decode(unpadBytes(pt))), key, salt: blob.salt };
+  return { state: JSON.parse(dec.decode(unpadBytes(pt))), key, salt: blob.salt, kdf };
 }
-const dummyLike = async (ctLen) => ({ v: 3, salt: rand(16), iter: PBKDF2_ITER, iv: rand(12), ct: await randomBytes(ctLen) });
+const dummyLike = async (ctLen) => ({ v: 3, salt: rand(16), iter: vaultKdf.iter, h: vaultKdf.h, iv: rand(12), ct: await randomBytes(ctLen) });
 async function writeVault() {
   const blob = await sealVault();
   if (!S || wiping) return;
@@ -177,8 +218,8 @@ function persist() {
   saveT = setTimeout(() => { saving = saving.then(() => (S && !wiping ? writeVault() : null)).catch(() => toast("Couldn't save — device storage full?")); }, 250);
 }
 async function flush() { clearTimeout(saveT); await saving; if (S && !wiping) await writeVault(); }
-const toB64Blob = (b) => JSON.stringify({ v: 3, salt: b64(b.salt), iter: b.iter, iv: b64(b.iv), ct: b64(b.ct) });
-const fromB64Blob = (s) => { const j = JSON.parse(s); return { v: 3, salt: unb64(j.salt), iter: j.iter, iv: unb64(j.iv), ct: unb64(j.ct) }; };
+const toB64Blob = (b) => JSON.stringify({ v: 3, salt: b64(b.salt), iter: b.iter, ...(b.h && b.h !== "SHA-384" ? { h: b.h } : {}), iv: b64(b.iv), ct: b64(b.ct) });
+const fromB64Blob = (s) => { const j = JSON.parse(s); return { v: 3, salt: unb64(j.salt), iter: j.iter, h: j.h === "SHA-256" ? "SHA-256" : "SHA-384", iv: unb64(j.iv), ct: unb64(j.ct) }; };
 
 // ---------------- identity & prekeys ----------------
 let K = null; // live keys: {sign, ecdh, spk: Map(id -> {ecdh, kem})}
@@ -220,10 +261,10 @@ async function spkPriv(id) {
 }
 async function register(state = S) {
   const cur = state.spks[state.spks.length - 1];
-  if (!state.me.pow) { state.me.pow = solvePow(state.me.signPub, 18); if (state === S) persist(); } // solved once per account
+  if (!state.me.pow) { state.me.pow = await solvePow(state.me.signPub, 18); if (state === S) persist(); } // solved once per account
   const send = () => fetch(BASE() + "/api/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sign: state.me.signPub, ecdh: state.me.ecdhPub, sig: state.me.sig, spk: spkPublic(cur), pow: state.me.pow }) });
   let r = await send(), j = await r.json().catch(() => ({}));
-  if (r.status === 400 && j.bits) { await sleep(0); state.me.pow = solvePow(state.me.signPub, j.bits); if (state === S) persist(); r = await send(); j = await r.json().catch(() => ({})); }
+  if (r.status === 400 && j.bits) { await sleep(0); state.me.pow = await solvePow(state.me.signPub, j.bits); if (state === S) persist(); r = await send(); j = await r.json().catch(() => ({})); }
   if (r.status === 503) throw new Error("The server is full right now — try again later");
   if (!r.ok || j.id !== state.me.id) throw new Error("Couldn't reach the server");
 }
@@ -815,12 +856,17 @@ function restoreDialog() {
         if (!raw && $("#rf").files[0]) raw = (await $("#rf").files[0].text()).trim();
         if (!raw.startsWith("GHOST3:")) throw new Error("Not a GhostChat v4 backup");
         if (NATIVE && !NATIVE.server()) { const sv = $("#ob-server").value.trim().replace(/\/+$/, ""); if (!/^(https:\/\/[a-z0-9.-]+(:\d+)?|http:\/\/[a-z2-7]{56}\.onion(:\d+)?|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/i.test(sv)) throw new Error("Enter the server address on the first screen"); NATIVE.setServer(sv); }
-        err("#re", "Unlocking…");
+        err("#re", BUILTIN_CRYPTO ? "Unlocking… a backup made on a computer can take a few minutes on iPhone — keep this screen open" : "Unlocking…");
         const blob = fromB64Blob(atob(raw.slice(7)));
         const v = await openVault(blob, $("#rp").value).catch(() => { throw new Error("Wrong passcode or damaged backup"); });
         slot = Math.random() < 0.5 ? "a" : "b";
         v.state.settings = { ...(v.state.settings || {}), other: "dummy" };
-        await IDB.set(slot, blob); await IDB.set(otherSlot(), await dummyLike(blob.ct.length));
+        const local = await localKdf();
+        if (local.h !== v.kdf.h || local.iter !== v.kdf.iter) { // re-lock it with settings that are quick on this device
+          vaultKdf = local; v.kdf = local; v.salt = rand(16); v.key = await deriveVaultKey($("#rp").value, v.salt, local.iter, local.h);
+          vaultKey = v.key; vaultSalt = v.salt; S = v.state; await IDB.set(slot, await sealVault(S, v.key, v.salt, local)); S = null;
+        } else { vaultKdf = v.kdf; await IDB.set(slot, blob); }
+        await IDB.set(otherSlot(), await dummyLike(blob.ct.length));
         LS.set("fails", "0"); LS.set("seen", String(Date.now()));
         await enter(v);
         persist();
@@ -834,7 +880,7 @@ function passDialog() {
       if (p !== $("#np2").value) return err("#npe", "Passcodes don't match");
       err("#npe", "Checking…");
       if (await openVault(await IDB.get(otherSlot()), p).then(() => true, () => false)) return err("#npe", "Choose a different passcode");
-      vaultSalt = rand(16); vaultKey = await deriveVaultKey(p, vaultSalt, PBKDF2_ITER); await flush(); toast("Passcode changed");
+      vaultSalt = rand(16); vaultKey = await deriveVaultKey(p, vaultSalt, vaultKdf.iter, vaultKdf.h); await flush(); toast("Passcode changed");
     }, "primary"], ["Cancel", () => {}]]);
 }
 function wipeDialog() {
@@ -963,9 +1009,9 @@ function decoyDialog() {
       const st = await newIdentity($("#dn").value.trim().slice(0, 30)); K = keep;
       st.settings.other = "decoy";
       try { await register(st); } catch (e) { return err("#de", e.message); }
-      const salt = rand(16), key = await deriveVaultKey(p, salt, PBKDF2_ITER);
+      const salt = rand(16), key = await deriveVaultKey(p, salt, vaultKdf.iter, vaultKdf.h);
       S.settings.other = "decoy"; await flush();
-      await IDB.set(otherSlot(), await sealVault(st, key, salt));
+      await IDB.set(otherSlot(), await sealVault(st, key, salt, vaultKdf));
       toast("Decoy account created");
     }, "primary"], ["Cancel", () => {}]]);
 }
@@ -1166,6 +1212,14 @@ $("#unlock-form").onsubmit = async (e) => {
 };
 
 // ---------------- onboarding ----------------
+// Make the keys and the signup proof-of-work in the background while the person types:
+// on iPhone (plain-JavaScript crypto) this hides ~20–40 s of work.
+let PRE = null;
+function prepIdentity() {
+  if (PRE) return;
+  PRE = (async () => { const st = await newIdentity(""); const keys = K; st.me.pow = await solvePow(st.me.signPub, 18); return { st, keys }; })();
+  PRE.catch(() => {});
+}
 $("#ob-create").onclick = async () => {
   const p1 = $("#ob-pass").value, p2 = $("#ob-pass2").value, b = $("#ob-create");
   if (weakPass(p1)) return err("#ob-err", weakPass(p1));
@@ -1177,19 +1231,25 @@ $("#ob-create").onclick = async () => {
   }
   err("#ob-err", ""); b.disabled = true; b.textContent = "Generating keys…";
   try {
-    S = await newIdentity($("#ob-name").value.trim().slice(0, 30));
+    if (BUILTIN_CRYPTO) b.textContent = "Generating keys… (up to a minute on iPhone)";
+    const pre = PRE && (await PRE.catch(() => null));
+    powStop = false;
+    if (pre) { S = pre.st; K = pre.keys; S.me.name = $("#ob-name").value.trim().slice(0, 30); }
+    else S = await newIdentity($("#ob-name").value.trim().slice(0, 30));
     S.settings.other = "dummy";
     slot = Math.random() < 0.5 ? "a" : "b";
-    vaultSalt = rand(16); vaultKey = await deriveVaultKey(p1, vaultSalt, PBKDF2_ITER);
+    vaultKdf = await localKdf();
+    vaultSalt = rand(16); vaultKey = await deriveVaultKey(p1, vaultSalt, vaultKdf.iter, vaultKdf.h);
+    if (BUILTIN_CRYPTO) b.textContent = "Almost done…";
     await register(); await flush(); LS.set("fails", "0"); LS.set("seen", String(Date.now()));
     $("#ob-pass").value = $("#ob-pass2").value = "";
     await start(); setTimeout(myIdDialog, 250);
   } catch (e) { S = null; err("#ob-err", e.message || "Something went wrong"); b.disabled = false; b.textContent = "Create anonymous ID"; }
 };
-$("#ob-restore").onclick = restoreDialog;
+$("#ob-restore").onclick = () => { powStop = true; restoreDialog(); }; // free the CPU for the restore
 
 async function enter(v) {
-  S = v.state; vaultKey = v.key; vaultSalt = v.salt;
+  S = v.state; vaultKey = v.key; vaultSalt = v.salt; vaultKdf = v.kdf || vaultKdf;
   S.settings = S.settings || {};
   await loadKeys(); await start();
   register().catch(() => {});
@@ -1220,7 +1280,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "GhostChat v5.3 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "GhostChat v5.4 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions
@@ -1235,6 +1295,6 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
   } catch {}
   const ae = +LS.get("autoerase") || 0, seen = +LS.get("seen") || 0;
   if (has && ae && seen && Date.now() - seen > ae * 86400e3) { wiping = true; await localErase(); location.replace("/wipe?home=1"); return; } // dead-man's switch
-  if (!has) return show("onboard");
+  if (!has) { prepIdentity(); return show("onboard"); }
   show(LS.get("disguise") ? "calc" : "lock");
 })();
