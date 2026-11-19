@@ -163,3 +163,4 @@ input:focus, textarea:focus { border-color: var(--accent); }
 .flex1 { flex: 1; }
 .opt .btn.small { margin: 0; }
 .offscreen { position: fixed; left: -9999px; top: 0; opacity: 0; }
+.warn { color: #e5d58a; }

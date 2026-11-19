@@ -132,6 +132,21 @@ const IDB = {
   async get(k) { const db = await this.open(); return new Promise((res, rej) => { const r = db.transaction("kv").objectStore("kv").get(k); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
   async set(k, v) { const db = await this.open(); return new Promise((res, rej) => { const t = db.transaction("kv", "readwrite"); t.objectStore("kv").put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); },
 };
+// Some privacy browsers (Onion Browser on iPhone) switch IndexedDB off. Then the (already
+// encrypted) vault is kept in localStorage, or — if that's blocked too — only in memory.
+const MEM = new Map();
+let STORAGE_MODE = window.indexedDB ? "indexeddb" : "local";
+const FALLBACK = {
+  async get(k) {
+    if (STORAGE_MODE === "memory") return MEM.get(k);
+    try { const v = localStorage.getItem("gc3_vault_" + k); return v ? fromB64Blob(v) : undefined; } catch { STORAGE_MODE = "memory"; return MEM.get(k); }
+  },
+  async set(k, v) {
+    if (STORAGE_MODE !== "memory") { try { localStorage.setItem("gc3_vault_" + k, toB64Blob(v)); return; } catch { STORAGE_MODE = "memory"; } }
+    MEM.set(k, v);
+  },
+};
+if (!window.indexedDB) { IDB.get = FALLBACK.get; IDB.set = FALLBACK.set; }
 let S = null, vaultKey = null, vaultSalt = null, slot = "a"; // S = decrypted state, memory only
 const otherSlot = () => (slot === "a" ? "b" : "a");
 async function deriveVaultKey(pass, salt, iter) {
@@ -771,7 +786,7 @@ function newChatDialog() {
 }
 const inviteLink = () => BASE() + "/?add=" + S.me.id;
 function myIdDialog() {
-  modal("Your anonymous ID", `<div class="idbox">${S.me.id}</div><p class="muted small">Share this ID or your invite link. It isn't linked to your phone, email or name.</p><p class="small">Nickname: <b>${esc(S.me.name || "(none)")}</b></p>`,
+  modal("Your anonymous ID", `<div class="idbox">${S.me.id}</div><p class="muted small">Share this ID or your invite link. It isn't linked to your phone, email or name.</p>${STORAGE_MODE !== "indexeddb" ? `<p class="small warn">⚠️ This browser may erase GhostChat when it closes. Save a backup now: Menu → 💾 Encrypted backup.</p>` : ""}<p class="small">Nickname: <b>${esc(S.me.name || "(none)")}</b></p>`,
     [["Copy ID", () => { copy(S.me.id); return true; }, "primary"], ["Copy invite link", () => { copy(inviteLink(), "Invite link copied"); return true; }], ["Close", () => {}]]);
 }
 function renameSelf() {
@@ -1010,6 +1025,7 @@ async function localErase() {
   try { inbox && inbox.close(); drop && drop.close(); } catch {}
   try { localStorage.clear(); } catch {}
   try { sessionStorage.clear(); } catch {}
+  MEM.clear();
   try { IDB.db && IDB.db.close(); IDB.db = null; await new Promise((r) => { const q = indexedDB.deleteDatabase("gc"); q.onsuccess = q.onerror = q.onblocked = () => r(); }); } catch {}
   try { if (indexedDB.databases) for (const d of await indexedDB.databases()) indexedDB.deleteDatabase(d.name); } catch {}
   try { for (const k of await caches.keys()) await caches.delete(k); } catch {}
@@ -1202,9 +1218,9 @@ input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey 
 $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.trim(); if (!t) return; if (conv(current)?.removed) return toast("You're no longer in this group"); input.value = ""; input.style.height = "auto"; sendText(t); input.focus(); };
 
 (async function boot() {
-  if (!subtle || !window.indexedDB || !self.PQ) {
-    const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)"), !window.indexedDB && "browser storage (IndexedDB) is turned off"].filter(Boolean);
-    document.body.textContent = "GhostChat v5.2 can't start here. Missing: " + miss.join("; ") + ".";
+  if (!subtle || !self.PQ) {
+    const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
+    document.body.textContent = "GhostChat v5.3 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions
@@ -1214,7 +1230,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
   let has = false;
   try {
     // don't even create an (empty) database until there's something to store
-    const exists = indexedDB.databases ? (await indexedDB.databases()).some((d) => d.name === "gc") : true;
+    const exists = !window.indexedDB ? true : indexedDB.databases ? (await indexedDB.databases()).some((d) => d.name === "gc") : true;
     has = exists && !!((await IDB.get("a")) || (await IDB.get("b")));
   } catch {}
   const ae = +LS.get("autoerase") || 0, seen = +LS.get("seen") || 0;
