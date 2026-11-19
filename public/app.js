@@ -1203,7 +1203,8 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 
 (async function boot() {
   if (!subtle || !window.indexedDB || !self.PQ) {
-    document.body.textContent = "GhostChat needs a secure connection. Open it through its .onion address in Tor Browser, or over https.";
+    const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)"), !window.indexedDB && "browser storage (IndexedDB) is turned off"].filter(Boolean);
+    document.body.textContent = "GhostChat v5.2 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions
