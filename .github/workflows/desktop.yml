@@ -35,7 +35,10 @@ jobs:
         run: |
           npm install --no-audit --no-fund
           npx electron-builder --publish never
-          cd dist && (sha256sum *.exe *.dmg *.AppImage *.deb 2>/dev/null || shasum -a 256 *.dmg) > SHA256SUMS-${{ matrix.name }}.txt; cat SHA256SUMS-${{ matrix.name }}.txt
+          cd dist
+          shopt -s nullglob
+          for f in *.exe *.dmg *.AppImage *.deb; do shasum -a 256 "$f"; done > SHA256SUMS-${{ matrix.name }}.txt
+          cat SHA256SUMS-${{ matrix.name }}.txt
       - name: Release notes
         shell: bash
         run: |
