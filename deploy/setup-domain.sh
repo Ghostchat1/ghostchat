@@ -56,7 +56,7 @@ cd /root && rm -rf ghostchat ghostchat.zip
 wget -q https://github.com/Ghostchat1/ghostchat/raw/main/ghostchat.zip && unzip -oq ghostchat.zip
 cp -r ghostchat/public /opt/ghostchat/ && cp ghostchat/server.js /opt/ghostchat/
 systemctl restart ghostchat 2>/dev/null || true
-echo "GhostChat updated: $(grep -o 'GhostChat v[0-9.]*' /opt/ghostchat/public/app.js | head -1)"
+echo "GhostChat updated: $(grep -o 'GhostChat v[0-9.]*' /opt/ghostchat/public/app.js | tail -1)"
 EOF
 chmod +x /usr/local/bin/ghostchat-update
 
