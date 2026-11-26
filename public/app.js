@@ -891,7 +891,7 @@ function renderYou() {
       ${rowItem("info", "Security details", "Encryption, keys and connection", 'data-act="secinfo"')}
       ${rowItem("heart", "Invite a friend", "Share your private invite link", 'data-act="invite"')}
     </div>
-    <p class="ver">Raazdar 6.4 · no phone · no email · no trace</p>`;
+    <p class="ver">Raazdar 6.5 · no phone · no email · no trace</p>`;
   $("#you-name").onclick = renameSelf;
   $("#you-qr").onclick = myQrDialog;
   $("#you-share").onclick = shareInvite;
@@ -1647,7 +1647,8 @@ async function startCall(video) {
   if (cfg.error) return toast(cfg.error === "calls not set up" ? "Calls aren't switched on for this server yet" : "Couldn't reach the server");
   let stream; try { stream = await getMedia(video); } catch { return toast(video ? "Camera or microphone access was blocked" : "Microphone access was blocked"); }
   const id = rid(12);
-  call = { id, peer: c.id, video, out: true, stream, t0: 0 };
+  call = { id, peer: c.id, video, out: true, stream, t0: 0, speaker: !!video };
+  applyAudioRoute();
   call.pc = await newPC(cfg); stream.getTracks().forEach((t) => call.pc.addTrack(t, stream));
   showCall("Calling…", false);
   await call.pc.setLocalDescription(await call.pc.createOffer()); await iceDone(call.pc);
@@ -1682,6 +1683,7 @@ async function acceptCall() {
   const c = peer(call.peer), id = call.id, cfg = await getTurn();
   if (cfg.error) return endCall("Couldn't connect");
   try { call.stream = await getMedia(call.video); } catch { callSignal(c, { t: "decline", id }).catch(() => {}); return endCall(call.video ? "Camera or microphone access was blocked" : "Microphone access was blocked"); }
+  call.speaker = !!call.video; applyAudioRoute();
   call.pc = await newPC(cfg); call.stream.getTracks().forEach((t) => call.pc.addTrack(t, call.stream));
   showCall("Connecting…", false);
   try {
@@ -1694,6 +1696,7 @@ async function acceptCall() {
 function onCallConnected() {
   if (!call || call.t0) return;
   clearTimeout(call.timeout); call.t0 = Date.now(); $("#call").classList.add("live");
+  applyAudioRoute(); setTimeout(applyAudioRoute, 800);
   call.tick = setInterval(() => setCallStatus(fmtDur((Date.now() - call.t0) / 1000)), 1000); setCallStatus("0:00");
 }
 function hangUp() {
@@ -1708,6 +1711,7 @@ function endCall(text, missed) {
   ringStop(); clearTimeout(k.timeout); clearInterval(k.tick);
   try { k.stream && k.stream.getTracks().forEach((t) => t.stop()); } catch {}
   try { k.pc && k.pc.close(); } catch {}
+  applyAudioRoute();
   const kind = k.video ? "Video call" : "Voice call";
   const line = k.t0 ? `📞 ${kind} · ${fmtDur((Date.now() - k.t0) / 1000)}` : missed ? `📞 Missed ${kind.toLowerCase()}` : k.out ? `📞 ${kind} · ${text}` : `📞 ${kind} · declined`;
   if (S && conv(k.peer)) { sysMsg(k.peer, line); const c = conv(k.peer); c.last = { text: line, ts: Date.now(), me: k.out }; if (missed) c.unread = (c.unread || 0) + 1; persist(); renderList(); if (current === k.peer) renderMessages(); }
@@ -1715,6 +1719,16 @@ function endCall(text, missed) {
   $("#call-btns-in").classList.add("hidden"); $("#call-btns-live").classList.add("hidden");
   setTimeout(() => { if (!call) { $("#call").classList.add("hidden"); $("#call-remote").srcObject = null; $("#call-local").srcObject = null; } }, 1300);
 }
+// Earpiece vs loudspeaker. Voice calls start on the earpiece and video calls on the speaker, like a normal phone.
+// The Android app can choose the earpiece; iPhone Safari is asked for a phone-call style audio session.
+const CAN_ROUTE = !!(NATIVE && NATIVE.callAudio);
+function applyAudioRoute() {
+  const mode = call && call.stream ? (call.speaker ? "speaker" : "earpiece") : "off";
+  try { if (CAN_ROUTE) NATIVE.callAudio(mode); } catch {}
+  try { if (navigator.audioSession) navigator.audioSession.type = mode === "off" ? "auto" : "play-and-record"; } catch {}
+  const b = $("#cb-spk"); if (b) { b.classList.toggle("hidden", !CAN_ROUTE); b.classList.toggle("on", !!(call && call.speaker)); }
+}
+function toggleSpeaker() { if (!call) return; call.speaker = !call.speaker; applyAudioRoute(); }
 function toggleTrack(kind, btn) {
   if (!call || !call.stream) return;
   const tr = call.stream.getTracks().filter((t) => t.kind === kind); const on = !tr.every((t) => !t.enabled);
@@ -2004,7 +2018,7 @@ $("#messages").addEventListener("dblclick", (e) => { const el = e.target.closest
 $("#btn-find").onclick = openFind;
 $("#btn-call").onclick = () => startCall(false); $("#btn-vcall").onclick = () => startCall(true);
 $("#cb-accept").onclick = acceptCall; $("#cb-decline").onclick = hangUp; $("#cb-end").onclick = hangUp;
-$("#cb-mute").onclick = (e) => toggleTrack("audio", e.currentTarget); $("#cb-cam").onclick = (e) => toggleTrack("video", e.currentTarget); $("#cb-flip").onclick = flipCamera; $("#find-close").onclick = closeFind;
+$("#cb-mute").onclick = (e) => toggleTrack("audio", e.currentTarget); $("#cb-cam").onclick = (e) => toggleTrack("video", e.currentTarget); $("#cb-flip").onclick = flipCamera; $("#cb-spk").onclick = toggleSpeaker; $("#find-close").onclick = closeFind;
 $("#find-input").oninput = (e) => { findQ = e.target.value.trim(); renderMessages(); };
 $("#rb-close").onclick = cancelReply;
 if (!CAN_RECORD) $("#composer").classList.add("no-mic");
@@ -2019,7 +2033,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "Raazdar v6.4 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "Raazdar v6.5 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions

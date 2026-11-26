@@ -47,6 +47,10 @@ class GhostBridge(private val a: MainActivity) {
         }
     }
 
+    /** Call audio: "earpiece" (held to the ear), "speaker" (loudspeaker) or "off" (call ended). */
+    @JavascriptInterface
+    fun callAudio(mode: String) { a.runOnUiThread { a.setCallAudio(mode) } }
+
     @JavascriptInterface
     fun setServer(url: String) {
         if (serverRe.matches(url)) prefs.edit().putString("server", url).apply()

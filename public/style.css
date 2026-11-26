@@ -354,5 +354,5 @@ textarea.keybox { width: 100%; resize: none; -webkit-user-select: text; user-sel
 .call-btns { position: relative; z-index: 2; display: flex; gap: 22px; }
 .cb { width: 64px; height: 64px; border-radius: 50%; border: 0; display: grid; place-items: center; background: rgba(255, 255, 255, .14); color: #fff; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 .cb svg { width: 28px; height: 28px; }
-.cb.off { background: #f3efe7; color: #111; }
+.cb.off, .cb.on { background: #f3efe7; color: #111; }
 .cb.accept { background: #2fbf71; } .cb.decline { background: #e5484d; } .cb.decline svg { transform: rotate(135deg); }

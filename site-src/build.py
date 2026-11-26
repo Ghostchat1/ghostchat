@@ -604,6 +604,7 @@ write("transparency.html", page("/transparency", "Transparency report | Raazdar"
 
 # ------------------------------------------------------------------ CHANGELOG
 CHANGES = [
+ ("6.5", "27 Nov 2026", ["Calls in the Android app use the earpiece, with a speaker button; the screen turns off at your ear"]),
  ("6.4", "27 Nov 2026", ["GhostChat is now Raazdar: the one who keeps your secrets", "New home at raazdar.app (quietline.chat keeps working)"]),
  ("6.3", "27 Nov 2026", ["Encrypted voice and video calls, relayed so neither person sees the other's IP address", "Send videos and files up to 25 MB, encrypted before they leave your phone", "Block and report contacts", "Desktop apps for Windows, Mac and Linux, with screenshot blocking", "Google Play package built and signed with our permanent key"]),
  ("6.2", "27 Nov 2026", ["Notifications when Raazdar is closed: content-free wake-ups that never show names or text", "Move to a new device with a one-time QR link (works once, expires in 10 minutes)", "Android app now signed with a permanent key, with published checksums", "Waiting messages survive server updates, still never written to disk", "About, transparency report, press kit and Hindi pages on the website"]),

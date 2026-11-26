@@ -9,6 +9,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
+import android.os.PowerManager
 import android.os.Bundle
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
@@ -149,6 +152,46 @@ class MainActivity : Activity() {
         try {
             startActivityForResult(Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300), REQ_VISIBLE)
         } catch (e: Exception) { }
+    }
+
+    // ---- call audio: earpiece by default for voice calls, like a normal phone call ----
+    private var proxLock: PowerManager.WakeLock? = null
+    fun setCallAudio(mode: String) {
+        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        if (mode == "earpiece" || mode == "speaker") {
+            val speaker = mode == "speaker"
+            am.mode = AudioManager.MODE_IN_COMMUNICATION
+            if (Build.VERSION.SDK_INT >= 31) {
+                val devs = am.availableCommunicationDevices
+                val headset = devs.firstOrNull { it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                    it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || it.type == AudioDeviceInfo.TYPE_BLE_HEADSET || it.type == AudioDeviceInfo.TYPE_USB_HEADSET }
+                val want = if (speaker) AudioDeviceInfo.TYPE_BUILTIN_SPEAKER else AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
+                val dev = if (!speaker && headset != null) headset else devs.firstOrNull { it.type == want }
+                if (dev != null) am.setCommunicationDevice(dev)
+            } else {
+                @Suppress("DEPRECATION")
+                am.isSpeakerphoneOn = speaker
+            }
+            volumeControlStream = AudioManager.STREAM_VOICE_CALL
+            proximity(!speaker) // screen turns off when the phone is at your ear
+        } else {
+            if (Build.VERSION.SDK_INT >= 31) am.clearCommunicationDevice() else {
+                @Suppress("DEPRECATION")
+                am.isSpeakerphoneOn = false
+            }
+            am.mode = AudioManager.MODE_NORMAL
+            volumeControlStream = AudioManager.USE_DEFAULT_STREAM_TYPE
+            proximity(false)
+        }
+    }
+    private fun proximity(on: Boolean) {
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (on) {
+            if (proxLock == null && pm.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK))
+                proxLock = pm.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "raazdar:call").also { it.acquire(3 * 60 * 60 * 1000L) }
+        } else {
+            proxLock?.let { if (it.isHeld) it.release() }; proxLock = null
+        }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
