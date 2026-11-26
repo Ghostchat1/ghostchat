@@ -38,6 +38,10 @@
           <input id="ob-pass" type="password" autocomplete="new-password" placeholder="e.g. river lamp mango seven" /></label>
         <label class="field"><span>Confirm passcode</span>
           <input id="ob-pass2" type="password" autocomplete="new-password" /></label>
+        <div id="ob-consent-wrap" class="consent-box">
+          <label class="opt"><input type="checkbox" id="ob-consent" /> <span>I have read the <a id="ob-privacy" href="/privacy" target="_blank" rel="noopener">Privacy Notice</a> and agree to the <a id="ob-terms" href="/terms" target="_blank" rel="noopener">Terms</a>.</span></label>
+          <label class="opt"><input type="checkbox" id="ob-adult" /> <span>I am 18 years of age or older.</span></label>
+        </div>
         <p id="ob-err" class="err"></p>
         <button id="ob-create" class="btn primary">Create anonymous ID</button>
         <button id="ob-restore" class="btn ghost">Restore from encrypted backup</button>

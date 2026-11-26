@@ -90,7 +90,7 @@ setInterval(() => {
 for (const q of Object.values(db.queue)) for (const m of q) queueBytes += m.env.length;
 
 // ---------- HTTP ----------
-const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".png": "image/png" };
+const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".json": "application/json" };
 function headers(res, host) {
   const h = /^[a-z0-9.-]+(:\d+)?$/i.test(host || "") ? host : "";
   res.setHeader("Referrer-Policy", "no-referrer");
@@ -102,6 +102,21 @@ function headers(res, host) {
   res.setHeader("Content-Security-Policy", `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src blob:; connect-src 'self'${h ? ` ws://${h} wss://${h}` : ""}; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`);
   res.setHeader("Cache-Control", "no-store");
   res.removeHeader("X-Powered-By");
+}
+const SITE_PAGES = { "/": "index.html", "/features": "features.html", "/security": "security.html", "/download": "download.html", "/faq": "faq.html",
+  "/privacy": "privacy.html", "/terms": "terms.html", "/contact": "contact.html", "/signin": "signin.html" };
+// Operator details (company, grievance officer…) live in public/site/config.json and fill {{TOKENS}} in the pages.
+function siteConfig() { try { return JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, "site", "config.json"), "utf8")); } catch { return {}; } }
+function sendFile(res, file, code = 200) {
+  fs.readFile(file, (err, buf) => {
+    if (err) { res.writeHead(404); return res.end(); }
+    const type = MIME[path.extname(file)] || "application/octet-stream";
+    if (file.endsWith(".html") && file.includes(path.sep + "site" + path.sep)) {
+      const cfg = siteConfig(), esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      buf = Buffer.from(buf.toString("utf8").replace(/\{\{([A-Z_]+)\}\}/g, (m, k) => (k in cfg ? esc(cfg[k]) : m)));
+    }
+    res.writeHead(code, { "Content-Type": type }); res.end(buf);
+  });
 }
 function sendJson(res, code, obj) { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); }
 function readBody(req, limit = 8192) {
@@ -128,7 +143,7 @@ const server = http.createServer(async (req, res) => {
   }
   try {
     if (req.method === "POST" && url.pathname === "/api/register") {
-      const { sign, ecdh, sig, spk, pow } = await readBody(req);
+      const { sign, ecdh, sig, spk, pow, consent } = await readBody(req);
       const signRaw = unb64(sign), ecdhRaw = unb64(ecdh);
       if (signRaw.length !== RAW_LEN || ecdhRaw.length !== RAW_LEN) return sendJson(res, 400, { error: "bad request" });
       if (!(await verify(signRaw, sig, ecdhRaw)) || !(await spkOk(signRaw, spk))) return sendJson(res, 400, { error: "bad request" });
@@ -136,8 +151,10 @@ const server = http.createServer(async (req, res) => {
       const id = await idFromSignKey(signRaw);
       const u = db.users[id];
       if (!u && Object.keys(db.users).length >= MAX_USERS) return sendJson(res, 503, { error: "server full" });
-      if (!u) db.users[id] = { sign, ecdh, sig, spk: pubSpk(spk) };
-      else if (u.sign === sign) { u.ecdh = ecdh; u.sig = sig; u.spk = pubSpk(spk); }
+      // DPDP Act s.6(10): keep a record of which privacy-notice version this anonymous ID consented to, and when
+      const rec = consent && typeof consent.v === "string" && /^[\w.-]{1,20}$/.test(consent.v) && Number.isFinite(+consent.ts) ? { v: consent.v, ts: +consent.ts } : undefined;
+      if (!u) db.users[id] = { sign, ecdh, sig, spk: pubSpk(spk), ...(rec ? { consent: rec } : {}) };
+      else if (u.sign === sign) { u.ecdh = ecdh; u.sig = sig; u.spk = pubSpk(spk); if (rec) u.consent = rec; }
       save();
       return sendJson(res, 200, { id });
     }
@@ -159,14 +176,17 @@ const server = http.createServer(async (req, res) => {
       }
       res.writeHead(200, { "Content-Type": MIME[".html"] });
       return res.end(url.searchParams.has("home")
-        ? '<!doctype html><meta http-equiv="refresh" content="0;url=/"><title>GhostChat</title>'
+        ? '<!doctype html><meta http-equiv="refresh" content="0;url=/app"><title>GhostChat</title>'
         : '<!doctype html><meta name="viewport" content="width=device-width"><title>New Tab</title>');
     }
-    let p = url.pathname === "/" ? "/index.html" : url.pathname;
-    const file = path.normalize(path.join(PUBLIC_DIR, p));
+    // Website pages live in public/site/; the messenger itself is at /app.
+    const route = url.pathname.replace(/\/+$/, "") || "/";
+    if (route === "/app") return sendFile(res, path.join(PUBLIC_DIR, "index.html"));
+    if (SITE_PAGES[route]) return sendFile(res, path.join(PUBLIC_DIR, "site", SITE_PAGES[route]));
+    const file = path.normalize(path.join(PUBLIC_DIR, url.pathname));
     if (!file.startsWith(PUBLIC_DIR + path.sep)) { res.writeHead(403); return res.end(); }
     fs.readFile(file, (err, buf) => {
-      if (err) return fs.readFile(path.join(PUBLIC_DIR, "index.html"), (e2, b2) => { if (e2) { res.writeHead(404); return res.end(); } res.writeHead(200, { "Content-Type": MIME[".html"] }); res.end(b2); });
+      if (err) return sendFile(res, path.join(PUBLIC_DIR, "site", "404.html"), 404);
       res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" });
       res.end(buf);
     });

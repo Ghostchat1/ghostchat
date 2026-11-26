@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Security | GhostChat</title>
+<meta name="description" content="Post-quantum encryption, double ratchet, sealed sender, memory-only server and Tor. How GhostChat protects you, and its honest limits." />
+<meta name="theme-color" content="#09090a" />
+<meta name="referrer" content="no-referrer" />
+<meta property="og:title" content="Security | GhostChat" />
+<meta property="og:description" content="Post-quantum encryption, double ratchet, sealed sender, memory-only server and Tor. How GhostChat protects you, and its honest limits." />
+<meta property="og:image" content="/site/img/og.png" />
+<link rel="icon" href="/icon.svg" />
+<link rel="apple-touch-icon" href="/icon-180.png" />
+<link rel="stylesheet" href="/site/site.css" />
+<script src="/site/site.js"></script>
+</head>
+<body>
+<header class="hdr">
+  <div class="wrap">
+    <a class="brand" href="/"><img src="/icon.svg" alt="" />GhostChat</a>
+    <nav class="nav"><a href="/features">Features</a><a href="/security" class="on">Security</a><a href="/download">Download</a><a href="/faq">FAQ</a></nav>
+    <div class="hdr-cta"><a class="btn ghost sm" href="/signin">Sign in</a><a class="btn gold sm" href="/signin" data-open>Open GhostChat</a></div>
+    <button class="burger" id="burger" aria-label="Menu" aria-expanded="false"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  </div>
+</header>
+<div class="mnav" id="mnav"><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/faq">FAQ</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a><a class="btn gold" href="/signin" data-open>Open GhostChat</a></div>
+<main>
+
+<section class="phead"><div class="wrap"><span class="eyebrow">Security</span><h1>How GhostChat<br><span class="gold-text">keeps you invisible</span></h1><p>A plain-language tour of what protects you, and an honest list of what can't.</p></div></section>
+<section class="s"><div class="wrap">
+<div class="grid g3"><div class="card rv"><div class="ico"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.6"/><ellipse cx="12" cy="12" rx="9" ry="3.6"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(120 12 12)"/></svg></div><h3>Hybrid post-quantum key exchange</h3><p>Each conversation starts with ML-KEM-768 (the NIST post-quantum standard) combined with P-384 elliptic-curve Diffie-Hellman. An attacker would have to break both.</p></div><div class="card rv"><div class="ico"><svg class="i" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4.5"/><path d="m11.2 11.8 8.3-8.3M16 7l2.5 2.5M14 9l2 2"/></svg></div><h3>Double ratchet</h3><p>Like Signal, keys move forward with every message and old keys are destroyed, giving forward secrecy and recovery after compromise.</p></div><div class="card rv"><div class="ico"><svg class="i" viewBox="0 0 24 24"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg></div><h3>Sealed sender</h3><p>The outer envelope is encrypted to the recipient with a fresh one-time key. The server sees only the destination, never the sender.</p></div><div class="card rv"><div class="ico"><svg class="i" viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 10 0v3"/><rect x="4.5" y="10" width="15" height="11" rx="2.5"/></svg></div><h3>AES-256-GCM everywhere</h3><p>Messages, files, voice notes and your on-device vault are encrypted with authenticated AES-256.</p></div><div class="card rv"><div class="ico"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="7" rx="2"/><rect x="4" y="13" width="16" height="7" rx="2"/><path d="M8 7.5h.01M8 16.5h.01"/></svg></div><h3>Memory-only server</h3><p>Our relay keeps nothing on disk. Undelivered envelopes are deleted after 7 days; delivered ones immediately.</p></div><div class="card rv"><div class="ico"><svg class="i" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 6.2A9.8 9.8 0 0 1 12 6c5 0 8.5 4.2 9.5 6-.5.9-1.6 2.5-3.3 3.8M6.4 7.6C4.6 8.9 3.3 10.7 2.5 12c1 1.8 4.5 6 9.5 6 1.4 0 2.7-.3 3.8-.8"/></svg></div><h3>Traffic padding & cover noise</h3><p>Messages are padded to fixed sizes and your app sends random dummy traffic, so activity is hard to infer.</p></div><div class="card rv"><div class="ico"><svg class="i" viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg></div><h3>Signed, rotating prekeys</h3><p>Prekeys are signed by your identity key and rotate daily, so a server can't swap in its own keys unnoticed. Compare safety numbers to be sure.</p></div><div class="card rv"><div class="ico"><svg class="i" viewBox="0 0 24 24"><path d="M12 3c-1 3-6 6-6 11a6 6 0 0 0 12 0c0-5-5-8-6-11z"/><path d="M12 9c-1 2-3 3.5-3 6a3 3 0 0 0 6 0c0-2.5-2-4-3-6z"/></svg></div><h3>Tor onion service</h3><p>Connect through Tor and no one, not your ISP and not us, learns your IP address.</p></div><div class="card rv"><div class="ico"><svg class="i" viewBox="0 0 24 24"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg></div><h3>Tested & public</h3><p>Our code is public on GitHub and has been through our own OWASP-style security testing (VAPT). An independent audit is planned.</p></div></div>
+</div></section>
+<section class="s alt"><div class="wrap">
+<div class="s-head rv"><span class="eyebrow">What the server sees</span><h2>Almost nothing.</h2><p>Here is everything that passes through our server, and what it can learn.</p></div>
+<div class="tbl-wrap rv"><table class="cmp"><thead><tr><th>Item</th><th class="us">Can the server read it?</th><th>Kept for</th></tr></thead><tbody>
+<tr><td>Message text, photos, files, voice</td><td class="us"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg> No, end-to-end encrypted</td><td>Until delivered, max 7 days</td></tr>
+<tr><td>Who sent a message</td><td class="us"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg> No, sealed sender</td><td>Never known</td></tr>
+<tr><td>Your nickname</td><td class="us"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg> No, inside encrypted messages</td><td>Never stored</td></tr>
+<tr><td>Your anonymous ID &amp; public keys</td><td class="us"><svg class="i" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg> Yes, needed to deliver to you</td><td>While your account exists (memory only)</td></tr>
+<tr><td>Your IP address</td><td class="us">Briefly, to keep the connection open. Hidden entirely over Tor</td><td>Not logged</td></tr>
+</tbody></table></div>
+</div></section>
+<section class="s"><div class="wrap prose">
+<h2>Honest limits</h2>
+<p>No tool makes you invisible on its own. GhostChat can't protect you if:</p>
+<ul>
+<li><b>Your device is compromised.</b> Spyware on your phone can read the screen. Keep your phone updated and locked.</li>
+<li><b>Someone knows your passcode.</b> Use a few random words, and set a duress passcode for emergencies.</li>
+<li><b>The other person shares your messages.</b> They can photograph their screen. Use disappearing messages and view-once photos.</li>
+<li><b>You use the normal web address and need to hide your IP.</b> The fast address shows your IP to our hosting provider. For full anonymity use the <a href="/download#tor">Tor address</a>.</li>
+<li><b>You use the web version.</b> The web app is downloaded from our server each time; the Android app bundles its code instead. High-risk users should prefer the app.</li>
+</ul>
+<p>Found a vulnerability? Please tell us privately at <a href="mailto:{{EMAIL}}">{{EMAIL}}</a>. We respond to every report.</p>
+</div></section>
+<section class="final"><div class="wrap"><h2>Privacy you can verify.</h2><p>Compare safety numbers with a contact and see it for yourself.</p><a class="btn gold" href="/signin" data-open>Open GhostChat <svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div></section>
+
+</main>
+<footer class="ftr">
+  <div class="wrap">
+    <div class="cols">
+      <div><a class="brand" href="/"><img src="/icon.svg" alt="" />GhostChat</a><p>Private messaging with no phone number, no email and no name. Built in India for the Digital Personal Data Protection Act, 2023.</p></div>
+      <div><h5>Product</h5><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/signin">Open GhostChat</a></div>
+      <div><h5>Help</h5><a href="/faq">FAQ</a><a href="/contact">Contact &amp; grievances</a><a href="/download#tor">Tor (.onion) access</a></div>
+      <div><h5>Legal</h5><a href="/privacy">Privacy notice</a><a href="/terms">Terms of use</a><a href="/contact#grievance">Grievance officer</a></div>
+    </div>
+    <div class="bottom"><span>© 2026 {{COMPANY}}. All rights reserved.</span><span>No cookies · No trackers · No ads</span></div>
+  </div>
+</footer>
+</body>
+</html>

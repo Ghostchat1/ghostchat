@@ -265,7 +265,7 @@ async function spkPriv(id) {
 async function register(state = S) {
   const cur = state.spks[state.spks.length - 1];
   if (!state.me.pow) { state.me.pow = await solvePow(state.me.signPub, 18); if (state === S) persist(); } // solved once per account
-  const send = () => fetch(BASE() + "/api/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sign: state.me.signPub, ecdh: state.me.ecdhPub, sig: state.me.sig, spk: spkPublic(cur), pow: state.me.pow }) });
+  const send = () => fetch(BASE() + "/api/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sign: state.me.signPub, ecdh: state.me.ecdhPub, sig: state.me.sig, spk: spkPublic(cur), pow: state.me.pow, ...(state.me.consent ? { consent: state.me.consent } : {}) }) });
   let r = await send(), j = await r.json().catch(() => ({}));
   if (r.status === 400 && j.bits) { await sleep(0); state.me.pow = await solvePow(state.me.signPub, j.bits); if (state === S) persist(); r = await send(); j = await r.json().catch(() => ({})); }
   if (r.status === 503) throw new Error("The server is full right now — try again later");
@@ -873,10 +873,11 @@ function renderYou() {
     </div>
     <div class="card-h">About</div>
     <div class="card">
+      ${rowItem("shield", "Privacy & your data", "Your rights, consent, grievance officer", 'data-act="privacy"')}
       ${rowItem("info", "Security details", "Encryption, keys and connection", 'data-act="secinfo"')}
       ${rowItem("heart", "Invite a friend", "Share your private invite link", 'data-act="invite"')}
     </div>
-    <p class="ver">GhostChat 6.0 · no phone · no email · no trace</p>`;
+    <p class="ver">GhostChat 6.1 · no phone · no email · no trace</p>`;
   $("#you-name").onclick = renameSelf;
   $("#you-qr").onclick = myQrDialog;
   $("#you-share").onclick = shareInvite;
@@ -888,7 +889,7 @@ async function shareInvite() {
   copy(url, "Invite link copied");
 }
 function myQrDialog() {
-  modal("Scan to chat with me", `<div class="qr">${self.QR ? QR(inviteLink(), "#141210") : ""}</div><div class="idbox">${S.me.id}</div><p class="muted small" style="text-align:center">Anyone who scans this can message you. It contains only your anonymous ID.</p>`,
+  modal("Scan to chat with me", `<div class="qr">${self.QR ? QR(inviteLink(), "#141210") : ""}</div><div class="idbox">${S.me.id}</div><p class="muted small center">Anyone who scans this can message you. It contains only your anonymous ID.</p>`,
     [["Share link", () => { shareInvite(); return true; }, "primary"], ["Copy ID", () => { copy(S.me.id); return true; }], ["Close", () => {}]]);
 }
 function starredDialog() {
@@ -928,7 +929,7 @@ function renderSecurity() {
     <div class="card">${rowItem("fire", "Erase everything", "Instantly destroys this account and all chats", 'data-act="wipe"', "danger")}</div>`;
 }
 const ACTIONS = { backup: () => backupDialog(), pass: () => passDialog(), myid: () => myIdDialog(), starred: () => starredDialog(), notif: () => enableNotifs(), mesh: () => meshDialog(),
-  secinfo: () => securityDialog(), invite: () => shareInvite(), panic: () => panicSettings(), stealth: () => stealthDialog(), lock: () => lockNow(), wipe: () => wipeDialog() };
+  secinfo: () => securityDialog(), privacy: () => privacyDialog(), invite: () => shareInvite(), panic: () => panicSettings(), stealth: () => stealthDialog(), lock: () => lockNow(), wipe: () => wipeDialog() };
 for (const id of ["#you-body", "#sec-body"]) $(id).addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (b && ACTIONS[b.dataset.act]) ACTIONS[b.dataset.act](); });
 
 function headerFor(c) {
@@ -950,14 +951,14 @@ const fmtSize = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.ma
 const fmtDur = (s) => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
 function waveBars(m) { // stable pseudo-waveform from the audio bytes
   const d = m.data || ""; let out = "";
-  for (let i = 0; i < 28; i++) { const c = d.charCodeAt(Math.floor((i + 1) * d.length / 30)) || 70; out += `<i style="height:${20 + ((c * 37 + i * 13) % 80)}%"></i>`; }
+  for (let i = 0; i < 28; i++) { const c = d.charCodeAt(Math.floor((i + 1) * d.length / 30)) || 70; out += `<i class="h${(c * 37 + i * 13) % 9}"></i>`; }
   return out;
 }
 function bubbleBody(m) {
   if (m.deleted) return `<span class="deleted">This message was deleted</span>`;
   if (m.kind === "file") {
     const ext = (String(m.name || "").split(".").pop() || "FILE").slice(0, 4).toUpperCase();
-    return `<button class="filecard" data-file="${esc(m.mid)}"><span class="fi">${esc(ext)}</span><span><span class="fn" style="display:block">${esc(m.name || "file")}</span><span class="fs">${fmtSize(m.size || 0)} · tap to save</span></span></button>`;
+    return `<button class="filecard" data-file="${esc(m.mid)}"><span class="fi">${esc(ext)}</span><span><span class="fn">${esc(m.name || "file")}</span><span class="fs">${fmtSize(m.size || 0)} · tap to save</span></span></button>`;
   }
   if (m.kind === "voice") return `<div class="voice" data-voice="${esc(m.mid)}"><button class="play" data-play="${esc(m.mid)}" aria-label="Play">${playing === m.mid ? IC.pause : IC.play}</button><div class="wave">${waveBars(m)}</div><span class="vd">${fmtDur(m.dur || 0)}</span></div>`;
   if (m.kind !== "img") return esc(m.text);
@@ -1109,7 +1110,7 @@ function attachSheet() {
       <button data-a="photo"><span class="ai">${IC.photo}</span>Photo</button>
       <button data-a="camera"><span class="ai">${IC.camera}</span>Camera</button>
       <button data-a="file"><span class="ai">${IC.doc}</span>Document</button>
-    </div><p class="muted small" style="text-align:center;margin-top:10px">Photos are cleaned of location and camera data. Files up to ${fmtSize(MAX_FILE())}.</p>`, [["Cancel", () => {}]]);
+    </div><p class="muted small center mt">Photos are cleaned of location and camera data. Files up to ${fmtSize(MAX_FILE())}.</p>`, [["Cancel", () => {}]]);
   document.querySelectorAll(".attach-grid button").forEach((b) => b.onclick = () => {
     closeModal(); const f = $("#file");
     if (b.dataset.a === "file") return $("#file-doc").click();
@@ -1121,7 +1122,7 @@ function fileDialog(file) {
   const id = current; if (!conv(id)) return;
   if (file.size > MAX_FILE()) return toast(`Too large — the limit is ${fmtSize(MAX_FILE())}`);
   const name = String(file.name || "file").replace(/[\\/\u0000-\u001f]/g, "_").slice(0, 80);
-  modal("Send file", `<div class="filecard" style="width:100%"><span class="fi">${esc((name.split(".").pop() || "FILE").slice(0, 4).toUpperCase())}</span><span><span class="fn" style="display:block">${esc(name)}</span><span class="fs">${fmtSize(file.size)}</span></span></div><p class="muted small mt">Encrypted end to end. Only the people in this chat can open it.</p>`,
+  modal("Send file", `<div class="filecard wide"><span class="fi">${esc((name.split(".").pop() || "FILE").slice(0, 4).toUpperCase())}</span><span><span class="fn">${esc(name)}</span><span class="fs">${fmtSize(file.size)}</span></span></div><p class="muted small mt">Encrypted end to end. Only the people in this chat can open it.</p>`,
     [["Send", async () => { const data = b64(new Uint8Array(await file.arrayBuffer())); await sendKind(id, "file", { data, name, mime: String(file.type || "").slice(0, 80), size: file.size }); }, "primary"], ["Cancel", () => {}]]);
 }
 const SAFE_TYPES = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", txt: "text/plain" };
@@ -1194,7 +1195,7 @@ function newChatDialog() {
     [["Start chat", async () => { try { await addContact($("#add-id").value); } catch (e) { return err("#add-err", e.message); } }, "primary"], ["Cancel", () => {}]]);
   setTimeout(() => $("#add-id") && $("#add-id").focus(), 50);
 }
-const inviteLink = () => BASE() + "/?add=" + S.me.id;
+const inviteLink = () => BASE() + "/app?add=" + S.me.id;
 function myIdDialog() {
   modal("Your anonymous ID", `<div class="idbox">${S.me.id}</div><p class="muted small">Share this ID or your invite link. It isn't linked to your phone, email or name.</p>${STORAGE_MODE !== "indexeddb" ? `<p class="small warn">⚠️ This browser may erase GhostChat when it closes. Save a backup now: Menu → 💾 Encrypted backup.</p>` : ""}<p class="small">Nickname: <b>${esc(S.me.name || "(none)")}</b></p>`,
     [["Copy ID", () => { copy(S.me.id); return true; }, "primary"], ["Copy invite link", () => { copy(inviteLink(), "Invite link copied"); return true; }], ["Close", () => {}]]);
@@ -1583,6 +1584,33 @@ $("#unlock-form").onsubmit = async (e) => {
   btn.disabled = false; btn.textContent = "Unlock";
 };
 
+// ---------------- DPDP consent ----------------
+const NOTICE_V = "2026-11"; // version of the privacy notice at /privacy
+let memConsent = null; // when the browser blocks storage, /signin hands consent over in the link (?c=version.time)
+(function () {
+  const q = new URLSearchParams(location.search), c = q.get("c"), m = c && c.match(/^([\w-]{1,20})\.(\d{10,14})$/);
+  if (!m) return;
+  memConsent = { v: m[1], ts: +m[2], via: "web" };
+  if (!LS.get("consent")) LS.set("consent", JSON.stringify(memConsent));
+  q.delete("c"); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : ""));
+})();
+function consentRec() {
+  try { const c = JSON.parse(LS.get("consent") || "null"); if (c && c.v === NOTICE_V) return c; } catch {}
+  return memConsent && memConsent.v === NOTICE_V ? memConsent : null;
+}
+function privacyDialog() {
+  const c = S.me.consent || consentRec();
+  modal("Privacy & your data", `
+    <p class="small">GhostChat never asks for your name, phone number or email. What exists about you:</p>
+    <div class="kv"><b>On our server</b><span>Your anonymous ID and public keys; encrypted messages waiting to be delivered (max 7 days)</span>
+    <b>On this device</b><span>Your chats and keys, locked with your passcode</span><b>Never stored</b><span>Message contents (we can't read them), contacts, location, IP logs</span></div>
+    <p class="small">Consent: ${c ? `given ${new Date(c.ts).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })} (notice ${esc(c.v)})` : "recorded on this device"}.</p>
+    <p class="small muted">Your rights under the DPDP Act, 2023: access, correction, erasure, nomination and grievance redressal. Withdrawing consent erases this account everywhere.</p>`,
+    [["Read the full privacy notice", () => { window.open(BASE() + "/privacy", "_blank", "noopener"); return true; }],
+     ["Grievance officer & contact", () => { window.open(BASE() + "/contact", "_blank", "noopener"); return true; }],
+     ["Withdraw consent & erase account", () => wipeDialog(), "danger"], ["Close", () => {}]]);
+}
+
 // ---------------- onboarding ----------------
 // Make the keys and the signup proof-of-work in the background while the person types:
 // on iPhone (plain-JavaScript crypto) this hides ~20–40 s of work.
@@ -1594,6 +1622,10 @@ function prepIdentity() {
 }
 $("#ob-create").onclick = async () => {
   const p1 = $("#ob-pass").value, p2 = $("#ob-pass2").value, b = $("#ob-create");
+  if (!consentRec()) {
+    if (!$("#ob-consent").checked || !$("#ob-adult").checked) return err("#ob-err", "Please accept the privacy notice and confirm you are 18 or older");
+    LS.set("consent", JSON.stringify({ v: NOTICE_V, ts: Date.now(), via: "app" }));
+  }
   if (weakPass(p1)) return err("#ob-err", weakPass(p1));
   if (p1 !== p2) return err("#ob-err", "Passcodes don't match");
   if (NATIVE) {
@@ -1608,6 +1640,7 @@ $("#ob-create").onclick = async () => {
     powStop = false;
     if (pre) { S = pre.st; K = pre.keys; S.me.name = $("#ob-name").value.trim().slice(0, 30); }
     else S = await newIdentity($("#ob-name").value.trim().slice(0, 30));
+    const cr = consentRec(); if (cr) S.me.consent = { v: cr.v, ts: cr.ts };
     S.settings.other = "dummy";
     slot = Math.random() < 0.5 ? "a" : "b";
     vaultKdf = await localKdf();
@@ -1668,7 +1701,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "GhostChat v6.0 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "GhostChat v6.1 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions
@@ -1683,6 +1716,11 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
   } catch {}
   const ae = +LS.get("autoerase") || 0, seen = +LS.get("seen") || 0;
   if (has && ae && seen && Date.now() - seen > ae * 86400e3) { wiping = true; await localErase(); location.replace("/wipe?home=1"); return; } // dead-man's switch
-  if (!has) { prepIdentity(); return show("onboard"); }
+  if (!has) {
+    if (!NATIVE && !consentRec()) { location.replace("/signin" + location.search); return; } // DPDP notice & consent first
+    if (consentRec()) $("#ob-consent-wrap").classList.add("hidden");
+    $("#ob-privacy").href = BASE() + "/privacy"; $("#ob-terms").href = BASE() + "/terms";
+    prepIdentity(); return show("onboard");
+  }
   show(LS.get("disguise") ? "calc" : "lock");
 })();

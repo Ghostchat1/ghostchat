@@ -330,3 +330,7 @@ textarea.keybox { width: 100%; resize: none; -webkit-user-select: text; user-sel
 .lock-space { width: 44px; height: 44px; flex-shrink: 0; }
 .lock-btn { position: absolute; left: 16px; top: calc(10px + var(--safe-t)); z-index: 6; }
 @media (max-width: 799px) { #main.in-chat .lock-btn { display: none; } }
+.filecard .fn { display: block; } .filecard.wide { width: 100%; } .center { text-align: center; }
+.wave i.h0 { height: 20%; } .wave i.h1 { height: 29%; } .wave i.h2 { height: 38%; } .wave i.h3 { height: 47%; } .wave i.h4 { height: 56%; } .wave i.h5 { height: 65%; } .wave i.h6 { height: 74%; } .wave i.h7 { height: 83%; } .wave i.h8 { height: 92%; } 
+.consent-box { text-align: left; margin: 4px 0 6px; } .consent-box .opt { border: 0; padding: 6px 2px; font-size: 13.5px; color: #cfcac0; align-items: flex-start; }
+.consent-box a, .sheet a { color: var(--gold2); }
