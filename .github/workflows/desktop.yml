@@ -1,6 +1,7 @@
 # Builds the GhostChat desktop apps (Windows, macOS, Linux) and publishes them as a release.
 # The apps are a locked-down window onto https://quietline.chat/app with screenshot blocking.
 # They are not code-signed yet, so Windows SmartScreen and macOS Gatekeeper will warn on first open.
+# Each platform publishes into the same release as soon as it is built (macOS machines are sometimes busy).
 name: Build desktop apps
 on:
   workflow_dispatch:
@@ -15,7 +16,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        include:
+          - { os: windows-latest, name: windows, files: "desktop/dist/*.exe" }
+          - { os: macos-latest, name: mac, files: "desktop/dist/*.dmg" }
+          - { os: ubuntu-latest, name: linux, files: "desktop/dist/*.AppImage\ndesktop/dist/*.deb" }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
@@ -25,50 +29,30 @@ jobs:
           node-version: "20"
       - name: Build
         working-directory: desktop
+        shell: bash
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
           npm install --no-audit --no-fund
           npx electron-builder --publish never
-      - uses: actions/upload-artifact@v4
-        with:
-          name: desktop-${{ matrix.os }}
-          path: |
-            desktop/dist/*.exe
-            desktop/dist/*.dmg
-            desktop/dist/*.AppImage
-            desktop/dist/*.deb
-          if-no-files-found: error
-
-  release:
-    needs: build
-    if: ${{ always() }}   # publish whatever finished (macOS runners are sometimes unavailable)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: out
-          merge-multiple: true
-      - name: Checksums and notes
+          cd dist && (sha256sum *.exe *.dmg *.AppImage *.deb 2>/dev/null || shasum -a 256 *.dmg) > SHA256SUMS-${{ matrix.name }}.txt; cat SHA256SUMS-${{ matrix.name }}.txt
+      - name: Release notes
+        shell: bash
         run: |
-          cd out && sha256sum * > SHA256SUMS.txt && cd ..
-          {
-            echo "### GhostChat for desktop"
-            echo ""
-            echo "- **Windows:** the Setup .exe installs it; the portable .exe runs without installing. If Windows SmartScreen warns, choose *More info → Run anyway*."
-            echo "- **Mac:** open the .dmg and drag GhostChat to Applications. The first time, right-click the app and choose *Open* (it isn't Apple-notarised yet)."
-            echo "- **Linux:** the .AppImage runs anywhere (make it executable); the .deb installs on Ubuntu/Debian."
-            echo ""
-            echo "Check your download against SHA256SUMS.txt."
-            echo ""
-            echo '```'
-            cat out/SHA256SUMS.txt
-            echo '```'
-          } > notes.md
+          cat > notes.md <<'NOTES'
+          ### GhostChat for desktop
+          - **Windows:** the Setup .exe installs it; the portable .exe runs without installing. If SmartScreen warns, choose *More info → Run anyway*.
+          - **Mac:** open the .dmg and drag GhostChat to Applications. The first time, right-click the app and choose *Open* (it isn't Apple-notarised yet).
+          - **Linux:** the .AppImage runs anywhere (make it executable); the .deb installs on Ubuntu/Debian.
+
+          Check your download against the SHA256SUMS file for your system.
+          NOTES
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: desktop-${{ github.run_number }}
           name: GhostChat Desktop ${{ github.run_number }}
           body_path: notes.md
           make_latest: false
-          files: out/*
+          files: |
+            ${{ matrix.files }}
+            desktop/dist/SHA256SUMS-${{ matrix.name }}.txt
