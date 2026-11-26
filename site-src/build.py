@@ -104,7 +104,7 @@ FEATS = [
  ("timer", "Disappearing & view-once", "Messages that erase themselves on both phones, and photos that vanish after one look."),
  ("siren", "Panic button", "Hold the lock for two seconds, or type a duress passcode, and every trace is gone. Your contacts' copies too."),
  ("ghost", "Disguise & decoy", "Make it look like a working calculator, or open a harmless decoy account under pressure."),
- ("mic", "Voice, photos & files", "Voice notes, documents, groups, replies and reactions, all end-to-end encrypted. Photos are stripped of location data."),
+ ("mic", "Calls, voice, photos & files", "Encrypted voice and video calls, voice notes, files up to 25&nbsp;MB, groups, replies and reactions. Photos are stripped of location data."),
 ]
 def feat_cards(items, cls="g4"):
     return f'<div class="grid {cls}">' + "".join(f'<div class="card rv"><div class="ico">{ic(i)}</div><h3>{t}</h3><p>{d}</p></div>' for i, t, d in items) + "</div>"
@@ -142,6 +142,10 @@ FAQ = [
  ("How do you make money without selling data?", "<p>From organisations, not from you. Companies, law firms and newsrooms pay for private GhostChat servers and our anonymous whistleblower channel. The personal app stays free, with no ads, ever. See <a href=\"/about#money\">how we make money</a>.</p>"),
  ("How do I move GhostChat to a new phone?", "<p>Open You → <b>Move to a new device</b>. Scan the QR code (or open the link) on the new phone and enter your passcode. The link works once and expires in 10 minutes. Then erase the old phone.</p>"),
  ("Will I get notifications when the app is closed?", "<p>Yes, if you turn them on (You → Notifications). They only ever say “New activity”, never a name or message. On iPhone, add GhostChat to your Home Screen first.</p>"),
+ ("Are calls encrypted? Can the other person see my IP address?", "<p>Calls are end-to-end encrypted. The call is set up inside your encrypted chat, so nobody can slip into the middle, and the audio and video are encrypted between the two phones. Every call goes through our relay, so neither of you learns the other's IP address. The relay can't hear or see the call and keeps no logs. Calls are switched off on the Tor address, because a call can't travel over Tor without revealing your IP.</p>"),
+ ("How big a file can I send?", "<p>Up to 25&nbsp;MB, including videos. Files over 1&nbsp;MB are encrypted on your phone and parked on our server, which can't open them, until your contact downloads them. They are deleted after 7 days.</p>"),
+ ("Is there a desktop app?", "<p>Yes, for Windows, Mac and Linux. It blocks screenshots of its window and only ever opens GhostChat. You can also simply use GhostChat in any modern browser.</p>"),
+ ("Has GhostChat been independently audited?", "<p>Not yet. Our code is public and goes through regular internal security testing (OWASP and VAPT), and we publish the results. An independent audit by an outside firm is planned, and we will publish its report in full.</p>"),
  ("How do I delete my account?", "<p>Open GhostChat → You → Privacy &amp; your data → <b>Withdraw consent &amp; erase account</b>. Your keys and chats are wiped from the device, your ID is removed from our server, and your contacts' copies can be erased as well.</p>"),
 ]
 def faq_html(items): return '<div class="faq">' + "".join(f"<details class=\"rv\"><summary>{q}</summary>{a}</details>" for q, a in items) + "</div>"
@@ -250,7 +254,7 @@ features = f'''
 <section class="phead"><div class="wrap"><span class="eyebrow">Features</span><h1>A complete messenger.<br><span class="gold-text">Built to forget.</span></h1><p>Everything you use every day, rebuilt so that nothing about you is collected, kept or exposed.</p></div></section>
 <section class="s"><div class="wrap">
 {split("Messaging", "Everything you'd expect. Nothing you'd regret.", "Rich, fast messaging, with every message, photo, file and voice note end-to-end encrypted before it leaves your phone.",
- ["Replies, reactions and starred messages", "Voice messages and documents up to 2&nbsp;MB", "Photos cleaned of location, camera and time data", "Groups where the server can't even tell a group exists", "Search, pin and filter chats"], "shot-chat.webp", "A GhostChat conversation")}
+ ["Replies, reactions and starred messages", "Encrypted voice and video calls that hide your IP address", "Voice messages, videos and documents up to 25&nbsp;MB", "Photos cleaned of location, camera and time data", "Groups where the server can't even tell a group exists", "Search, pin and filter chats"], "shot-chat.webp", "A GhostChat conversation")}
 {split("Identity", "Your identity is a random ID. Nothing more.", "No phone number, no email, no contact upload. Share your QR code or invite link only with people you choose.",
  ["16-character random ID made on your device", "A unique pattern avatar instead of a photo", "Safety numbers to verify a contact in person", "Nickname optional, seen only inside encrypted messages"], "shot-you.webp", "GhostChat profile page with an anonymous ID", True)}
 {split("Protection", "Built for the moment things go wrong.", "Designed with journalists, lawyers and anyone under pressure in mind.",
@@ -286,7 +290,7 @@ security = f'''
  ("eye", "Traffic padding & cover noise", "Messages are padded to fixed sizes and your app sends random dummy traffic, so activity is hard to infer."),
  ("shield", "Signed, rotating prekeys", "Prekeys are signed by your identity key and rotate daily, so a server can't swap in its own keys unnoticed. Compare safety numbers to be sure."),
  ("onion", "Tor onion service", "Connect through Tor and no one, not your ISP and not us, learns your IP address."),
- ("code", "Tested & public", "Our code is public on GitHub and has been through our own OWASP-style security testing (VAPT). An independent audit is planned."),
+ ("code", "Tested & public", "Our code is public on GitHub and goes through regular internal security testing (OWASP and VAPT), with results published. An independent audit is planned."),
 ], "g3")}
 </div></section>
 <section class="s alt"><div class="wrap">
@@ -327,8 +331,10 @@ download = f'''
     <ol><li>Tap <b>Download APK</b> below.</li><li>Open the file. If asked, allow <b>Install unknown apps</b> for your browser.</li><li>Open GhostChat and create your ID.</li></ol>
     <a class="btn gold" href="https://github.com/Ghostchat1/ghostchat/releases/latest/download/GhostChat.apk" rel="noopener">Download APK {ic("save")}</a>
     <p class="small muted">Installed a test version before 27 Nov 2026? Uninstall it once (after saving a backup). Official releases are signed with our permanent key, so future updates install over each other.</p></div>
-  <div class="card rv"><div class="ico">{ic("desktop")}</div><h3>Computer</h3><p>Works in any modern browser on Windows, Mac or Linux. In Chrome or Edge you can install it as an app from the address bar.</p>
-    <a class="btn ghost" href="/signin" data-open>Open in your browser {ic("arrow")}</a></div>
+  <div class="card rv" id="desktop"><div class="ico">{ic("desktop")}</div><h3>Windows, Mac &amp; Linux</h3><p>The desktop app blocks screenshots of its window and only ever opens GhostChat. Or simply use it in any modern browser.</p>
+    <ol><li>Open the <b>latest desktop release</b> and download the file for your computer: <b>Setup .exe</b> (Windows), <b>.dmg</b> (Mac), <b>.AppImage</b> or <b>.deb</b> (Linux).</li><li><b>Windows:</b> if SmartScreen warns, choose <i>More info → Run anyway</i>. <b>Mac:</b> the first time, right-click the app and choose <i>Open</i>.</li></ol>
+    <div class="cta-row"><a class="btn gold" href="https://github.com/Ghostchat1/ghostchat/releases?q=desktop" rel="noopener">Desktop downloads {ic("save")}</a> <a class="btn ghost" href="/signin" data-open>Use in browser {ic("arrow")}</a></div>
+    <p class="small muted">The desktop apps aren't code-signed by Microsoft or Apple yet, which is why your computer warns. Check your file against the release's SHA256SUMS.txt.</p></div>
   <div class="card rv" id="tor"><div class="ico">{ic("onion")}</div><h3>Tor (maximum anonymity)</h3><p>Hide your IP address from everyone, including us. Use <b>Tor Browser</b> on a computer or <b>Onion Browser</b> on iPhone, and open:</p>
     <p><code>{{{{ONION}}}}</code></p><p class="small muted">Accounts on the Tor address and the normal address are separate.</p></div>
 </div>
@@ -357,6 +363,8 @@ DATA_ROWS = [
  ("IP address (network connection)", "Technically necessary to keep a connection open; to block abuse", "Held in memory during the connection; <b>not logged</b>", "Not retained. Not visible to us at all over Tor"),
  ("Messages, contacts, nickname, settings", "To run the app on your device", "<b>Only your device</b>, encrypted with your passcode", "Until you delete them or erase the app"),
  ("Push address (only if you turn on notifications)", "To send an empty wake-up signal when a message arrives. The signal contains no content, name or sender", "Our server (memory only); delivered via Apple, Google or Mozilla push services", "Until you turn notifications off or erase your account"),
+ ("Encrypted files over 1&nbsp;MB (only when you send one)", "To hold a large photo, video or document until your contact downloads it. Encrypted on your device; the key travels only inside your end-to-end encrypted message", "Our server (memory only)", "Deleted after 7 days, or sooner if the server restarts"),
+ ("Call connection (only during a call)", "To relay an encrypted call so that neither person learns the other's IP address. We can't hear or see the call", "Our call relay, in memory only; <b>not logged</b>", "Only for the length of the call"),
  ("Transfer package (only when you move to a new device)", "To carry your passcode-locked account to your new device. Encrypted a second time with a key we never receive", "Our server (memory only)", "Deleted when collected, or after 10 minutes"),
  ("Emails you send us", "To answer you or resolve a grievance", "Our email provider", "Up to 12 months after resolution, unless law requires longer"),
 ]
@@ -596,6 +604,7 @@ write("transparency.html", page("/transparency", "Transparency report | GhostCha
 
 # ------------------------------------------------------------------ CHANGELOG
 CHANGES = [
+ ("6.3", "27 Nov 2026", ["Encrypted voice and video calls, relayed so neither person sees the other's IP address", "Send videos and files up to 25 MB, encrypted before they leave your phone", "Block and report contacts", "Desktop apps for Windows, Mac and Linux, with screenshot blocking", "Google Play package built and signed with our permanent key"]),
  ("6.2", "27 Nov 2026", ["Notifications when GhostChat is closed: content-free wake-ups that never show names or text", "Move to a new device with a one-time QR link (works once, expires in 10 minutes)", "Android app now signed with a permanent key, with published checksums", "Waiting messages survive server updates, still never written to disk", "About, transparency report, press kit and Hindi pages on the website"]),
  ("6.1", "26 Nov 2026", ["New website with features, security, FAQ and download pages", "DPDP Act sign-in with a separate privacy notice in English and Hindi", "Privacy & your data in the app: rights, consent and erase"]),
  ("6.0", "26 Nov 2026", ["Complete redesign in graphite and gold, with Chats, Security and You tabs", "Voice messages, documents, replies, reactions, stars, pins and in-chat search", "Security centre with a protection score", "QR code invites and generated avatars"]),
@@ -686,6 +695,8 @@ rows_hi = [
  ("सीलबंद संदेश-लिफ़ाफ़े", "आपके ऑफ़लाइन रहने पर संदेश पहुँचाने के लिए", "हमारा सर्वर (केवल मेमोरी में)", "डिलीवरी पर या 7 दिन बाद मिटा दिए जाते हैं"),
  ("सहमति का रिकॉर्ड (सूचना का संस्करण और समय)", "यह दिखाने के लिए कि आपको सूचना दी गई और आपने सहमति दी (धारा 6(10))", "आपका डिवाइस और हमारा सर्वर", "जब तक आपका अकाउंट है"),
  ("IP पता", "कनेक्शन चालू रखने और दुरुपयोग रोकने के लिए", "कनेक्शन के दौरान मेमोरी में; <b>लॉग नहीं किया जाता</b>", "रखा नहीं जाता; Tor पर हमें दिखता भी नहीं"),
+ ("1 MB से बड़ी एन्क्रिप्टेड फ़ाइलें (केवल भेजने पर)", "बड़ी फ़ोटो, वीडियो या दस्तावेज़ को तब तक रखने के लिए जब तक आपका संपर्क उसे डाउनलोड न कर ले। फ़ाइल आपके फ़ोन पर ही एन्क्रिप्ट होती है", "हमारा सर्वर (केवल मेमोरी)", "7 दिन बाद हटा दी जाती है"),
+ ("कॉल कनेक्शन (केवल कॉल के दौरान)", "एन्क्रिप्टेड कॉल को रिले करने के लिए, ताकि कोई भी व्यक्ति दूसरे का IP पता न जान सके। हम कॉल सुन या देख नहीं सकते", "हमारा कॉल रिले, केवल मेमोरी में; <b>लॉग नहीं किया जाता</b>", "केवल कॉल की अवधि तक"),
  ("पुश पता (केवल सूचनाएँ चालू करने पर)", "संदेश आने पर खाली संकेत भेजने के लिए, जिसमें कोई सामग्री या भेजने वाला नहीं होता", "हमारा सर्वर (मेमोरी); Apple/Google/Mozilla के पुश सर्विस से", "सूचनाएँ बंद करने तक"),
  ("ट्रांसफ़र पैकेज (केवल नए डिवाइस पर जाते समय)", "आपका पासकोड-लॉक अकाउंट नए डिवाइस तक ले जाने के लिए; एक और कुंजी से एन्क्रिप्टेड जो हमें कभी नहीं मिलती", "हमारा सर्वर (मेमोरी)", "लेने पर या 10 मिनट बाद मिटा दिया जाता है"),
  ("संदेश, संपर्क, उपनाम, सेटिंग्स", "आपके डिवाइस पर ऐप चलाने के लिए", "<b>केवल आपका डिवाइस</b>, पासकोड से एन्क्रिप्टेड", "जब तक आप उन्हें न मिटाएँ"),

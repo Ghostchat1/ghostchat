@@ -12,7 +12,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "62").toInt() + 100
-        versionName = "6.2"
+        versionName = "6.3"
     }
 
     // Sign with your own key if provided (needed so future updates install over this one).

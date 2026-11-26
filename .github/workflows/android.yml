@@ -40,11 +40,13 @@ jobs:
           GC_KEY_PASS: ${{ secrets.GC_KEYSTORE_PASS }}
         run: |
           if [ -z "$GC_KEYSTORE" ]; then unset GC_KEYSTORE; fi
-          gradle -p android assembleRelease --no-daemon --stacktrace
+          gradle -p android assembleRelease bundleRelease --no-daemon --stacktrace
       - name: Checksum and signing certificate
         if: steps.sign.outputs.ok == 'true'
         run: |
           cp android/app/build/outputs/apk/release/*.apk GhostChat.apk
+          cp android/app/build/outputs/bundle/release/*.aab GhostChat-playstore.aab
+          sha256sum GhostChat-playstore.aab > GhostChat-playstore.aab.sha256
           SHA=$(sha256sum GhostChat.apk | cut -d' ' -f1)
           BT=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)
           CERT=$("$BT/apksigner" verify --print-certs GhostChat.apk | grep -m1 "SHA-256 digest" | awk '{print $NF}')
@@ -58,6 +60,8 @@ jobs:
             echo "- SHA-256 of GhostChat.apk: \`$SHA\`"
             echo "- Signing certificate SHA-256: \`$CERT\`"
             echo "- Official certificate (also on quietline.chat/download): \`7d9f644732769be571c2a06315168a844eca6434ca54777b2863cc51d11360cf\`"
+            echo ""
+            echo "_GhostChat-playstore.aab is the same app packaged for upload to Google Play. You don't need it on a phone._"
           } > notes.md
           echo "CERT=$CERT" >> "$GITHUB_ENV"
       - name: Refuse to publish if the certificate is not the official one
@@ -72,4 +76,6 @@ jobs:
           files: |
             GhostChat.apk
             GhostChat.apk.sha256
+            GhostChat-playstore.aab
+            GhostChat-playstore.aab.sha256
           make_latest: true

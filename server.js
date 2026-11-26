@@ -142,6 +142,21 @@ const moves = new Map(); let moveBytes = 0;
 const MOVE_MAX = 8 * 1024 * 1024, MOVE_TOTAL = 128 * 1024 * 1024, MOVE_TTL = 10 * 60 * 1000;
 setInterval(() => { const now = Date.now(); for (const [k, v] of moves) if (v.exp < now) { moveBytes -= v.blob.length; moves.delete(k); } }, 60000);
 
+// ---------- large files: encrypted media store ----------
+// Files over ~1 MB are encrypted on the sender's phone with a one-off key, uploaded here as ciphertext,
+// and the key travels inside the end-to-end encrypted message. We store only unreadable bytes, in RAM,
+// for at most 7 days or until downloaded by every member (max 64 downloads).
+const BLOB_MAX = +process.env.BLOB_MAX || 25 * 1024 * 1024, BLOB_TOTAL = +process.env.BLOB_TOTAL || 300 * 1024 * 1024, BLOB_TTL = 7 * 24 * 3600 * 1000;
+const blobs = new Map(); let blobBytes = 0;
+setInterval(() => { const now = Date.now(); for (const [k, v] of blobs) if (v.exp < now) { blobBytes -= v.buf.length; blobs.delete(k); } }, 10 * 60 * 1000);
+function readRaw(req, limit) {
+  return new Promise((resolve, reject) => {
+    const chunks = []; let size = 0;
+    req.on("data", (c) => { size += c.length; if (size > limit) { const e = new Error("big"); e.code = 413; reject(e); req.pause(); } else chunks.push(c); });
+    req.on("end", () => resolve(Buffer.concat(chunks))); req.on("error", reject);
+  });
+}
+
 // ---------- HTTP ----------
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".json": "application/json" };
 function headers(res, host) {
@@ -151,7 +166,7 @@ function headers(res, host) {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
-  res.setHeader("Permissions-Policy", "camera=(), microphone=(self), geolocation=(), interest-cohort=()");
+  res.setHeader("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(), interest-cohort=()");
   res.setHeader("Content-Security-Policy", `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src blob:; connect-src 'self'${h ? ` ws://${h} wss://${h}` : ""}; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`);
   res.setHeader("Cache-Control", "no-store");
   res.removeHeader("X-Powered-By");
@@ -213,7 +228,27 @@ const server = http.createServer(async (req, res) => {
       save();
       return sendJson(res, 200, { id });
     }
+    if (req.method === "POST" && url.pathname === "/api/blob") {
+      const len = +req.headers["content-length"] || 0;
+      if (len > BLOB_MAX) { const e = new Error("big"); e.code = 413; throw e; }
+      if (blobBytes + len > BLOB_TOTAL) return sendJson(res, 503, { error: "busy" });
+      const buf = await readRaw(req, BLOB_MAX);
+      if (buf.length < 28 || blobBytes + buf.length > BLOB_TOTAL) return sendJson(res, 400, { error: "bad request" });
+      const id = randomId().replace(/[+/=]/g, "").slice(0, 32);
+      blobs.set(id, { buf, exp: Date.now() + BLOB_TTL, left: 64 }); blobBytes += buf.length;
+      return sendJson(res, 200, { id });
+    }
+    if (req.method === "GET" && url.pathname.startsWith("/api/blob/")) {
+      const id = url.pathname.slice(10), b = blobs.get(id);
+      if (!b || b.exp < Date.now()) return sendJson(res, 404, { error: "expired" });
+      if (--b.left <= 0) { blobs.delete(id); blobBytes -= b.buf.length; }
+      res.writeHead(200, { "Content-Type": "application/octet-stream", "Content-Length": b.buf.length }); return res.end(b.buf);
+    }
     if (req.method === "GET" && url.pathname === "/api/vapid") return sendJson(res, 200, { key: vapid.pub });
+    if (req.method === "GET" && url.pathname === "/.well-known/security.txt") { // RFC 9116: how to report a vulnerability
+      res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "max-age=86400" });
+      return res.end("Contact: mailto:privacy@quietline.chat\nExpires: 2027-11-30T00:00:00.000Z\nPreferred-Languages: en, hi\nPolicy: https://github.com/Ghostchat1/ghostchat/blob/main/SECURITY.md\nCanonical: https://quietline.chat/.well-known/security.txt\n");
+    }
     if (req.method === "POST" && url.pathname === "/api/move") {
       const { blob } = await readBody(req, MOVE_MAX + 1024);
       if (typeof blob !== "string" || !blob.length || blob.length > MOVE_MAX || !/^[A-Za-z0-9+/=]+$/.test(blob)) return sendJson(res, 400, { error: "bad request" });
@@ -331,6 +366,16 @@ wss.on("connection", (ws) => {
       const q = db.queue[ws.uid];
       if (q) { const i = q.findIndex((x) => x.mid === m.mid); if (i >= 0) { queueBytes -= q[i].env.length; q.splice(i, 1); if (!q.length) delete db.queue[ws.uid]; save(); } }
       return;
+    }
+    if (m.t === "turn") { // short-lived relay credentials for calls, only for signed-in IDs
+      const secret = process.env.TURN_SECRET, host = process.env.TURN_HOST;
+      if (secret && host) {
+        const username = Math.floor(Date.now() / 1000 + 6 * 3600) + ":gc";
+        const credential = crypto.createHmac("sha1", secret).update(username).digest("base64");
+        return ws.send(JSON.stringify({ t: "turn", relay: true, iceServers: [{ urls: [`turn:${host}:3478?transport=udp`, `turn:${host}:3478?transport=tcp`], username, credential }] }));
+      }
+      if (process.env.CALLS_INSECURE_TEST === "1") return ws.send(JSON.stringify({ t: "turn", relay: false, iceServers: [] })); // local testing only
+      return ws.send(JSON.stringify({ t: "turn", error: "calls not set up" }));
     }
     if (m.t === "push") { // opt-in wake-up notifications; null = turn off
       const u = db.users[ws.uid]; if (!u) return;

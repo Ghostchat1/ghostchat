@@ -40,6 +40,7 @@ class MainActivity : Activity() {
     lateinit var mesh: Mesh
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private var pendingMic: PermissionRequest? = null
+    private var pendingRes: Array<String> = arrayOf()
     private var pendingMeshId: String? = null
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -57,6 +58,7 @@ class MainActivity : Activity() {
         web.filterTouchesWhenObscured = true // ignore taps while another app draws over us (tapjacking, VAPT fix A3)
         setContentView(web)
         web.settings.apply {
+            mediaPlaybackRequiresUserGesture = false  // lets the other person's call audio play without an extra tap
             javaScriptEnabled = true
             domStorageEnabled = true
             allowFileAccess = false
@@ -78,13 +80,12 @@ class MainActivity : Activity() {
             // voice messages: the microphone only, and only after Android's own permission prompt
             override fun onPermissionRequest(request: PermissionRequest) {
                 runOnUiThread {
-                    if (request.origin.host != HOST || !request.resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) { request.deny(); return@runOnUiThread }
-                    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                        request.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
-                    } else {
-                        pendingMic = request
-                        requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_MIC)
-                    }
+                    val res = request.resources.filter { it == PermissionRequest.RESOURCE_AUDIO_CAPTURE || it == PermissionRequest.RESOURCE_VIDEO_CAPTURE }
+                    if (request.origin.host != HOST || res.isEmpty()) { request.deny(); return@runOnUiThread }
+                    val need = res.map { if (it == PermissionRequest.RESOURCE_VIDEO_CAPTURE) Manifest.permission.CAMERA else Manifest.permission.RECORD_AUDIO }
+                        .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+                    if (need.isEmpty()) request.grant(res.toTypedArray())
+                    else { pendingMic = request; pendingRes = res.toTypedArray(); requestPermissions(need.toTypedArray(), REQ_MIC) }
                 }
             }
             override fun onShowFileChooser(view: WebView, cb: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
@@ -153,8 +154,8 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_MIC) {
-            val ok = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
-            pendingMic?.let { if (ok) it.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) else it.deny() }
+            val ok = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            pendingMic?.let { if (ok) it.grant(pendingRes) else it.deny() }
             pendingMic = null
             return
         }

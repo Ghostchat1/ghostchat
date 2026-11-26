@@ -43,6 +43,7 @@ const MAX_PHOTO = 420 * 1024;
 const MAX_ENV = 6 * 1024 * 1024; // must match the server
 const MAX_FILE = () => (STORAGE_MODE === "indexeddb" ? 2 * 1048576 : 400 * 1024); // small vault when the browser only allows localStorage
 const MAX_VOICE_S = 120;
+const INLINE_MAX = 1024 * 1024, BIG_MAX = 25 * 1024 * 1024; // bigger files go through the encrypted media store
 
 // ---------------- byte helpers ----------------
 const b64 = (buf) => { const a = buf instanceof Uint8Array ? buf : new Uint8Array(buf); let s = ""; for (let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode(...a.subarray(i, i + 0x8000)); return btoa(s); };
@@ -180,6 +181,11 @@ const FALLBACK = {
   },
 };
 if (!window.indexedDB) { IDB.get = FALLBACK.get; IDB.set = FALLBACK.set; }
+// Large-file ciphertext (still encrypted; its key lives only inside the locked vault)
+const MEDIA_MEM = new Map();
+const IDB_RAW = { get: IDB.get.bind(IDB), set: IDB.set.bind(IDB) };
+async function mediaGet(id) { if (STORAGE_MODE === "indexeddb") { try { return await IDB_RAW.get("m:" + id); } catch {} } return MEDIA_MEM.get(id); }
+async function mediaPut(id, ct) { MEDIA_MEM.set(id, ct); if (STORAGE_MODE === "indexeddb") { try { await IDB_RAW.set("m:" + id, ct); MEDIA_MEM.delete(id); } catch {} } }
 let S = null, vaultKey = null, vaultSalt = null, slot = "a"; // S = decrypted state, memory only
 const otherSlot = () => (slot === "a" ? "b" : "a");
 // Vault key settings. Normal browsers: PBKDF2-SHA-384, 600k rounds (WebCrypto, fast).
@@ -455,6 +461,7 @@ function connect() {
       if (m.spk !== cur.id) inbox.send(JSON.stringify({ t: "spk", spk: spkPublic(cur) }));
       syncPush();
     } else if (m.t === "msg") onEnvelope(m);
+    else if (m.t === "turn") { const w = turnWait; turnWait = null; if (w) w(m); }
     else if (m.t === "deleted") { if (onDeleted) onDeleted(); }
     else if (m.t === "error" && m.error === "auth failed") register().then(() => inbox.close()).catch(() => {}); // RAM-only server restarted
   };
@@ -545,7 +552,7 @@ async function sendText(text) {
 async function sendKind(id, kind, fields) { // files and voice messages
   const c = conv(id); if (!c) return;
   const ts = Date.now(), local = rid(12), timer = c.timer || 0, re = takeReply();
-  const { name: fname, ...rest } = fields; // "name" in the wire format is the sender's nickname
+  const { name: fname, got, ...rest } = fields; // "name" in the wire format is the sender's nickname
   await sendBody(id, local, { k: kind, mid: local, ...rest, ...(fname ? { fname } : {}), name: S.me.name, ts, timer, ...re }, { mid: local, me: true, kind, ...fields, ts, status: "sending", exp: timer ? ts + timer : 0, ...re });
 }
 async function sendCtl(id, body) { // reactions & deletions: no bubble of their own
@@ -585,6 +592,7 @@ async function onEnvelope(m, viaMesh) {
   const k = body.k;
   const nm = typeof body.name_ === "string" ? body.name_ : typeof body.name === "string" ? body.name : "";
   // group traffic doesn't create a 1-to-1 chat; it only remembers the member's keys
+  if ((S.blocked || {})[from] && k !== "burn") return; // blocked: silently discard
   const groupish = ["gstate", "gleave"].includes(k) || (body.gid && isGroup(body.gid));
   let c = peer(from);
   if (!c) {
@@ -594,6 +602,7 @@ async function onEnvelope(m, viaMesh) {
   if (nm && !(groupish && k === "gstate")) c.name = nm.slice(0, 30);
   if (k === "gstate" && body.name_) c.name = String(body.name_).slice(0, 30);
   if (k === "heal") { persist(); return; }
+  if (k === "call") { if (!(body.gid && isGroup(body.gid))) onCallSignal(c, body); persist(); return; }
   if (k === "burn") { // their panic button: erase them everywhere
     delete S.contacts[from]; delete S.msgs[from]; if (S.hidden) delete S.hidden[from]; if (S.sessions) delete S.sessions[from];
     for (const g of Object.values(S.groups || {})) { S.msgs[g.gid] = msgs(g.gid).filter((x) => x.from !== from); g.members = g.members.filter((x) => x !== from); }
@@ -640,7 +649,7 @@ async function onEnvelope(m, viaMesh) {
   if (k === "react" || k === "del") {
     const ref = String(body.ref || ""), m = list.find((x) => x.mid === ref); if (!m) return;
     if (k === "react") { const e = String(body.e || "").slice(0, 8); m.rx = m.rx || {}; if (e && !/[<>&"']/.test(e)) m.rx[from] = e; else delete m.rx[from]; }
-    else if (!m.me && m.from === from) { for (const f of ["text", "data", "name", "kind", "re", "rx", "once", "dur", "size", "mime"]) delete m[f]; m.deleted = true; }
+    else if (!m.me && m.from === from) { for (const f of ["text", "data", "name", "kind", "re", "rx", "once", "dur", "size", "mime", "blob", "got"]) delete m[f]; m.deleted = true; }
     persist(); renderList(); if (current === cid) renderMessages(true); return;
   }
   const ts = Date.now(), timer = +body.timer || 0, exp = timer ? ts + timer : 0;
@@ -651,6 +660,8 @@ async function onEnvelope(m, viaMesh) {
     list.push({ mid, sys: true, text: target.timer ? `${displayName(c)} turned on disappearing messages (${timerLabel(target.timer)})` : `${displayName(c)} turned off disappearing messages`, ts });
   } else if (k === "text") msg = { mid, from, me: false, text: String(body.text || "").slice(0, 4000), ts, exp, ...re };
   else if (k === "img" && typeof body.data === "string" && body.data.length < 700000) msg = { mid, from, me: false, kind: "img", data: body.data, once: !!body.once, w: +body.w || 0, h: +body.h || 0, ts, exp, ...re };
+  else if (k === "file" && body.blob && typeof body.blob === "object" && /^[A-Za-z0-9]{16,40}$/.test(body.blob.id) && unb64(String(body.blob.k || "")).length === 32 && unb64(String(body.blob.iv || "")).length === 12 && /^[0-9a-f]{64}$/.test(body.blob.h))
+    msg = { mid, from, me: false, kind: "file", blob: { id: body.blob.id, k: body.blob.k, iv: body.blob.iv, h: body.blob.h }, name: String(body.fname || "file").replace(/[\\/\u0000-\u001f]/g, "_").slice(0, 80), mime: String(body.mime || "").slice(0, 80), size: Math.min(+body.size || 0, BIG_MAX), ts, exp, ...re };
   else if (k === "file" && typeof body.data === "string" && body.data.length < 2.9e6) msg = { mid, from, me: false, kind: "file", data: body.data, name: String(body.fname || "file").replace(/[\\/\u0000-\u001f]/g, "_").slice(0, 80), mime: String(body.mime || "").slice(0, 80), size: +body.size || 0, ts, exp, ...re };
   else if (k === "voice" && typeof body.data === "string" && body.data.length < 1.6e6) msg = { mid, from, me: false, kind: "voice", data: body.data, mime: String(body.mime || "audio/mp4").slice(0, 60), dur: Math.min(600, +body.dur || 0), ts, exp, ...re };
   else return;
@@ -830,7 +841,7 @@ function renderList() {
     <div class="chat-item ${key === current ? "active" : ""} ${c.unread ? "unread" : ""}" data-id="${esc(key)}">
       ${avatarHtml(key, !!c.gid)}
       <div class="meta">
-        <div class="row"><span class="name">${esc(displayName(c))}${c.request ? '<span class="tag">NEW</span>' : ""}</span><span class="time">${c.last ? fmtTime(c.last.ts) : ""}</span></div>
+        <div class="row"><span class="name">${esc(displayName(c))}${(S.blocked || {})[c.id] ? '<span class="tag">BLOCKED</span>' : c.request ? '<span class="tag">NEW</span>' : ""}</span><span class="time">${c.last ? fmtTime(c.last.ts) : ""}</span></div>
         <div class="row"><span class="last">${c.last ? (c.last.me ? "You: " : "") + esc(c.last.text) : '<span class="muted">' + (c.gid ? c.members.length + " members" : esc(c.id)) + "</span>"}</span>
           <span class="icons">${c.timer ? IC.timer : ""}${c.pinned ? IC.pin : ""}${c.unread ? `<span class="badge">${c.unread}</span>` : ""}</span></div>
       </div>
@@ -880,7 +891,7 @@ function renderYou() {
       ${rowItem("info", "Security details", "Encryption, keys and connection", 'data-act="secinfo"')}
       ${rowItem("heart", "Invite a friend", "Share your private invite link", 'data-act="invite"')}
     </div>
-    <p class="ver">GhostChat 6.2 · no phone · no email · no trace</p>`;
+    <p class="ver">GhostChat 6.3 · no phone · no email · no trace</p>`;
   $("#you-name").onclick = renameSelf;
   $("#you-qr").onclick = myQrDialog;
   $("#you-share").onclick = shareInvite;
@@ -939,6 +950,7 @@ function headerFor(c) {
   const key = chatKey(c);
   const av = $("#chat-avatar"); av.className = "avatar" + (c.gid ? " group" : ""); av.innerHTML = identicon(key);
   $("#chat-name").textContent = displayName(c);
+  $("#btn-call").classList.toggle("hidden", !!c.gid); $("#btn-vcall").classList.toggle("hidden", !!c.gid);
   $("#chat-sub").textContent = (c.gid ? c.members.map(memberName).join(", ") : c.id) + (c.timer ? " · ⏱ " + timerLabel(c.timer) : "");
 }
 function openChat(id) {
@@ -961,7 +973,8 @@ function bubbleBody(m) {
   if (m.deleted) return `<span class="deleted">This message was deleted</span>`;
   if (m.kind === "file") {
     const ext = (String(m.name || "").split(".").pop() || "FILE").slice(0, 4).toUpperCase();
-    return `<button class="filecard" data-file="${esc(m.mid)}"><span class="fi">${esc(ext)}</span><span><span class="fn">${esc(m.name || "file")}</span><span class="fs">${fmtSize(m.size || 0)} · tap to save</span></span></button>`;
+    if (m.blob && m.got && /^video\//.test(m.mime || "")) return `<video class="video" data-vid="${esc(m.mid)}" controls playsinline preload="metadata"></video><button class="filecard slim" data-file="${esc(m.mid)}"><span class="fn">${esc(m.name || "video")}</span><span class="fs">${fmtSize(m.size || 0)} · save</span></button>`;
+    return `<button class="filecard" data-file="${esc(m.mid)}"><span class="fi">${esc(ext)}</span><span><span class="fn">${esc(m.name || "file")}</span><span class="fs">${fmtSize(m.size || 0)} · ${m.blob && !m.got ? "tap to download" : "tap to save"}</span></span></button>`;
   }
   if (m.kind === "voice") return `<div class="voice" data-voice="${esc(m.mid)}"><button class="play" data-play="${esc(m.mid)}" aria-label="Play">${playing === m.mid ? IC.pause : IC.play}</button><div class="wave">${waveBars(m)}</div><span class="vd">${fmtDur(m.dur || 0)}</span></div>`;
   if (m.kind !== "img") return esc(m.text);
@@ -978,6 +991,7 @@ function renderMessages(keepScroll) {
   let html = `<div class="sys">🔒 Post-quantum, sealed-sender encryption. The server can't read these messages or see who sent them.</div>`;
   if (c.request) html += `<div class="sys">${grp ? "Someone you haven't added put you in this group." : "Someone you haven't added messaged you."} They only know your anonymous ID. Reply to accept, or ${grp ? "leave the group" : "delete the chat"}.</div>`;
   if (c.removed) html += `<div class="sys">You're no longer a member of this group.</div>`;
+  if (!grp && (S.blocked || {})[c.id]) html += `<div class="sys">You blocked this contact. Unblock from the ⋮ menu to receive their messages.</div>`;
   let lastDay = "", hits = 0;
   const q = findQ.toLowerCase();
   for (const m of msgs(current)) {
@@ -1000,6 +1014,7 @@ function renderMessages(keepScroll) {
   seenFor = current;
   if (q) $("#find-n").textContent = hits ? hits + " found" : "No matches";
   box.innerHTML = html;
+  if (box.querySelector("video[data-vid]")) hydrateVideos();
   box.scrollTop = keepScroll && !atBottom ? prev : box.scrollHeight;
 }
 function jumpTo(mid) {
@@ -1091,7 +1106,7 @@ function removeMsg(id, mid) {
   persist(); renderMessages(true); renderList();
 }
 function deleteForAll(id, m) {
-  for (const f of ["text", "data", "name", "kind", "re", "rx", "once", "dur", "size", "mime"]) delete m[f];
+  for (const f of ["text", "data", "name", "kind", "re", "rx", "once", "dur", "size", "mime", "blob", "got"]) delete m[f];
   m.deleted = true; persist(); renderMessages(true); renderList();
   sendCtl(id, { k: "del", mid: rid(), ref: m.mid, name: S.me.name });
 }
@@ -1112,25 +1127,77 @@ function attachSheet() {
   modal("", `<div class="attach-grid">
       <button data-a="photo"><span class="ai">${IC.photo}</span>Photo</button>
       <button data-a="camera"><span class="ai">${IC.camera}</span>Camera</button>
+      <button data-a="video"><span class="ai">${IC.play}</span>Video</button>
       <button data-a="file"><span class="ai">${IC.doc}</span>Document</button>
-    </div><p class="muted small center mt">Photos are cleaned of location and camera data. Files up to ${fmtSize(MAX_FILE())}.</p>`, [["Cancel", () => {}]]);
+    </div><p class="muted small center mt">Photos are cleaned of location and camera data. Files and videos up to ${fmtSize(BIG_MAX)}.</p>`, [["Cancel", () => {}]]);
   document.querySelectorAll(".attach-grid button").forEach((b) => b.onclick = () => {
     closeModal(); const f = $("#file");
-    if (b.dataset.a === "file") return $("#file-doc").click();
+    const d = $("#file-doc");
+    if (b.dataset.a === "file" || b.dataset.a === "video") { if (b.dataset.a === "video") d.setAttribute("accept", "video/*"); else d.removeAttribute("accept"); return d.click(); }
     if (b.dataset.a === "camera") f.setAttribute("capture", "environment"); else f.removeAttribute("capture");
     f.click();
   });
 }
 function fileDialog(file) {
   const id = current; if (!conv(id)) return;
-  if (file.size > MAX_FILE()) return toast(`Too large — the limit is ${fmtSize(MAX_FILE())}`);
+  const big = file.size > Math.min(INLINE_MAX, MAX_FILE());
+  if (file.size > BIG_MAX) return toast(`Too large. The limit is ${fmtSize(BIG_MAX)}`);
   const name = String(file.name || "file").replace(/[\\/\u0000-\u001f]/g, "_").slice(0, 80);
   modal("Send file", `<div class="filecard wide"><span class="fi">${esc((name.split(".").pop() || "FILE").slice(0, 4).toUpperCase())}</span><span><span class="fn">${esc(name)}</span><span class="fs">${fmtSize(file.size)}</span></span></div><p class="muted small mt">Encrypted end to end. Only the people in this chat can open it.</p>`,
-    [["Send", async () => { const data = b64(new Uint8Array(await file.arrayBuffer())); await sendKind(id, "file", { data, name, mime: String(file.type || "").slice(0, 80), size: file.size }); }, "primary"], ["Cancel", () => {}]]);
+    [["Send", async () => {
+      const bytes = new Uint8Array(await file.arrayBuffer()), mime = String(file.type || "").slice(0, 80);
+      if (!big) return sendKind(id, "file", { data: b64(bytes), name, mime, size: file.size });
+      toast("Encrypting and uploading…");
+      try { const blob = await uploadBig(bytes); await sendKind(id, "file", { blob, name, mime, size: file.size, got: true }); }
+      catch (e) { toast(e.message || "Upload failed"); }
+    }, "primary"], ["Cancel", () => {}]]);
+}
+const hex = (u8) => Array.from(u8, (x) => x.toString(16).padStart(2, "0")).join("");
+async function uploadBig(bytes) {
+  const k = rand(32), iv = rand(12), ck = await subtle.importKey("raw", k, { name: "AES-GCM" }, false, ["encrypt"]);
+  const ct = await aesEnc(ck, iv, bytes, enc.encode("gc-media"));
+  const h = hex(new Uint8Array(await subtle.digest("SHA-256", ct)));
+  const r = await fetch(BASE() + "/api/blob", { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: ct });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 503) throw new Error("The server is busy, please try again later");
+  if (!r.ok || !j.id) throw new Error("Upload failed");
+  await mediaPut(j.id, ct);
+  return { id: j.id, k: b64(k), iv: b64(iv), h };
+}
+async function bigBytes(m) { // decrypted bytes of a large file (downloads once, verifies, keeps ciphertext)
+  let ct = await mediaGet(m.blob.id);
+  if (!ct) {
+    const r = await fetch(BASE() + "/api/blob/" + m.blob.id);
+    if (!r.ok) throw new Error("This file has expired on the server (files are kept for 7 days)");
+    ct = new Uint8Array(await r.arrayBuffer());
+    if (hex(new Uint8Array(await subtle.digest("SHA-256", ct))) !== m.blob.h) throw new Error("File failed its integrity check");
+    await mediaPut(m.blob.id, ct);
+  }
+  const ck = await subtle.importKey("raw", unb64(m.blob.k), { name: "AES-GCM" }, false, ["decrypt"]);
+  const pt = await aesDec(ck, unb64(m.blob.iv), ct, enc.encode("gc-media"));
+  if (!m.got) { m.got = true; persist(); }
+  return pt;
+}
+const videoUrls = new Map();
+async function hydrateVideos() {
+  for (const el of document.querySelectorAll("video[data-vid]")) {
+    const mid = el.dataset.vid; if (el.src) continue;
+    const m = msgs(current).find((x) => x.mid === mid); if (!m) continue;
+    try { if (!videoUrls.has(mid)) videoUrls.set(mid, URL.createObjectURL(new Blob([await bigBytes(m)], { type: /^video\/(mp4|webm|quicktime)$/.test(m.mime) ? m.mime : "video/mp4" }))); el.src = videoUrls.get(mid); } catch {}
+  }
 }
 const SAFE_TYPES = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", txt: "text/plain" };
-function saveFile(mid) {
-  const m = msgs(current).find((x) => x.mid === mid); if (!m || !m.data) return;
+async function saveFile(mid) {
+  const m = msgs(current).find((x) => x.mid === mid); if (!m || (!m.data && !m.blob)) return;
+  if (m.blob) {
+    const wasGot = m.got;
+    try { toast(wasGot ? "Decrypting…" : "Downloading and decrypting…"); m.data = b64(await bigBytes(m)); } catch (e) { return toast(e.message); }
+    if (!wasGot) { delete m.data; return renderMessages(true); }
+    try { return saveFileData(m); } finally { delete m.data; }
+  }
+  return saveFileData(m);
+}
+function saveFileData(m) {
   const ext = String(m.name || "").split(".").pop().toLowerCase();
   if (NATIVE && NATIVE.saveFile) { try { NATIVE.saveFile(m.name || "file", SAFE_TYPES[ext] || m.mime || "", m.data); return; } catch {} }
   // never hand the browser something it could run as a web page (html, svg…): unknown types download as raw bytes
@@ -1303,6 +1370,7 @@ function groupMenu(g) {
   const admin = g.admin === S.me.id;
   menu(displayName(g), `<p class="muted small">${g.members.length} members${admin ? " · you're the admin" : ""}</p>`, [
     ["👥  Members", () => membersDialog(g)],
+    ["🚩  Report a member", () => { const o = others(g); if (!o.length) return; menu("Report which member?", "", o.map((id) => [memberName(id), () => reportDialog(id)])); }],
     ...(admin && !g.removed ? [["➕  Add members", () => addMembersDialog(g)], ["✏️  Rename group", () => renameGroup(g)], ["⏱  Disappearing messages", timerDialog]] : []),
     [g.removed ? "🗑️  Delete group" : "🚪  Leave group", () => leaveGroup(g), "danger"],
   ]);
@@ -1510,8 +1578,180 @@ function chatMenu() {
   menu(displayName(c), `<p class="muted small mono">${c.id}</p>`, [
     [c.pinned ? "📌  Unpin chat" : "📌  Pin chat", () => { c.pinned = c.pinned ? 0 : Date.now(); persist(); renderList(); toast(c.pinned ? "Pinned" : "Unpinned"); }],
     ["⏱  Disappearing messages", timerDialog], ["🛡️  Verify safety number", safetyDialog],
-    ["✏️  Rename contact", renameContact], ["🗑️  Delete chat", deleteChat, "danger"],
+    ["✏️  Rename contact", renameContact],
+    [(S.blocked || {})[c.id] ? "✅  Unblock" : "⛔  Block", () => toggleBlock(c.id)],
+    ["🚩  Report", () => reportDialog(c.id)], ["🗑️  Delete chat", deleteChat, "danger"],
   ]);
+}
+// ---------------- encrypted voice & video calls ----------------
+// Call setup (SDP, including the DTLS fingerprints) travels inside our end-to-end encrypted messages, so
+// nobody can sit in the middle. Media is DTLS-SRTP encrypted and forced through our TURN relay
+// (iceTransportPolicy "relay"), so the two people never learn each other's IP address.
+let call = null, turnWait = null;
+const CALL_OK = () => !IS_ONION && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.RTCPeerConnection && window.isSecureContext);
+function getTurn() {
+  return new Promise((res) => {
+    if (!inbox || !ready) return res({ error: "offline" });
+    turnWait = res; inbox.send(JSON.stringify({ t: "turn" }));
+    setTimeout(() => { if (turnWait === res) { turnWait = null; res({ error: "timeout" }); } }, 6000);
+  });
+}
+async function newPC(cfg) {
+  const pc = new RTCPeerConnection({ iceServers: cfg.iceServers || [], iceTransportPolicy: cfg.relay ? "relay" : "all" });
+  pc.ontrack = (e) => { const v = $("#call-remote"); if (v && v.srcObject !== e.streams[0]) v.srcObject = e.streams[0]; };
+  pc.onconnectionstatechange = () => {
+    if (!call || call.pc !== pc) return;
+    if (pc.connectionState === "connected") onCallConnected();
+    else if (pc.connectionState === "failed") { callSignal(peer(call.peer), { t: "end", id: call.id }).catch(() => {}); endCall("Call failed. Check your connection"); }
+    else if (pc.connectionState === "disconnected") setCallStatus("Reconnecting…");
+  };
+  return pc;
+}
+function iceDone(pc) {
+  return new Promise((r) => {
+    if (pc.iceGatheringState === "complete") return r();
+    const t = setTimeout(r, 5000);
+    pc.addEventListener("icegatheringstatechange", () => { if (pc.iceGatheringState === "complete") { clearTimeout(t); r(); } });
+  });
+}
+const getMedia = (video) => navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: video ? { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } } : false });
+const callSignal = (c, body) => post(c, { k: "call", mid: rid(), ...body });
+const setCallStatus = (t) => { const e = $("#call-status"); if (e) e.textContent = t; };
+function showCall(status, incoming) {
+  const el = $("#call"), c = peer(call.peer);
+  $("#call-av").innerHTML = identicon(call.peer); $("#call-name").textContent = c ? displayName(c) : "Anonymous";
+  setCallStatus(status);
+  el.classList.toggle("cvid", call.video); el.classList.toggle("ringing", !!incoming); el.classList.remove("hidden", "live");
+  $("#call-btns-in").classList.toggle("hidden", !incoming); $("#call-btns-live").classList.toggle("hidden", !!incoming);
+  $("#cb-cam").classList.toggle("hidden", !call.video); $("#cb-flip").classList.toggle("hidden", !call.video);
+  if (call.stream) $("#call-local").srcObject = call.stream;
+}
+let ringT = null, ringCtx = null;
+function ringStart() {
+  ringStop();
+  const beep = () => {
+    try { navigator.vibrate && navigator.vibrate([400, 200, 400]); } catch {}
+    try {
+      ringCtx = ringCtx || new (window.AudioContext || window.webkitAudioContext)();
+      for (const [f, at] of [[880, 0], [660, 0.25]]) { const o = ringCtx.createOscillator(), g = ringCtx.createGain(); o.frequency.value = f; g.gain.value = 0.06; o.connect(g).connect(ringCtx.destination); o.start(ringCtx.currentTime + at); o.stop(ringCtx.currentTime + at + 0.2); }
+    } catch {}
+  };
+  beep(); ringT = setInterval(beep, 2200);
+}
+function ringStop() { clearInterval(ringT); ringT = null; try { navigator.vibrate && navigator.vibrate(0); } catch {} }
+async function startCall(video) {
+  const c = conv(current); if (!c || c.gid || call) return;
+  if (!CALL_OK()) return toast(IS_ONION ? "Calls are off on the Tor address because they would reveal your IP. Use quietline.chat for calls" : "Calls aren't supported in this browser");
+  if ((S.blocked || {})[c.id]) return toast("Unblock this contact to call");
+  const cfg = await getTurn();
+  if (cfg.error) return toast(cfg.error === "calls not set up" ? "Calls aren't switched on for this server yet" : "Couldn't reach the server");
+  let stream; try { stream = await getMedia(video); } catch { return toast(video ? "Camera or microphone access was blocked" : "Microphone access was blocked"); }
+  const id = rid(12);
+  call = { id, peer: c.id, video, out: true, stream, t0: 0 };
+  call.pc = await newPC(cfg); stream.getTracks().forEach((t) => call.pc.addTrack(t, stream));
+  showCall("Calling…", false);
+  await call.pc.setLocalDescription(await call.pc.createOffer()); await iceDone(call.pc);
+  if (!call || call.id !== id) return;
+  try { await callSignal(c, { t: "offer", id, video, sdp: call.pc.localDescription.sdp, ts: Date.now(), name: S.me.name }); } catch { return endCall("Couldn't place the call"); }
+  setCallStatus("Ringing…");
+  call.timeout = setTimeout(() => { if (call && call.id === id && !call.t0) { callSignal(c, { t: "end", id }).catch(() => {}); endCall("No answer"); } }, 45000);
+}
+function onCallSignal(c, b) {
+  const id = String(b.id || ""); if (!/^[A-Za-z0-9_-]{4,40}$/.test(id)) return;
+  if (b.t === "offer") {
+    const kind = b.video ? "video call" : "voice call";
+    if (Date.now() - (+b.ts || 0) > 60000 || call || !CALL_OK()) {
+      if (call && call.id !== id) callSignal(c, { t: "busy", id }).catch(() => {});
+      sysMsg(c.id, `📞 Missed ${kind}`); c.last = { text: `📞 Missed ${kind}`, ts: Date.now(), me: false }; c.unread = (c.unread || 0) + 1; renderList(); if (current === c.id) renderMessages();
+      return;
+    }
+    call = { id, peer: c.id, video: !!b.video, out: false, offer: String(b.sdp || "").slice(0, 20000), t0: 0 };
+    showCall(`Incoming ${kind}`, true); ringStart(); notify();
+    call.timeout = setTimeout(() => { if (call && call.id === id && !call.t0) endCall("Missed call", true); }, 45000);
+    return;
+  }
+  if (!call || call.id !== id || call.peer !== c.id) return;
+  if (b.t === "answer" && call.out && call.pc) { setCallStatus("Connecting…"); call.pc.setRemoteDescription({ type: "answer", sdp: String(b.sdp || "").slice(0, 20000) }).catch(() => endCall("Call failed")); }
+  else if (b.t === "decline") endCall("Declined");
+  else if (b.t === "busy") endCall("Busy on another call");
+  else if (b.t === "end") endCall(call.t0 ? "Call ended" : call.out ? "Call ended" : "Missed call", !call.t0 && !call.out);
+}
+async function acceptCall() {
+  if (!call || call.out) return;
+  ringStop(); setCallStatus("Connecting…"); $("#call").classList.remove("ringing");
+  const c = peer(call.peer), id = call.id, cfg = await getTurn();
+  if (cfg.error) return endCall("Couldn't connect");
+  try { call.stream = await getMedia(call.video); } catch { callSignal(c, { t: "decline", id }).catch(() => {}); return endCall(call.video ? "Camera or microphone access was blocked" : "Microphone access was blocked"); }
+  call.pc = await newPC(cfg); call.stream.getTracks().forEach((t) => call.pc.addTrack(t, call.stream));
+  showCall("Connecting…", false);
+  try {
+    await call.pc.setRemoteDescription({ type: "offer", sdp: call.offer });
+    await call.pc.setLocalDescription(await call.pc.createAnswer()); await iceDone(call.pc);
+    if (!call || call.id !== id) return;
+    await callSignal(c, { t: "answer", id, sdp: call.pc.localDescription.sdp });
+  } catch { endCall("Call failed"); }
+}
+function onCallConnected() {
+  if (!call || call.t0) return;
+  clearTimeout(call.timeout); call.t0 = Date.now(); $("#call").classList.add("live");
+  call.tick = setInterval(() => setCallStatus(fmtDur((Date.now() - call.t0) / 1000)), 1000); setCallStatus("0:00");
+}
+function hangUp() {
+  if (!call) return;
+  const c = peer(call.peer);
+  if (c) callSignal(c, { t: !call.out && !call.t0 ? "decline" : "end", id: call.id }).catch(() => {});
+  endCall(!call.out && !call.t0 ? "Declined" : "Call ended");
+}
+function endCall(text, missed) {
+  if (!call) return;
+  const k = call; call = null;
+  ringStop(); clearTimeout(k.timeout); clearInterval(k.tick);
+  try { k.stream && k.stream.getTracks().forEach((t) => t.stop()); } catch {}
+  try { k.pc && k.pc.close(); } catch {}
+  const kind = k.video ? "Video call" : "Voice call";
+  const line = k.t0 ? `📞 ${kind} · ${fmtDur((Date.now() - k.t0) / 1000)}` : missed ? `📞 Missed ${kind.toLowerCase()}` : k.out ? `📞 ${kind} · ${text}` : `📞 ${kind} · declined`;
+  if (S && conv(k.peer)) { sysMsg(k.peer, line); const c = conv(k.peer); c.last = { text: line, ts: Date.now(), me: k.out }; if (missed) c.unread = (c.unread || 0) + 1; persist(); renderList(); if (current === k.peer) renderMessages(); }
+  setCallStatus(text); $("#call").classList.remove("ringing", "live");
+  $("#call-btns-in").classList.add("hidden"); $("#call-btns-live").classList.add("hidden");
+  setTimeout(() => { if (!call) { $("#call").classList.add("hidden"); $("#call-remote").srcObject = null; $("#call-local").srcObject = null; } }, 1300);
+}
+function toggleTrack(kind, btn) {
+  if (!call || !call.stream) return;
+  const tr = call.stream.getTracks().filter((t) => t.kind === kind); const on = !tr.every((t) => !t.enabled);
+  tr.forEach((t) => (t.enabled = !on)); btn.classList.toggle("off", on);
+}
+async function flipCamera() {
+  if (!call || !call.video || !call.pc) return;
+  call.facing = call.facing === "environment" ? "user" : "environment";
+  try {
+    const s2 = await navigator.mediaDevices.getUserMedia({ video: { facingMode: call.facing } });
+    const nt = s2.getVideoTracks()[0], sender = call.pc.getSenders().find((x) => x.track && x.track.kind === "video");
+    if (sender) await sender.replaceTrack(nt);
+    call.stream.getVideoTracks().forEach((t) => { t.stop(); call.stream.removeTrack(t); }); call.stream.addTrack(nt);
+    $("#call-local").srcObject = call.stream;
+  } catch { toast("Couldn't switch camera"); }
+}
+
+// ---------------- block & report ----------------
+function toggleBlock(id) {
+  S.blocked = S.blocked || {};
+  if (S.blocked[id]) { delete S.blocked[id]; persist(); renderList(); if (current) renderMessages(); return toast("Unblocked"); }
+  modal("Block " + esc(memberName(id)) + "?", `<p class="small">You won't receive their messages, calls or group messages. They aren't told. You can unblock any time from the chat menu.</p>`,
+    [["Block", () => { S.blocked[id] = Date.now(); persist(); renderList(); if (current) renderMessages(); toast("Blocked"); }, "danger"], ["Cancel", () => {}]]);
+}
+function reportDialog(id) {
+  const theirs = (S.msgs[id] || []).filter((m) => !m.me && !m.sys && m.text).slice(-5);
+  modal("Report " + esc(memberName(id)), `<p class="small">We can't read anyone's messages, so a report only contains what <b>you</b> choose to send us. It goes by email to our Grievance Officer.</p>
+    <textarea id="rp-why" rows="3" placeholder="What happened? (optional)"></textarea>
+    ${theirs.length ? `<label class="opt"><input type="checkbox" id="rp-inc" /> Include their last ${theirs.length} message${theirs.length > 1 ? "s" : ""} as evidence</label>` : ""}
+    <label class="opt"><input type="checkbox" id="rp-block" checked /> Also block this ID</label>`,
+    [["Send report by email", () => {
+      const lines = [`Reported GhostChat ID: ${id}`, `Reason: ${$("#rp-why").value.trim() || "(not given)"}`];
+      if ($("#rp-inc") && $("#rp-inc").checked) lines.push("", "Their messages (forwarded by me):", ...theirs.map((m) => `[${new Date(m.ts).toISOString()}] ${m.text}`));
+      if ($("#rp-block").checked) { S.blocked = S.blocked || {}; S.blocked[id] = Date.now(); persist(); renderList(); }
+      const a = document.createElement("a"); a.href = "mailto:privacy@quietline.chat?subject=" + encodeURIComponent("Abuse report: " + id) + "&body=" + encodeURIComponent(lines.join("\n").slice(0, 1800));
+      a.click(); toast("Opening your email app…");
+    }, "primary"], ["Cancel", () => {}]]);
 }
 function timerDialog() {
   const c = conv(current);
@@ -1761,7 +2001,10 @@ $("#chat-list").onclick = (e) => { if (longFired) return; const it = e.target.cl
 onLongPress($("#chat-list"), ".chat-item", (el) => chatItemMenu(el.dataset.id));
 onLongPress($("#messages"), ".msg", (el) => msgMenu(el.dataset.m));
 $("#messages").addEventListener("dblclick", (e) => { const el = e.target.closest(".msg"); if (el) { const m = msgs(current).find((x) => x.mid === el.dataset.m); if (m && !m.deleted) react(current, m, "❤️"); } });
-$("#btn-find").onclick = openFind; $("#find-close").onclick = closeFind;
+$("#btn-find").onclick = openFind;
+$("#btn-call").onclick = () => startCall(false); $("#btn-vcall").onclick = () => startCall(true);
+$("#cb-accept").onclick = acceptCall; $("#cb-decline").onclick = hangUp; $("#cb-end").onclick = hangUp;
+$("#cb-mute").onclick = (e) => toggleTrack("audio", e.currentTarget); $("#cb-cam").onclick = (e) => toggleTrack("video", e.currentTarget); $("#cb-flip").onclick = flipCamera; $("#find-close").onclick = closeFind;
 $("#find-input").oninput = (e) => { findQ = e.target.value.trim(); renderMessages(); };
 $("#rb-close").onclick = cancelReply;
 if (!CAN_RECORD) $("#composer").classList.add("no-mic");
@@ -1776,7 +2019,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "GhostChat v6.2 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "GhostChat v6.3 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions

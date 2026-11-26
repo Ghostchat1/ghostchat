@@ -1,0 +1,82 @@
+{
+  "name": "ghostchat-desktop",
+  "productName": "GhostChat",
+  "version": "6.3.0",
+  "description": "GhostChat desktop: anonymous end-to-end encrypted messenger",
+  "author": "Hyperviz Labs <privacy@quietline.chat>",
+  "license": "UNLICENSED",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "chat.quietline.ghostchat",
+    "productName": "GhostChat",
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "artifactName": "GhostChat-${version}-${os}-${arch}.${ext}",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": true
+    },
+    "portable": {
+      "artifactName": "GhostChat-${version}-windows-portable.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "category": "public.app-category.social-networking",
+      "identity": null,
+      "extendInfo": {
+        "NSCameraUsageDescription": "GhostChat uses the camera only during video calls you start or accept.",
+        "NSMicrophoneUsageDescription": "GhostChat uses the microphone only for calls and voice messages."
+      }
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network;InstantMessaging",
+      "maintainer": "Hyperviz Labs <privacy@quietline.chat>"
+    },
+    "publish": []
+  },
+  "repository": "https://github.com/Ghostchat1/ghostchat",
+  "homepage": "https://quietline.chat"
+}

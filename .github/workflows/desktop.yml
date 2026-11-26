@@ -1,0 +1,72 @@
+# Builds the GhostChat desktop apps (Windows, macOS, Linux) and publishes them as a release.
+# The apps are a locked-down window onto https://quietline.chat/app with screenshot blocking.
+# They are not code-signed yet, so Windows SmartScreen and macOS Gatekeeper will warn on first open.
+name: Build desktop apps
+on:
+  workflow_dispatch:
+  push:
+    paths: ["desktop/**", ".github/workflows/desktop.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Build
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          npm install --no-audit --no-fund
+          npx electron-builder --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          path: |
+            desktop/dist/*.exe
+            desktop/dist/*.dmg
+            desktop/dist/*.AppImage
+            desktop/dist/*.deb
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Checksums and notes
+        run: |
+          cd out && sha256sum * > SHA256SUMS.txt && cd ..
+          {
+            echo "### GhostChat for desktop"
+            echo ""
+            echo "- **Windows:** the Setup .exe installs it; the portable .exe runs without installing. If Windows SmartScreen warns, choose *More info → Run anyway*."
+            echo "- **Mac:** open the .dmg and drag GhostChat to Applications. The first time, right-click the app and choose *Open* (it isn't Apple-notarised yet)."
+            echo "- **Linux:** the .AppImage runs anywhere (make it executable); the .deb installs on Ubuntu/Debian."
+            echo ""
+            echo "Check your download against SHA256SUMS.txt."
+            echo ""
+            echo '```'
+            cat out/SHA256SUMS.txt
+            echo '```'
+          } > notes.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-${{ github.run_number }}
+          name: GhostChat Desktop ${{ github.run_number }}
+          body_path: notes.md
+          make_latest: false
+          files: out/*
