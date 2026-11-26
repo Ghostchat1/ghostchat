@@ -453,6 +453,7 @@ function connect() {
       ready = true; retry = 1000; setConn();
       const cur = S.spks[S.spks.length - 1];
       if (m.spk !== cur.id) inbox.send(JSON.stringify({ t: "spk", spk: spkPublic(cur) }));
+      syncPush();
     } else if (m.t === "msg") onEnvelope(m);
     else if (m.t === "deleted") { if (onDeleted) onDeleted(); }
     else if (m.t === "error" && m.error === "auth failed") register().then(() => inbox.close()).catch(() => {}); // RAM-only server restarted
@@ -480,7 +481,7 @@ function flushOutbox() {
   for (const o of S.outbox.filter((x) => x.env.length > MAX_ENV)) { S.outbox.splice(S.outbox.indexOf(o), 1); if (o.local) setStatus(o.conv || o.to, o.local, "failed"); persist(); }
   S.outbox.forEach(dropSend);
 }
-function setConn() { const c = $("#conn"); const on = ready && dropReady; c.classList.toggle("off", !on); c.title = on ? "Connected" : "Connecting…"; }
+function setConn() { const c = $("#conn"); if (!c) return; const on = ready && dropReady; c.classList.toggle("off", !on); c.title = on ? "Connected" : "Connecting…"; }
 
 // Cover traffic: at random moments, send yourself a dummy message. It looks exactly like a
 // real one to the server (same padding, same path), so your real activity hides in the noise.
@@ -785,6 +786,7 @@ const IC = { // small line icons
   fire: '<svg viewBox="0 0 24 24"><path d="M12 21c4 0 7-2.8 7-6.8 0-3.9-3-6.2-4.3-9.7-.6 2.4-2 3.6-3.4 4.4C10.6 6.6 9 5 9 3c-3.3 2.6-5 6.1-5 9.6C4 17.6 7.6 21 12 21z"/></svg>',
   bt: '<svg viewBox="0 0 24 24"><path d="m7 7 10 10-5 4V3l5 4L7 17"/></svg>',
   info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.1"/></svg>',
+  phone: '<svg viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg>',
   heart: '<svg viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 7.5 3c0 5.4-7.5 10-7.5 10z"/></svg>',
   ok: '<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
   dot: '<svg viewBox="0 0 24 24"><path d="M12 7v6M12 16.5v.1"/></svg>',
@@ -862,13 +864,14 @@ function renderYou() {
     <div class="card-h">Account</div>
     <div class="card">
       ${rowItem("save", "Encrypted backup", S.settings.backupAt ? "Last saved " + fmtTime(S.settings.backupAt) : "Not saved yet", 'data-act="backup"')}
+      ${rowItem("phone", "Move to a new device", "One-time QR link, works once, 10 minutes", 'data-act="move"')}
       ${rowItem("key", "Change passcode", "", 'data-act="pass"')}
       ${rowItem("user", "My ID & invite link", "", 'data-act="myid"')}
     </div>
     <div class="card-h">Messages</div>
     <div class="card">
       ${rowItem("star", "Starred messages", "", 'data-act="starred"')}
-      ${rowItem("bell", "Notifications", "Never show names or text", 'data-act="notif"')}
+      ${rowItem("bell", "Notifications", S.settings.push ? "On · never show names or text" : "Off · never show names or text", 'data-act="notif"')}
       ${NATIVE ? rowItem("bt", "Offline Bluetooth mesh", "", 'data-act="mesh"') : ""}
     </div>
     <div class="card-h">About</div>
@@ -877,7 +880,7 @@ function renderYou() {
       ${rowItem("info", "Security details", "Encryption, keys and connection", 'data-act="secinfo"')}
       ${rowItem("heart", "Invite a friend", "Share your private invite link", 'data-act="invite"')}
     </div>
-    <p class="ver">GhostChat 6.1 · no phone · no email · no trace</p>`;
+    <p class="ver">GhostChat 6.2 · no phone · no email · no trace</p>`;
   $("#you-name").onclick = renameSelf;
   $("#you-qr").onclick = myQrDialog;
   $("#you-share").onclick = shareInvite;
@@ -929,7 +932,7 @@ function renderSecurity() {
     <div class="card">${rowItem("fire", "Erase everything", "Instantly destroys this account and all chats", 'data-act="wipe"', "danger")}</div>`;
 }
 const ACTIONS = { backup: () => backupDialog(), pass: () => passDialog(), myid: () => myIdDialog(), starred: () => starredDialog(), notif: () => enableNotifs(), mesh: () => meshDialog(),
-  secinfo: () => securityDialog(), privacy: () => privacyDialog(), invite: () => shareInvite(), panic: () => panicSettings(), stealth: () => stealthDialog(), lock: () => lockNow(), wipe: () => wipeDialog() };
+  secinfo: () => securityDialog(), privacy: () => privacyDialog(), move: () => moveDialog(), invite: () => shareInvite(), panic: () => panicSettings(), stealth: () => stealthDialog(), lock: () => lockNow(), wipe: () => wipeDialog() };
 for (const id of ["#you-body", "#sec-body"]) $(id).addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (b && ACTIONS[b.dataset.act]) ACTIONS[b.dataset.act](); });
 
 function headerFor(c) {
@@ -1098,11 +1101,11 @@ function startReply(m) {
   $("#rb-who").textContent = replyTo.who === S.me.id ? "Replying to yourself" : "Replying to " + memberName(replyTo.who);
   $("#rb-text").textContent = replyTo.text; $("#reply-bar").classList.remove("hidden"); $("#msg-input").focus();
 }
-function cancelReply() { replyTo = null; $("#reply-bar").classList.add("hidden"); }
+function cancelReply() { replyTo = null; const r = $("#reply-bar"); if (r) r.classList.add("hidden"); }
 
 // ---------------- in-chat search ----------------
 function openFind() { $("#find-bar").classList.remove("hidden"); $("#find-input").value = ""; $("#find-n").textContent = ""; $("#find-input").focus(); }
-function closeFind() { findQ = ""; $("#find-bar").classList.add("hidden"); if (current) renderMessages(); }
+function closeFind() { findQ = ""; const f = $("#find-bar"); if (f) f.classList.add("hidden"); if (current && S) renderMessages(); }
 
 // ---------------- attach: photo, camera, file ----------------
 function attachSheet() {
@@ -1220,12 +1223,13 @@ async function backupDialog() {
   const bk = $("#bk"); bk.value = key; bk.onfocus = bk.onclick = () => { bk.select(); bk.setSelectionRange(0, key.length); };
 }
 function restoreDialog() {
-  modal("Restore from backup", `<p class="muted small">Paste your backup (starts with GHOST3:) or open the backup file, then enter its passcode.</p>
+  modal("Restore from backup", `<p class="muted small">Paste your backup (starts with GHOST3:) or a transfer link, or open the backup file. Then enter your passcode.</p>
     <textarea id="rk" rows="4"></textarea><input id="rf" type="file" accept=".txt,text/plain" class="mt" /><input id="rp" class="mt" type="password" placeholder="Passcode" /><p id="re" class="err"></p>`,
     [["Restore", async () => {
       try {
         let raw = $("#rk").value.trim();
         if (!raw && $("#rf").files[0]) raw = (await $("#rf").files[0].text()).trim();
+        if (raw.includes("#move=")) { err("#re", "Fetching your account…"); raw = (await fetchMove(raw)) || raw; $("#rk").value = raw; }
         if (!raw.startsWith("GHOST3:")) throw new Error("Not a GhostChat v4 backup");
         if (NATIVE && !NATIVE.server()) { const sv = $("#ob-server").value.trim().replace(/\/+$/, ""); if (!/^(https:\/\/[a-z0-9.-]+(:\d+)?|http:\/\/[a-z2-7]{56}\.onion(:\d+)?|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/i.test(sv)) throw new Error("Enter the server address on the first screen"); NATIVE.setServer(sv); }
         err("#re", BUILTIN_CRYPTO ? "Unlocking… a backup made on a computer can take a few minutes on iPhone — keep this screen open" : "Unlocking…");
@@ -1542,9 +1546,80 @@ function deleteChat() {
   modal("Delete chat?", `<p>Delete all messages with ${esc(displayName(c))} from this device?</p>`,
     [["Delete", () => { delete S.contacts[c.id]; delete S.msgs[c.id]; persist(); closeChat(); }, "danger"], ["Cancel", () => {}]]);
 }
-async function enableNotifs() {
-  if (!("Notification" in window)) return toast("Not supported here");
-  toast((await Notification.requestPermission()) === "granted" ? "On — notifications never show names or text" : "Blocked");
+// ---------------- notifications (opt-in, content-free wake-ups) ----------------
+const CAN_PUSH = !NATIVE && "serviceWorker" in navigator && "PushManager" in window && window.isSecureContext;
+const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const STANDALONE = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+const b64u = (s) => { s = String(s).replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return unb64(s); };
+const toB64u = (u8) => b64(u8).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function syncPush() {
+  if (!CAN_PUSH || !S || !S.settings.push || !("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const { key } = await (await fetch(BASE() + "/api/vapid")).json();
+    let sub = await reg.pushManager.getSubscription();
+    if (sub) { const cur = sub.options && sub.options.applicationServerKey ? toB64u(new Uint8Array(sub.options.applicationServerKey)) : ""; if (cur !== key) { await sub.unsubscribe(); sub = null; } }
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(key) });
+    if (inbox && inbox.readyState === 1 && ready) inbox.send(JSON.stringify({ t: "push", endpoint: sub.endpoint }));
+  } catch {}
+}
+async function pushOff() {
+  S.settings.push = false; persist();
+  try { const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch {}
+  try { if (inbox && ready) inbox.send(JSON.stringify({ t: "push", endpoint: null })); } catch {}
+}
+function enableNotifs() {
+  if (!("Notification" in window) && !CAN_PUSH) return toast("Notifications aren't supported in this browser");
+  const on = !!S.settings.push && Notification.permission === "granted";
+  const iosNote = IS_IOS && !STANDALONE ? `<p class="small warn">On iPhone, first add GhostChat to your Home Screen (Share → Add to Home Screen), then open it from there and turn this on.</p>` : "";
+  modal("Notifications", `<p class="small">Get told when a message arrives, even when GhostChat is closed.</p>
+    <div class="kv"><b>Shows</b><span>Only “New activity”. Never a name, ID or message text.</span><b>How</b><span>Our server sends an empty wake-up signal through Apple's, Google's or Mozilla's push service. They learn only that something arrived, not who sent it or what it says.</span></div>${iosNote}
+    <p class="small muted">Status: ${on ? "<b>On</b>" : "Off"}</p>`,
+    [[on ? "Turn off" : "Turn on", async () => {
+      if (on) { await pushOff(); return toast("Notifications off"); }
+      const p = await Notification.requestPermission();
+      if (p !== "granted") return toast("Notifications are blocked. Allow them in your phone's settings");
+      if (!CAN_PUSH) return toast("On, while GhostChat is open");
+      S.settings.push = true; persist(); await syncPush(); toast("On. Notifications never show names or text");
+    }, "primary"], ["Close", () => {}]]);
+}
+
+// ---------------- move to a new device ----------------
+function moveDialog() {
+  modal("Move to a new device", `<p class="small">Creates a one-time link (and QR code) that carries your account to another phone or computer. It works <b>once</b>, expires in <b>10 minutes</b>, and still needs your passcode.</p>
+    <p class="small muted">The link holds a secret key after the “#”, which never reaches our server. We only ever see scrambled data.</p>
+    <div id="mv-out"></div><p id="mv-err" class="err"></p>`,
+    [["Create transfer link", async () => {
+      try {
+        err("#mv-err", "Preparing…"); await flush();
+        const backup = "GHOST3:" + btoa(toB64Blob(await IDB.get(slot)));
+        const k = rand(32), iv = rand(12), ck = await subtle.importKey("raw", k, { name: "AES-GCM" }, false, ["encrypt"]);
+        const blob = b64(concat(iv, await aesEnc(ck, iv, enc.encode(backup), enc.encode("gc-move"))));
+        const r = await fetch(BASE() + "/api/move", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ blob }) });
+        const j = await r.json().catch(() => ({})); if (!r.ok || !j.token) throw new Error("Couldn't reach the server");
+        const link = BASE() + "/app#move=" + j.token + "." + toB64u(k);
+        err("#mv-err", "");
+        $("#mv-out").innerHTML = `<div class="qr">${self.QR ? QR(link, "#141210") : ""}</div><textarea class="keybox" id="mv-link" rows="3" readonly></textarea>
+          <p class="small">On the new device: scan this, or open the link, then enter your passcode. <b>Afterwards, erase this device</b> so only one device uses your ID.</p>`;
+        const t = $("#mv-link"); t.value = link; t.onclick = () => t.select();
+        const a = $("#modal-actions"); a.innerHTML = "";
+        for (const [l, fn, cls] of [["Copy link", () => copy(link, "Link copied"), "primary"], ["Done. Erase this device", () => eraseAfterMove(), "danger"], ["Close", () => closeModal(), ""]]) {
+          const b = document.createElement("button"); b.className = "btn " + (cls || "ghost"); b.textContent = l; b.onclick = fn; a.appendChild(b);
+        }
+        return true;
+      } catch (e) { return err("#mv-err", e.message || "Something went wrong"); }
+    }, "primary"], ["Cancel", () => {}]]);
+}
+function eraseAfterMove() {
+  modal("Erase this device?", `<p>Only do this after your new device has opened your account. Your ID, contacts and chats stay on the new device; nothing is erased anywhere else.</p>`,
+    [["Erase this device", async () => { wiping = true; await localErase(); location.replace("/app"); }, "danger"], ["Not yet", () => {}]]);
+}
+async function fetchMove(raw) {
+  const m = String(raw).match(/#move=([A-Za-z0-9]{16,40})\.([A-Za-z0-9_-]{40,50})/); if (!m) return null;
+  const r = await fetch(BASE() + "/api/move/" + m[1]);
+  if (!r.ok) throw new Error("This transfer link has expired or was already used. Create a new one");
+  const data = unb64((await r.json()).blob), k = await subtle.importKey("raw", b64u(m[2]), { name: "AES-GCM" }, false, ["decrypt"]);
+  return dec.decode(await aesDec(k, data.subarray(0, 12), data.subarray(12), enc.encode("gc-move")));
 }
 
 // ---------------- lock / unlock ----------------
@@ -1592,7 +1667,7 @@ let memConsent = null; // when the browser blocks storage, /signin hands consent
   if (!m) return;
   memConsent = { v: m[1], ts: +m[2], via: "web" };
   if (!LS.get("consent")) LS.set("consent", JSON.stringify(memConsent));
-  q.delete("c"); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : ""));
+  q.delete("c"); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash);
 })();
 function consentRec() {
   try { const c = JSON.parse(LS.get("consent") || "null"); if (c && c.v === NOTICE_V) return c; } catch {}
@@ -1701,7 +1776,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "GhostChat v6.1 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "GhostChat v6.2 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions
@@ -1717,10 +1792,13 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
   const ae = +LS.get("autoerase") || 0, seen = +LS.get("seen") || 0;
   if (has && ae && seen && Date.now() - seen > ae * 86400e3) { wiping = true; await localErase(); location.replace("/wipe?home=1"); return; } // dead-man's switch
   if (!has) {
-    if (!NATIVE && !consentRec()) { location.replace("/signin" + location.search); return; } // DPDP notice & consent first
+    if (!NATIVE && !consentRec()) { location.replace("/signin" + location.search + location.hash); return; } // DPDP notice & consent first
     if (consentRec()) $("#ob-consent-wrap").classList.add("hidden");
     $("#ob-privacy").href = BASE() + "/privacy"; $("#ob-terms").href = BASE() + "/terms";
-    prepIdentity(); return show("onboard");
+    prepIdentity(); show("onboard");
+    if (location.hash.startsWith("#move=")) { const link = location.href; history.replaceState(null, "", location.pathname + location.search); powStop = true; restoreDialog(); $("#rk").value = link; }
+    return;
   }
+  if (location.hash.startsWith("#move=")) { history.replaceState(null, "", location.pathname + location.search); setTimeout(() => toast("This device already has an account. Erase it first to move another one here"), 800); }
   show(LS.get("disguise") ? "calc" : "lock");
 })();

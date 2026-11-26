@@ -243,3 +243,8 @@ code { background: var(--panel2); border: 1px solid var(--line); border-radius: 
 .rv { opacity: 0; transform: translateY(18px); transition: opacity .7s var(--ease), transform .7s var(--ease); }
 .rv.in { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .rv { opacity: 1; transform: none; } html { scroll-behavior: auto; } }
+.lang-link { color: #cfcac0; font-size: 14.5px; font-weight: 600; padding: 9px 12px; border: 1px solid var(--line2); border-radius: 12px; }
+.lang-link:hover { border-color: var(--gold3); text-decoration: none; color: var(--gold2); }
+.mnav .lang-link { border: 0; }
+html[lang="hi"] body { line-height: 1.75; }
+html[lang="hi"] .hero h1, html[lang="hi"] .s-head h2, html[lang="hi"] .final h2, html[lang="hi"] .phead h1 { line-height: 1.25; letter-spacing: -0.5px; }

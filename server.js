@@ -8,7 +8,9 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { webcrypto, createHash } = require("crypto");
+const crypto = require("crypto");
+const https = require("https");
+const { webcrypto, createHash } = crypto;
 const { WebSocketServer } = require("ws");
 const subtle = webcrypto.subtle;
 
@@ -43,6 +45,20 @@ function save() {
     fs.writeFile(DATA_FILE + ".tmp", JSON.stringify(db), { mode: 0o600 }, (e) => { if (!e) fs.rename(DATA_FILE + ".tmp", DATA_FILE, () => {}); });
   }, 300);
 }
+
+// Restart-safe without touching disk: systemd's RuntimeDirectory (/run/ghostchat) is RAM (tmpfs).
+// On stop/update the queue is handed over there, read back on start, then deleted. A reboot erases it.
+const RUN_DIR = process.env.RUNTIME_DIRECTORY ? process.env.RUNTIME_DIRECTORY.split(":")[0] : null;
+const HANDOVER = RUN_DIR && path.join(RUN_DIR, "handover.json");
+if (!persistent && HANDOVER) {
+  try { const h = JSON.parse(fs.readFileSync(HANDOVER, "utf8")); if (h && h.users && h.queue) db = { users: h.users, queue: h.queue }; } catch {}
+  try { fs.unlinkSync(HANDOVER); } catch {}
+}
+function handover() {
+  if (!persistent && HANDOVER) { try { fs.writeFileSync(HANDOVER, JSON.stringify(db), { mode: 0o600 }); } catch {} }
+  process.exit(0);
+}
+process.on("SIGTERM", handover); process.on("SIGINT", handover);
 
 // ---------- helpers ----------
 const b64 = (buf) => Buffer.from(buf).toString("base64");
@@ -89,6 +105,43 @@ setInterval(() => {
 }, 10 * 60 * 1000);
 for (const q of Object.values(db.queue)) for (const m of q) queueBytes += m.env.length;
 
+// ---------- push notifications (opt-in) ----------
+// The push carries NO content and NO sender: it only wakes the phone so it fetches sealed envelopes.
+// Push services (Apple/Google/Mozilla) learn only that "some message arrived" for an anonymous endpoint.
+const PUSH_HOSTS = /(^|\.)(fcm\.googleapis\.com|push\.services\.mozilla\.com|push\.apple\.com|notify\.windows\.com)$/;
+let vapid = null;
+function loadVapid() {
+  const file = RUN_DIR && path.join(RUN_DIR, "vapid.json");
+  try { const j = JSON.parse(fs.readFileSync(file, "utf8")); vapid = { pub: j.pub, key: crypto.createPrivateKey(j.pem) }; return; } catch {}
+  const { privateKey, publicKey } = crypto.generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const jwk = publicKey.export({ format: "jwk" });
+  vapid = { pub: Buffer.concat([Buffer.from([4]), Buffer.from(jwk.x, "base64url"), Buffer.from(jwk.y, "base64url")]).toString("base64url"), key: privateKey };
+  if (file) try { fs.writeFileSync(file, JSON.stringify({ pub: vapid.pub, pem: privateKey.export({ format: "pem", type: "pkcs8" }) }), { mode: 0o600 }); } catch {}
+}
+loadVapid();
+const validPushUrl = (u) => { try { const x = new URL(u); return x.protocol === "https:" && PUSH_HOSTS.test(x.hostname) && u.length < 800; } catch { return false; } };
+const lastPush = new Map();
+function sendPush(id) {
+  const u = db.users[id]; if (!u || !u.push) return;
+  const now = Date.now(); if (now - (lastPush.get(id) || 0) < 20000) return; lastPush.set(id, now);
+  try {
+    const url = new URL(u.push), enc64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+    const unsigned = enc64({ typ: "JWT", alg: "ES256" }) + "." + enc64({ aud: url.origin, exp: Math.floor(now / 1000) + 12 * 3600, sub: "mailto:privacy@quietline.chat" });
+    const jwt = unsigned + "." + crypto.sign("sha256", Buffer.from(unsigned), { key: vapid.key, dsaEncoding: "ieee-p1363" }).toString("base64url");
+    const req = https.request(url, { method: "POST", timeout: 10000, headers: { TTL: "86400", Urgency: "high", "Content-Length": 0, Authorization: `vapid t=${jwt}, k=${vapid.pub}` } }, (res) => {
+      res.resume(); if (res.statusCode === 404 || res.statusCode === 410) { if (db.users[id]) delete db.users[id].push; }
+    });
+    req.on("error", () => {}); req.on("timeout", () => req.destroy()); req.end();
+  } catch {}
+}
+
+// ---------- move to a new device: one-time, double-encrypted handover blobs ----------
+// The app encrypts its (already passcode-locked) backup with a random key that stays in the link's #fragment,
+// which browsers never send to servers. We hold only ciphertext, for 10 minutes, and hand it out once.
+const moves = new Map(); let moveBytes = 0;
+const MOVE_MAX = 8 * 1024 * 1024, MOVE_TOTAL = 128 * 1024 * 1024, MOVE_TTL = 10 * 60 * 1000;
+setInterval(() => { const now = Date.now(); for (const [k, v] of moves) if (v.exp < now) { moveBytes -= v.blob.length; moves.delete(k); } }, 60000);
+
 // ---------- HTTP ----------
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".json": "application/json" };
 function headers(res, host) {
@@ -104,7 +157,9 @@ function headers(res, host) {
   res.removeHeader("X-Powered-By");
 }
 const SITE_PAGES = { "/": "index.html", "/features": "features.html", "/security": "security.html", "/download": "download.html", "/faq": "faq.html",
-  "/privacy": "privacy.html", "/terms": "terms.html", "/contact": "contact.html", "/signin": "signin.html" };
+  "/privacy": "privacy.html", "/terms": "terms.html", "/contact": "contact.html", "/signin": "signin.html",
+  "/about": "about.html", "/transparency": "transparency.html", "/changelog": "changelog.html", "/press": "press.html",
+  "/hi": "hi-index.html", "/hi/faq": "hi-faq.html", "/hi/privacy": "hi-privacy.html" };
 // Operator details (company, grievance officer…) live in public/site/config.json and fill {{TOKENS}} in the pages.
 function siteConfig() { try { return JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, "site", "config.json"), "utf8")); } catch { return {}; } }
 function sendFile(res, file, code = 200) {
@@ -157,6 +212,21 @@ const server = http.createServer(async (req, res) => {
       else if (u.sign === sign) { u.ecdh = ecdh; u.sig = sig; u.spk = pubSpk(spk); if (rec) u.consent = rec; }
       save();
       return sendJson(res, 200, { id });
+    }
+    if (req.method === "GET" && url.pathname === "/api/vapid") return sendJson(res, 200, { key: vapid.pub });
+    if (req.method === "POST" && url.pathname === "/api/move") {
+      const { blob } = await readBody(req, MOVE_MAX + 1024);
+      if (typeof blob !== "string" || !blob.length || blob.length > MOVE_MAX || !/^[A-Za-z0-9+/=]+$/.test(blob)) return sendJson(res, 400, { error: "bad request" });
+      if (moveBytes + blob.length > MOVE_TOTAL) return sendJson(res, 503, { error: "busy" });
+      const token = randomId().replace(/[+/=]/g, "").slice(0, 32);
+      moves.set(token, { blob, exp: Date.now() + MOVE_TTL }); moveBytes += blob.length;
+      return sendJson(res, 200, { token, ttl: MOVE_TTL });
+    }
+    if (req.method === "GET" && url.pathname.startsWith("/api/move/")) {
+      const token = url.pathname.slice(10), m = moves.get(token);
+      if (!m || m.exp < Date.now()) return sendJson(res, 404, { error: "expired" });
+      moves.delete(token); moveBytes -= m.blob.length; // one time only
+      return sendJson(res, 200, { blob: m.blob });
     }
     if (req.method === "GET" && url.pathname.startsWith("/api/keys/")) {
       const id = decodeURIComponent(url.pathname.slice(10)).toUpperCase();
@@ -251,6 +321,7 @@ wss.on("connection", (ws) => {
         dropRate.set(to, r);
         q.push({ mid: m.mid, env: m.env, exp: now + QUEUE_TTL }); queueBytes += m.env.length; save();
         deliver(to, { t: "msg", mid: m.mid, env: m.env });
+        if (!online.has(to)) sendPush(to);
       }
       return ws.send(JSON.stringify({ t: "queued", mid: m.mid }));
     }
@@ -260,6 +331,11 @@ wss.on("connection", (ws) => {
       const q = db.queue[ws.uid];
       if (q) { const i = q.findIndex((x) => x.mid === m.mid); if (i >= 0) { queueBytes -= q[i].env.length; q.splice(i, 1); if (!q.length) delete db.queue[ws.uid]; save(); } }
       return;
+    }
+    if (m.t === "push") { // opt-in wake-up notifications; null = turn off
+      const u = db.users[ws.uid]; if (!u) return;
+      if (m.endpoint === null) delete u.push; else if (validPushUrl(String(m.endpoint || ""))) u.push = String(m.endpoint);
+      save(); return;
     }
     if (m.t === "spk") { // rotate signed prekey (forward secrecy)
       const u = db.users[ws.uid];

@@ -20,11 +20,11 @@
   <div class="wrap">
     <a class="brand" href="/"><img src="/icon.svg" alt="" />GhostChat</a>
     <nav class="nav"><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/faq">FAQ</a></nav>
-    <div class="hdr-cta"><a class="btn ghost sm" href="/signin">Sign in</a><a class="btn gold sm" href="/signin" data-open>Open GhostChat</a></div>
+    <div class="hdr-cta"><a class="lang-link" href="/hi/privacy" hreflang="hi">हिन्दी</a><a class="btn ghost sm" href="/signin">Sign in</a><a class="btn gold sm" href="/signin" data-open>Open GhostChat</a></div>
     <button class="burger" id="burger" aria-label="Menu" aria-expanded="false"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   </div>
 </header>
-<div class="mnav" id="mnav"><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/faq">FAQ</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a><a class="btn gold" href="/signin" data-open>Open GhostChat</a></div>
+<div class="mnav" id="mnav"><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/faq">FAQ</a><a href="/about">About</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a><a class="lang-link" href="/hi/privacy" hreflang="hi">हिन्दी</a><a class="btn gold" href="/signin" data-open>Open GhostChat</a></div>
 <main>
 
 <section class="phead"><div class="wrap"><span class="eyebrow">Privacy notice</span><h1>Privacy notice</h1><p>Issued under the Digital Personal Data Protection Act, 2023 and the DPDP Rules, 2025.</p></div></section>
@@ -47,7 +47,7 @@
 
 <h2 id="data">2. Personal data we process and why</h2>
 <p>GhostChat is designed to process as little personal data as possible. This is the complete list:</p>
-<table><thead><tr><th>Data</th><th>Purpose</th><th>Where it is kept</th><th>How long</th></tr></thead><tbody><tr><td>Anonymous ID and public encryption keys</td><td>To route messages to you and let contacts verify you</td><td>Our server (memory only)</td><td>While your account exists; removed when you erase your account</td></tr><tr><td>Encrypted message envelopes</td><td>To deliver messages when the recipient is offline</td><td>Our server (memory only)</td><td>Deleted on delivery, or after 7 days</td></tr><tr><td>Consent record (notice version and time)</td><td>To show that you were given this notice and agreed (DPDP Act s.6(10))</td><td>Your device and our server, linked to your anonymous ID</td><td>While your account exists</td></tr><tr><td>IP address (network connection)</td><td>Technically necessary to keep a connection open; to block abuse</td><td>Held in memory during the connection; <b>not logged</b></td><td>Not retained. Not visible to us at all over Tor</td></tr><tr><td>Messages, contacts, nickname, settings</td><td>To run the app on your device</td><td><b>Only your device</b>, encrypted with your passcode</td><td>Until you delete them or erase the app</td></tr><tr><td>Emails you send us</td><td>To answer you or resolve a grievance</td><td>Our email provider</td><td>Up to 12 months after resolution, unless law requires longer</td></tr></tbody></table>
+<table><thead><tr><th>Data</th><th>Purpose</th><th>Where it is kept</th><th>How long</th></tr></thead><tbody><tr><td>Anonymous ID and public encryption keys</td><td>To route messages to you and let contacts verify you</td><td>Our server (memory only)</td><td>While your account exists; removed when you erase your account</td></tr><tr><td>Encrypted message envelopes</td><td>To deliver messages when the recipient is offline</td><td>Our server (memory only)</td><td>Deleted on delivery, or after 7 days</td></tr><tr><td>Consent record (notice version and time)</td><td>To show that you were given this notice and agreed (DPDP Act s.6(10))</td><td>Your device and our server, linked to your anonymous ID</td><td>While your account exists</td></tr><tr><td>IP address (network connection)</td><td>Technically necessary to keep a connection open; to block abuse</td><td>Held in memory during the connection; <b>not logged</b></td><td>Not retained. Not visible to us at all over Tor</td></tr><tr><td>Messages, contacts, nickname, settings</td><td>To run the app on your device</td><td><b>Only your device</b>, encrypted with your passcode</td><td>Until you delete them or erase the app</td></tr><tr><td>Push address (only if you turn on notifications)</td><td>To send an empty wake-up signal when a message arrives. The signal contains no content, name or sender</td><td>Our server (memory only); delivered via Apple, Google or Mozilla push services</td><td>Until you turn notifications off or erase your account</td></tr><tr><td>Transfer package (only when you move to a new device)</td><td>To carry your passcode-locked account to your new device. Encrypted a second time with a key we never receive</td><td>Our server (memory only)</td><td>Deleted when collected, or after 10 minutes</td></tr><tr><td>Emails you send us</td><td>To answer you or resolve a grievance</td><td>Our email provider</td><td>Up to 12 months after resolution, unless law requires longer</td></tr></tbody></table>
 <p><b>We do not collect:</b> your name, phone number, email address (unless you write to us), address book, location, device identifiers, advertising IDs, analytics or browsing history. Message contents are end-to-end encrypted and cannot be read by us.</p>
 <p>Your anonymous ID is random and is not linked to you by us. We still treat it, and your public keys, as personal data and protect them accordingly.</p>
 
@@ -81,7 +81,7 @@
 <p>If a personal data breach occurs, we will inform the Data Protection Board of India and affected users as the DPDP Rules require. Because we don't know who our users are, we will notify you inside the app and on this website.</p>
 
 <h2 id="processors">9. Service providers and data location</h2>
-<p>Our server is hosted by DigitalOcean in a data centre in Frankfurt, Germany, which processes data on our behalf as a Data Processor. Domain and TLS certificates are provided by our domain registrar and Let's Encrypt. Android app downloads are served by GitHub. We do not sell or share personal data with anyone for their own purposes. Transfers outside India are made in line with section 16 of the DPDP Act.</p>
+<p>Our server is hosted by DigitalOcean in a data centre in Frankfurt, Germany, which processes data on our behalf as a Data Processor. Domain and TLS certificates are provided by our domain registrar and Let's Encrypt. Android app downloads are served by GitHub. If you turn on notifications, Apple, Google or Mozilla (depending on your device) deliver an empty wake-up signal; they never receive message content, names or senders. We do not sell or share personal data with anyone for their own purposes. Transfers outside India are made in line with section 16 of the DPDP Act.</p>
 
 <h2 id="cookies">10. Cookies and tracking</h2>
 <p>We use <b>no cookies, analytics or trackers</b>, on the website or in the app. The app stores its encrypted data in your browser's or phone's local storage only so that it can work. That data never leaves your device unless you make a backup.</p>
@@ -99,9 +99,9 @@
   <div class="wrap">
     <div class="cols">
       <div><a class="brand" href="/"><img src="/icon.svg" alt="" />GhostChat</a><p>Private messaging with no phone number, no email and no name. Built in India for the Digital Personal Data Protection Act, 2023.</p></div>
-      <div><h5>Product</h5><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/signin">Open GhostChat</a></div>
-      <div><h5>Help</h5><a href="/faq">FAQ</a><a href="/contact">Contact &amp; grievances</a><a href="/download#tor">Tor (.onion) access</a></div>
-      <div><h5>Legal</h5><a href="/privacy">Privacy notice</a><a href="/terms">Terms of use</a><a href="/contact#grievance">Grievance officer</a></div>
+      <div><h5>Product</h5><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/changelog">What's new</a><a href="/signin">Open GhostChat</a></div>
+      <div><h5>Company</h5><a href="/about">About &amp; our promises</a><a href="/transparency">Transparency report</a><a href="/press">Press kit</a><a href="/faq">FAQ</a><a href="/contact">Contact &amp; grievances</a></div>
+      <div><h5>Legal</h5><a href="/privacy">Privacy notice</a><a href="/hi/privacy">गोपनीयता सूचना (हिन्दी)</a><a href="/terms">Terms of use</a><a href="/contact#grievance">Grievance officer</a></div>
     </div>
     <div class="bottom"><span>© 2026 {{COMPANY}}. All rights reserved.</span><span>No cookies · No trackers · No ads</span></div>
   </div>

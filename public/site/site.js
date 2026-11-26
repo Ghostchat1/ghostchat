@@ -61,7 +61,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!consent()) try { localStorage.setItem("gc3_consent", JSON.stringify({ v: NOTICE_V, ts: Date.now(), lang: lang ? lang.l : "en", via: "web" })); } catch (e) {}
     var add = new URLSearchParams(location.search).get("add"), rec = consent() || { v: NOTICE_V, ts: Date.now() };
     // the consent also travels in the link, in case this browser blocks storage
-    location.href = "/app?c=" + rec.v + "." + rec.ts + (add ? "&add=" + encodeURIComponent(add) : "");
+    location.href = "/app?c=" + rec.v + "." + rec.ts + (add ? "&add=" + encodeURIComponent(add) : "") + location.hash;
   };
   var w = document.getElementById("c-withdraw");
   if (w) w.onclick = function (e) {

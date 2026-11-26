@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Transparency report | GhostChat</title>
+<meta name="description" content="Every legal request for GhostChat user data and exactly what we could provide: almost nothing." />
+<meta name="theme-color" content="#09090a" />
+<meta name="referrer" content="no-referrer" />
+<meta property="og:title" content="Transparency report | GhostChat" />
+<meta property="og:description" content="Every legal request for GhostChat user data and exactly what we could provide: almost nothing." />
+<meta property="og:image" content="/site/img/og.png" />
+<link rel="icon" href="/icon.svg" />
+<link rel="apple-touch-icon" href="/icon-180.png" />
+<link rel="stylesheet" href="/site/site.css" />
+<script src="/site/site.js"></script>
+</head>
+<body>
+<header class="hdr">
+  <div class="wrap">
+    <a class="brand" href="/"><img src="/icon.svg" alt="" />GhostChat</a>
+    <nav class="nav"><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/faq">FAQ</a></nav>
+    <div class="hdr-cta"><a class="lang-link" href="/hi" hreflang="hi">हिन्दी</a><a class="btn ghost sm" href="/signin">Sign in</a><a class="btn gold sm" href="/signin" data-open>Open GhostChat</a></div>
+    <button class="burger" id="burger" aria-label="Menu" aria-expanded="false"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  </div>
+</header>
+<div class="mnav" id="mnav"><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/faq">FAQ</a><a href="/about">About</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a><a class="lang-link" href="/hi" hreflang="hi">हिन्दी</a><a class="btn gold" href="/signin" data-open>Open GhostChat</a></div>
+<main>
+
+<section class="phead"><div class="wrap"><span class="eyebrow">Transparency</span><h1>Transparency report</h1><p>Every legal request for user data we receive, and exactly what we could hand over.</p></div></section>
+<div class="prose">
+<p class="meta">Last updated {{UPDATED}} · Published twice a year, and whenever a request is received, as far as the law allows.</p>
+<div class="tldr"><h3>Requests received so far</h3><p><b>0</b> government or court requests for user data. <b>0</b> takedown orders. <b>0</b> accounts disclosed.</p></div>
+<h2>What we could hand over, if legally required</h2>
+<p>Because of how GhostChat is built, this is the complete list of what exists on our server for an anonymous ID:</p>
+<table><thead><tr><th>Exists</th><th>Does not exist</th></tr></thead><tbody>
+<tr><td>Whether the ID exists, and its public encryption keys</td><td>Name, phone number, email, address</td></tr>
+<tr><td>The privacy-notice version it consented to, and when</td><td>Message contents, photos, files or voice notes</td></tr>
+<tr><td>Sealed envelopes still waiting for delivery (unreadable to us; deleted within 7 days)</td><td>Who sent any message (sealed sender)</td></tr>
+<tr><td>An anonymous push address, only if notifications are switched on</td><td>Contact lists, groups, IP address logs, location</td></tr>
+</tbody></table>
+<p>All of this lives in memory only and disappears when the server reboots.</p>
+<h2>How we handle requests</h2>
+<ol>
+<li>We check that the request is valid under Indian law and issued by a competent authority.</li>
+<li>We push back on requests that are overly broad or lack a legal basis.</li>
+<li>We provide only what exists and is specifically required.</li>
+<li>Where the law allows, we tell the affected user (inside the app) and publish the request here.</li>
+</ol>
+<h2>Report history</h2>
+<table><thead><tr><th>Period</th><th>Requests</th><th>Data provided</th></tr></thead><tbody>
+<tr><td>Launch to {{UPDATED}}</td><td>0</td><td>None</td></tr>
+</tbody></table>
+<p class="note">Legal requests should be sent to our Grievance Officer at <a href="mailto:{{EMAIL}}">{{EMAIL}}</a>, {{ADDRESS}}.</p>
+</div>
+
+</main>
+<footer class="ftr">
+  <div class="wrap">
+    <div class="cols">
+      <div><a class="brand" href="/"><img src="/icon.svg" alt="" />GhostChat</a><p>Private messaging with no phone number, no email and no name. Built in India for the Digital Personal Data Protection Act, 2023.</p></div>
+      <div><h5>Product</h5><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/changelog">What's new</a><a href="/signin">Open GhostChat</a></div>
+      <div><h5>Company</h5><a href="/about">About &amp; our promises</a><a href="/transparency">Transparency report</a><a href="/press">Press kit</a><a href="/faq">FAQ</a><a href="/contact">Contact &amp; grievances</a></div>
+      <div><h5>Legal</h5><a href="/privacy">Privacy notice</a><a href="/hi/privacy">गोपनीयता सूचना (हिन्दी)</a><a href="/terms">Terms of use</a><a href="/contact#grievance">Grievance officer</a></div>
+    </div>
+    <div class="bottom"><span>© 2026 {{COMPANY}}. All rights reserved.</span><span>No cookies · No trackers · No ads</span></div>
+  </div>
+</footer>
+</body>
+</html>

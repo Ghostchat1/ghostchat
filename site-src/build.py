@@ -39,11 +39,16 @@ def ic(n, cls="i"): return f'<svg class="{cls}" viewBox="0 0 24 24">{I[n]}</svg>
 
 NAV = [("/features", "Features"), ("/security", "Security"), ("/download", "Download"), ("/faq", "FAQ")]
 
-def page(path, title, desc, body, active=""):
+HI_MAP = {"/": "/hi", "/faq": "/hi/faq", "/privacy": "/hi/privacy"}
+EN_MAP = {v: k for k, v in HI_MAP.items()}
+def page(path, title, desc, body, active="", lang="en"):
     nav = "".join(f'<a href="{h}"{" class=\"on\"" if h == active else ""}>{t}</a>' for h, t in NAV)
-    mnav = "".join(f'<a href="{h}">{t}</a>' for h, t in NAV) + '<a href="/privacy">Privacy</a><a href="/contact">Contact</a>'
+    if lang == "hi": nav = "".join(f'<a href="{h}">{t}</a>' for h, t in [("/features", "विशेषताएँ"), ("/security", "सुरक्षा"), ("/download", "डाउनलोड"), ("/hi/faq", "सवाल-जवाब")])
+    alt = (EN_MAP.get(path, "/") if lang == "hi" else HI_MAP.get(path, "/hi"))
+    langlink = f'<a class="lang-link" href="{alt}" hreflang="{"en" if lang == "hi" else "hi"}">{"English" if lang == "hi" else "हिन्दी"}</a>'
+    mnav = "".join(f'<a href="{h}">{t}</a>' for h, t in NAV) + '<a href="/about">About</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a>' + langlink
     return f'''<!doctype html>
-<html lang="en">
+<html lang="{lang}">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -64,7 +69,7 @@ def page(path, title, desc, body, active=""):
   <div class="wrap">
     <a class="brand" href="/"><img src="/icon.svg" alt="" />GhostChat</a>
     <nav class="nav">{nav}</nav>
-    <div class="hdr-cta"><a class="btn ghost sm" href="/signin">Sign in</a><a class="btn gold sm" href="/signin" data-open>Open GhostChat</a></div>
+    <div class="hdr-cta">{langlink}<a class="btn ghost sm" href="/signin">{"साइन इन" if lang == "hi" else "Sign in"}</a><a class="btn gold sm" href="/signin" data-open>{"GhostChat खोलें" if lang == "hi" else "Open GhostChat"}</a></div>
     <button class="burger" id="burger" aria-label="Menu" aria-expanded="false">{ic("menu")}</button>
   </div>
 </header>
@@ -76,9 +81,9 @@ def page(path, title, desc, body, active=""):
   <div class="wrap">
     <div class="cols">
       <div><a class="brand" href="/"><img src="/icon.svg" alt="" />GhostChat</a><p>Private messaging with no phone number, no email and no name. Built in India for the Digital Personal Data Protection Act, 2023.</p></div>
-      <div><h5>Product</h5><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/signin">Open GhostChat</a></div>
-      <div><h5>Help</h5><a href="/faq">FAQ</a><a href="/contact">Contact &amp; grievances</a><a href="/download#tor">Tor (.onion) access</a></div>
-      <div><h5>Legal</h5><a href="/privacy">Privacy notice</a><a href="/terms">Terms of use</a><a href="/contact#grievance">Grievance officer</a></div>
+      <div><h5>Product</h5><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/changelog">What's new</a><a href="/signin">Open GhostChat</a></div>
+      <div><h5>Company</h5><a href="/about">About &amp; our promises</a><a href="/transparency">Transparency report</a><a href="/press">Press kit</a><a href="/faq">FAQ</a><a href="/contact">Contact &amp; grievances</a></div>
+      <div><h5>Legal</h5><a href="/privacy">Privacy notice</a><a href="/hi/privacy">गोपनीयता सूचना (हिन्दी)</a><a href="/terms">Terms of use</a><a href="/contact#grievance">Grievance officer</a></div>
     </div>
     <div class="bottom"><span>© 2026 {{{{COMPANY}}}}. All rights reserved.</span><span>No cookies · No trackers · No ads</span></div>
   </div>
@@ -129,11 +134,14 @@ FAQ = [
  ("Can GhostChat read my messages?", "<p>No. Messages are encrypted on your phone and can only be decrypted on the recipient's phone. Our server only ever holds sealed envelopes it cannot open, and it deletes them once they're delivered (or after 7 days).</p>"),
  ("What happens if I forget my passcode?", "<p>Nobody can recover it, not even us. That's the price of real privacy. Keep an <b>encrypted backup</b> (You → Encrypted backup) somewhere safe; you can restore it with your passcode on any device.</p>"),
  ("Is it free?", "<p>Yes. GhostChat has no ads and does not sell or share data. There's nothing to sell.</p>"),
- ("How is this different from other private messengers?", "<p>Most private messengers still tie your account to a phone number. GhostChat doesn't, hides the sender from the server (sealed sender), uses post-quantum encryption, and adds protection for people at risk: a panic wipe, duress passcode, auto-erase, calculator disguise and a decoy account.</p>"),
+ ("How is this different from other private messengers?", "<p>Most messengers still tie your account to a phone number, and some now offer number-free sign-up only as a paid or beta option. GhostChat has never needed one, and it's free. It also hides the sender from the server (sealed sender), uses post-quantum encryption, works over Tor, and adds protection for people at risk: a panic wipe, duress passcode, auto-erase, calculator disguise and a decoy account.</p>"),
  ("Does it work on iPhone and Android?", "<p>Yes. On iPhone, open GhostChat in Safari and add it to your Home Screen. On Android, install the app or use the browser. It also works on any computer. See <a href=\"/download\">Download</a>.</p>"),
  ("What does the panic button do?", "<p>Holding the lock button for two seconds (or typing your duress passcode) erases your keys, chats and settings from the device instantly, and can tell your contacts' apps to erase your conversations too. It cannot be undone.</p>"),
  ("Who can see that I use GhostChat?", "<p>On the normal web address, your internet provider can see you connect to quietline.chat (not what you send). For maximum anonymity use our Tor address, which hides your IP address from everyone, including us. See <a href=\"/security\">Security</a>.</p>"),
  ("Is GhostChat legal to use in India?", "<p>Yes. Private, encrypted communication is lawful. Using GhostChat for anything illegal is not, and is prohibited by our <a href=\"/terms\">Terms</a>. We follow the Digital Personal Data Protection Act, 2023 and the IT Act, 2000.</p>"),
+ ("How do you make money without selling data?", "<p>From organisations, not from you. Companies, law firms and newsrooms pay for private GhostChat servers and our anonymous whistleblower channel. The personal app stays free, with no ads, ever. See <a href=\"/about#money\">how we make money</a>.</p>"),
+ ("How do I move GhostChat to a new phone?", "<p>Open You → <b>Move to a new device</b>. Scan the QR code (or open the link) on the new phone and enter your passcode. The link works once and expires in 10 minutes. Then erase the old phone.</p>"),
+ ("Will I get notifications when the app is closed?", "<p>Yes, if you turn them on (You → Notifications). They only ever say “New activity”, never a name or message. On iPhone, add GhostChat to your Home Screen first.</p>"),
  ("How do I delete my account?", "<p>Open GhostChat → You → Privacy &amp; your data → <b>Withdraw consent &amp; erase account</b>. Your keys and chats are wiped from the device, your ID is removed from our server, and your contacts' copies can be erased as well.</p>"),
 ]
 def faq_html(items): return '<div class="faq">' + "".join(f"<details class=\"rv\"><summary>{q}</summary>{a}</details>" for q, a in items) + "</div>"
@@ -317,12 +325,19 @@ download = f'''
     <a class="btn gold" href="/signin" data-open>Open in Safari {ic("arrow")}</a></div>
   <div class="card rv"><div class="ico">{ic("android")}</div><h3>Android</h3><p>Install the app directly. Its code is bundled inside, it blocks screenshots, and it can work over Bluetooth without internet.</p>
     <ol><li>Tap <b>Download APK</b> below.</li><li>Open the file. If asked, allow <b>Install unknown apps</b> for your browser.</li><li>Open GhostChat and create your ID.</li></ol>
-    <a class="btn gold" href="https://github.com/Ghostchat1/ghostchat/releases/latest/download/GhostChat.apk" rel="noopener">Download APK {ic("save")}</a></div>
+    <a class="btn gold" href="https://github.com/Ghostchat1/ghostchat/releases/latest/download/GhostChat.apk" rel="noopener">Download APK {ic("save")}</a>
+    <p class="small muted">Installed a test version before 27 Nov 2026? Uninstall it once (after saving a backup). Official releases are signed with our permanent key, so future updates install over each other.</p></div>
   <div class="card rv"><div class="ico">{ic("desktop")}</div><h3>Computer</h3><p>Works in any modern browser on Windows, Mac or Linux. In Chrome or Edge you can install it as an app from the address bar.</p>
     <a class="btn ghost" href="/signin" data-open>Open in your browser {ic("arrow")}</a></div>
   <div class="card rv" id="tor"><div class="ico">{ic("onion")}</div><h3>Tor (maximum anonymity)</h3><p>Hide your IP address from everyone, including us. Use <b>Tor Browser</b> on a computer or <b>Onion Browser</b> on iPhone, and open:</p>
     <p><code>{{{{ONION}}}}</code></p><p class="small muted">Accounts on the Tor address and the normal address are separate.</p></div>
 </div>
+<div class="card rv" id="verify"><div class="ico">{ic("shield")}</div><h3>Verify your Android download</h3>
+<p>Every official APK is signed with the same GhostChat key. Make sure your copy is genuine before you install it:</p>
+<ol><li><b>Signing certificate (SHA-256):</b><br><code>7D:9F:64:47:32:76:9B:E5:71:C2:A0:63:15:16:8A:84:4E:CA:64:34:CA:54:77:7B:28:63:CC:51:D1:13:60:CF</code></li>
+<li>Each release lists the file's SHA-256 checksum and includes a <code>GhostChat.apk.sha256</code> file. See <a href="https://github.com/Ghostchat1/ghostchat/releases/latest" rel="noopener">the latest release</a>.</li>
+<li>On a computer: <code>sha256sum GhostChat.apk</code> and <code>apksigner verify --print-certs GhostChat.apk</code> must match the values above.</li></ol>
+<p class="small muted">The source code is public at <a href="https://github.com/Ghostchat1/ghostchat" rel="noopener">github.com/Ghostchat1/ghostchat</a>. Releases are built automatically from that code by GitHub, not on anyone's laptop.</p></div>
 </div></section>
 '''
 write("download.html", page("/download", "Download | GhostChat", "Install GhostChat on iPhone, Android or your computer, or use it over Tor.", download, "/download"))
@@ -341,6 +356,8 @@ DATA_ROWS = [
  ("Consent record (notice version and time)", "To show that you were given this notice and agreed (DPDP Act s.6(10))", "Your device and our server, linked to your anonymous ID", "While your account exists"),
  ("IP address (network connection)", "Technically necessary to keep a connection open; to block abuse", "Held in memory during the connection; <b>not logged</b>", "Not retained. Not visible to us at all over Tor"),
  ("Messages, contacts, nickname, settings", "To run the app on your device", "<b>Only your device</b>, encrypted with your passcode", "Until you delete them or erase the app"),
+ ("Push address (only if you turn on notifications)", "To send an empty wake-up signal when a message arrives. The signal contains no content, name or sender", "Our server (memory only); delivered via Apple, Google or Mozilla push services", "Until you turn notifications off or erase your account"),
+ ("Transfer package (only when you move to a new device)", "To carry your passcode-locked account to your new device. Encrypted a second time with a key we never receive", "Our server (memory only)", "Deleted when collected, or after 10 minutes"),
  ("Emails you send us", "To answer you or resolve a grievance", "Our email provider", "Up to 12 months after resolution, unless law requires longer"),
 ]
 rows = "".join(f"<tr><td>{a}</td><td>{b}</td><td>{c}</td><td>{d}</td></tr>" for a, b, c, d in DATA_ROWS)
@@ -399,7 +416,7 @@ privacy = f'''
 <p>If a personal data breach occurs, we will inform the Data Protection Board of India and affected users as the DPDP Rules require. Because we don't know who our users are, we will notify you inside the app and on this website.</p>
 
 <h2 id="processors">9. Service providers and data location</h2>
-<p>Our server is hosted by DigitalOcean in a data centre in Frankfurt, Germany, which processes data on our behalf as a Data Processor. Domain and TLS certificates are provided by our domain registrar and Let's Encrypt. Android app downloads are served by GitHub. We do not sell or share personal data with anyone for their own purposes. Transfers outside India are made in line with section 16 of the DPDP Act.</p>
+<p>Our server is hosted by DigitalOcean in a data centre in Frankfurt, Germany, which processes data on our behalf as a Data Processor. Domain and TLS certificates are provided by our domain registrar and Let's Encrypt. Android app downloads are served by GitHub. If you turn on notifications, Apple, Google or Mozilla (depending on your device) deliver an empty wake-up signal; they never receive message content, names or senders. We do not sell or share personal data with anyone for their own purposes. Transfers outside India are made in line with section 16 of the DPDP Act.</p>
 
 <h2 id="cookies">10. Cookies and tracking</h2>
 <p>We use <b>no cookies, analytics or trackers</b>, on the website or in the app. The app stores its encrypted data in your browser's or phone's local storage only so that it can work. That data never leaves your device unless you make a backup.</p>
@@ -515,7 +532,199 @@ signin = f'''
 '''
 write("signin.html", page("/signin", "Sign in | GhostChat", "Create an anonymous GhostChat ID or unlock your account. No phone number or email needed.", signin))
 
+
+# ------------------------------------------------------------------ ABOUT
+about = f'''
+<section class="phead"><div class="wrap"><span class="eyebrow">About</span><h1>Privacy is a right.<br><span class="gold-text">Not a premium feature.</span></h1><p>GhostChat is built in Ludhiana by {{{{COMPANY}}}} for anyone who needs to talk without being watched.</p></div></section>
+<div class="prose">
+<h2>Why we built GhostChat</h2>
+<p>Almost every messenger starts by asking for your phone number, which in India is tied to your name, your ID documents and your bank. We think private conversation shouldn't require an identity at all. So we built a messenger that never asks who you are, can't read what you say, and can erase itself in two seconds.</p>
+<h2 id="promises">Our promises</h2>
+<ul>
+<li><b>No ads. Ever.</b> Not now, not “once we scale”.</li>
+<li><b>We never sell, rent or share personal data.</b> We hold almost none, and we'll keep it that way.</li>
+<li><b>No trackers, analytics or third-party code</b> on the website or in the app.</li>
+<li><b>We will never ask for your phone number, email or name</b> to use GhostChat.</li>
+<li><b>We will never quietly weaken encryption.</b> If a law ever forced a change, we would say so publicly before it took effect.</li>
+<li><b>The personal app stays free.</b> Core messaging, encryption and safety features will never sit behind a paywall.</li>
+<li><b>We publish every government request</b> we receive in our <a href="/transparency">transparency report</a>.</li>
+</ul>
+<h2 id="money">How we make money</h2>
+<p>We earn from <b>organisations</b>, not from your data. Everything below uses the same encryption as the free app, and none of it gives us access to anyone's messages.</p>
+<table><thead><tr><th>Offer</th><th>For</th><th>What it is</th></tr></thead><tbody>
+<tr><td><b>GhostChat for Teams</b></td><td>Law firms, hospitals, companies, newsrooms</td><td>A private GhostChat server for your organisation, hosted in India or on your own premises, with an admin console to add and remove staff and wipe lost phones.</td></tr>
+<tr><td><b>Whistleblower channel</b></td><td>Companies needing a vigil mechanism or POSH reporting</td><td>An anonymous reporting page where employees can raise concerns and talk to investigators without ever revealing who they are.</td></tr>
+<tr><td><b>Supporter</b> (optional)</td><td>Individuals who want to help</td><td>Pay what you like with a voucher code that is never linked to your GhostChat ID. You get cosmetic extras like more disguise icons and themes, never extra privacy.</td></tr>
+</tbody></table>
+<p>Interested in Teams or the whistleblower channel? Write to <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a>.</p>
+<h2>Who we are</h2>
+<p>{{{{COMPANY}}}}, {{{{ADDRESS}}}}. Grievance Officer: {{{{GRIEVANCE_NAME}}}}. See <a href="/contact">contact</a>.</p>
+</div>
+'''
+write("about.html", page("/about", "About & our promises | GhostChat", "Who builds GhostChat, the promises we make, and how we make money without ads or selling data.", about))
+
+# ------------------------------------------------------------------ TRANSPARENCY
+transparency = f'''
+<section class="phead"><div class="wrap"><span class="eyebrow">Transparency</span><h1>Transparency report</h1><p>Every legal request for user data we receive, and exactly what we could hand over.</p></div></section>
+<div class="prose">
+<p class="meta">Last updated {{{{UPDATED}}}} · Published twice a year, and whenever a request is received, as far as the law allows.</p>
+<div class="tldr"><h3>Requests received so far</h3><p><b>0</b> government or court requests for user data. <b>0</b> takedown orders. <b>0</b> accounts disclosed.</p></div>
+<h2>What we could hand over, if legally required</h2>
+<p>Because of how GhostChat is built, this is the complete list of what exists on our server for an anonymous ID:</p>
+<table><thead><tr><th>Exists</th><th>Does not exist</th></tr></thead><tbody>
+<tr><td>Whether the ID exists, and its public encryption keys</td><td>Name, phone number, email, address</td></tr>
+<tr><td>The privacy-notice version it consented to, and when</td><td>Message contents, photos, files or voice notes</td></tr>
+<tr><td>Sealed envelopes still waiting for delivery (unreadable to us; deleted within 7 days)</td><td>Who sent any message (sealed sender)</td></tr>
+<tr><td>An anonymous push address, only if notifications are switched on</td><td>Contact lists, groups, IP address logs, location</td></tr>
+</tbody></table>
+<p>All of this lives in memory only and disappears when the server reboots.</p>
+<h2>How we handle requests</h2>
+<ol>
+<li>We check that the request is valid under Indian law and issued by a competent authority.</li>
+<li>We push back on requests that are overly broad or lack a legal basis.</li>
+<li>We provide only what exists and is specifically required.</li>
+<li>Where the law allows, we tell the affected user (inside the app) and publish the request here.</li>
+</ol>
+<h2>Report history</h2>
+<table><thead><tr><th>Period</th><th>Requests</th><th>Data provided</th></tr></thead><tbody>
+<tr><td>Launch to {{{{UPDATED}}}}</td><td>0</td><td>None</td></tr>
+</tbody></table>
+<p class="note">Legal requests should be sent to our Grievance Officer at <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a>, {{{{ADDRESS}}}}.</p>
+</div>
+'''
+write("transparency.html", page("/transparency", "Transparency report | GhostChat", "Every legal request for GhostChat user data and exactly what we could provide: almost nothing.", transparency))
+
+# ------------------------------------------------------------------ CHANGELOG
+CHANGES = [
+ ("6.2", "27 Nov 2026", ["Notifications when GhostChat is closed: content-free wake-ups that never show names or text", "Move to a new device with a one-time QR link (works once, expires in 10 minutes)", "Android app now signed with a permanent key, with published checksums", "Waiting messages survive server updates, still never written to disk", "About, transparency report, press kit and Hindi pages on the website"]),
+ ("6.1", "26 Nov 2026", ["New website with features, security, FAQ and download pages", "DPDP Act sign-in with a separate privacy notice in English and Hindi", "Privacy & your data in the app: rights, consent and erase"]),
+ ("6.0", "26 Nov 2026", ["Complete redesign in graphite and gold, with Chats, Security and You tabs", "Voice messages, documents, replies, reactions, stars, pins and in-chat search", "Security centre with a protection score", "QR code invites and generated avatars"]),
+ ("5.x", "Nov 2026", ["Works on iPhone, including Onion Browser over Tor", "Fast normal web address alongside the .onion address", "Bigger photos and storage fallbacks for strict browsers"]),
+]
+changelog = f'''
+<section class="phead"><div class="wrap"><span class="eyebrow">Changelog</span><h1>What's new</h1><p>Every GhostChat release, in plain words.</p></div></section>
+<div class="prose">{"".join(f'<h2>Version {v} <span class="muted small">· {d}</span></h2><ul>' + "".join(f"<li>{x}</li>" for x in items) + "</ul>" for v, d, items in CHANGES)}</div>
+'''
+write("changelog.html", page("/changelog", "What's new | GhostChat", "GhostChat release notes.", changelog))
+
+# ------------------------------------------------------------------ PRESS
+press = f'''
+<section class="phead"><div class="wrap"><span class="eyebrow">Press</span><h1>Press kit</h1><p>Logos, colours and a short description you're free to use when writing about GhostChat.</p></div></section>
+<div class="prose">
+<h2>About GhostChat (boilerplate)</h2>
+<p>GhostChat is a private messenger from {{{{COMPANY}}}}, Ludhiana, that requires no phone number, email or name. Messages are end-to-end encrypted with hybrid post-quantum cryptography and sealed sender, so even GhostChat's own server cannot read them or see who sent them. It adds protections for people at risk, including a panic wipe, duress passcode, calculator disguise and decoy account, and is built to comply with India's Digital Personal Data Protection Act, 2023.</p>
+<h2>Logos</h2>
+<ul><li><a href="/icon.svg" download>App icon (SVG, vector)</a></li><li><a href="/icon-512.png" download>App icon (PNG, 512 × 512)</a></li><li><a href="/site/img/og.png" download>Social preview image (PNG, 1200 × 630)</a></li></ul>
+<h2>Colours</h2>
+<table><thead><tr><th>Name</th><th>Hex</th></tr></thead><tbody><tr><td>Graphite</td><td><code>#0A0A0B</code></td></tr><tr><td>Gold</td><td><code>#D6B36A</code></td></tr><tr><td>Light gold</td><td><code>#F3DC9B</code></td></tr><tr><td>Deep gold</td><td><code>#A7843C</code></td></tr></tbody></table>
+<h2>Please</h2><ul><li>Write it as “GhostChat” (one word, capital G and C).</li><li>Don't alter the logo or call GhostChat “untraceable”; it's designed for privacy, not for evading the law.</li></ul>
+<h2>Media contact</h2><p><a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a></p>
+</div>
+'''
+write("press.html", page("/press", "Press kit | GhostChat", "GhostChat logos, colours and boilerplate for journalists.", press))
+
 # ------------------------------------------------------------------ 404
 nf = f'''<section class="final"><div class="wrap"><img src="/icon.svg" alt="" /><h2>This page vanished.</h2><p>Like a good disappearing message.</p><a class="btn gold" href="/">Back to home {ic("arrow")}</a></div></section>'''
 write("404.html", page("/404", "Not found | GhostChat", "Page not found.", nf))
 print("built", sorted(os.listdir(OUT)))
+
+# ================================================================== HINDI (हिन्दी)
+FEATS_HI = [
+ ("id", "न फ़ोन नंबर, न ईमेल", "बिना किसी जानकारी के साइन अप करें। आपको 16 अक्षरों की एक रैंडम ID मिलती है, जो आपसे किसी भी तरह जुड़ी नहीं है।"),
+ ("seal", "सील्ड सेंडर", "हर संदेश एक गुमनाम लिफ़ाफ़े में जाता है। हमारा सर्वर भी नहीं जान सकता कि उसे किसने भेजा।"),
+ ("atom", "पोस्ट-क्वांटम एन्क्रिप्शन", "ML-KEM-768 और P-384 का मेल, ताकि आज रिकॉर्ड किए गए संदेश भविष्य के क्वांटम कंप्यूटरों से भी सुरक्षित रहें।"),
+ ("key", "हर संदेश के लिए नई कुंजी", "हर संदेश के साथ कुंजी बदलती है। एक कुंजी लीक हो जाए तो भी बाक़ी संदेश सुरक्षित रहते हैं।"),
+ ("timer", "गायब होने वाले संदेश", "ऐसे संदेश जो दोनों फ़ोन से अपने आप मिट जाते हैं, और फ़ोटो जो एक बार देखने के बाद गायब हो जाती हैं।"),
+ ("siren", "पैनिक बटन", "लॉक बटन को दो सेकंड दबाएँ या ड्यूरेस पासकोड डालें, और हर निशान मिट जाता है।"),
+ ("ghost", "भेस और नकली अकाउंट", "ऐप को कैलकुलेटर जैसा दिखाएँ, या दबाव में एक नकली अकाउंट खोलें।"),
+ ("mic", "वॉइस, फ़ोटो और फ़ाइलें", "वॉइस नोट, दस्तावेज़, ग्रुप, जवाब और रिएक्शन, सब एंड-टू-एंड एन्क्रिप्टेड।"),
+]
+FAQ_HI = [
+ ("क्या सच में फ़ोन नंबर की ज़रूरत नहीं है?", "<p>हाँ। GhostChat कभी फ़ोन नंबर, ईमेल, नाम या संपर्क नहीं माँगता। साइन अप करते समय आपका फ़ोन एक रैंडम ID और एन्क्रिप्शन कुंजियाँ बनाता है। कोई भी, हम भी, केवल वही ID देख सकते हैं।</p>"),
+ ("क्या GhostChat मेरे संदेश पढ़ सकता है?", "<p>नहीं। संदेश आपके फ़ोन पर एन्क्रिप्ट होते हैं और केवल पाने वाले के फ़ोन पर खुलते हैं। हमारा सर्वर केवल सीलबंद लिफ़ाफ़े रखता है जिन्हें वह खोल नहीं सकता, और डिलीवरी के बाद (या 7 दिन बाद) उन्हें मिटा देता है।</p>"),
+ ("अगर मैं अपना पासकोड भूल जाऊँ तो?", "<p>कोई भी उसे वापस नहीं ला सकता, हम भी नहीं। इसलिए एक <b>एन्क्रिप्टेड बैकअप</b> (You → Encrypted backup) सुरक्षित जगह रखें।</p>"),
+ ("क्या यह मुफ़्त है?", "<p>हाँ। कोई विज्ञापन नहीं, और हम कोई डेटा नहीं बेचते। हम संस्थाओं को निजी सर्वर और व्हिसलब्लोअर चैनल देकर कमाते हैं, आपसे नहीं।</p>"),
+ ("नए फ़ोन पर GhostChat कैसे ले जाएँ?", "<p>You → <b>Move to a new device</b> खोलें। नए फ़ोन पर QR कोड स्कैन करें और पासकोड डालें। लिंक केवल एक बार और 10 मिनट तक काम करता है। फिर पुराने फ़ोन से मिटा दें।</p>"),
+ ("पैनिक बटन क्या करता है?", "<p>लॉक बटन को दो सेकंड दबाने (या ड्यूरेस पासकोड डालने) से आपकी कुंजियाँ, चैट और सेटिंग्स तुरंत मिट जाती हैं, और आपके संपर्कों के फ़ोन से भी आपकी बातचीत मिटाई जा सकती है। इसे वापस नहीं लाया जा सकता।</p>"),
+ ("क्या भारत में इसका उपयोग कानूनी है?", "<p>हाँ। निजी, एन्क्रिप्टेड बातचीत कानूनी है। किसी गैरकानूनी काम के लिए इसका उपयोग हमारी <a href=\"/terms\">शर्तों</a> के ख़िलाफ़ है। हम डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम, 2023 और IT अधिनियम, 2000 का पालन करते हैं।</p>"),
+ ("अपना अकाउंट कैसे मिटाएँ?", "<p>GhostChat → You → Privacy &amp; your data → <b>Withdraw consent &amp; erase account</b>। आपकी कुंजियाँ और चैट डिवाइस से मिट जाती हैं और आपकी ID हमारे सर्वर से हटा दी जाती है।</p>"),
+]
+home_hi = f'''
+<section class="hero"><div class="wrap"><div>
+  <span class="eyebrow"><i></i>पोस्ट-क्वांटम · सील्ड सेंडर · बिना फ़ोन नंबर</span>
+  <h1>खुलकर बात करें।<br><span class="gold-text">कोई निशान न छोड़ें।</span></h1>
+  <p class="lead">GhostChat एक निजी मैसेंजर है जिसे न फ़ोन नंबर चाहिए, न ईमेल, न नाम। हर संदेश एंड-टू-एंड एन्क्रिप्टेड है, और हमारा अपना सर्वर भी नहीं देख सकता कि उसे किसने भेजा।</p>
+  <div class="cta-row"><a class="btn gold" href="/signin" data-open>मुफ़्त शुरू करें {ic("arrow")}</a><a class="btn ghost" href="/download">ऐप डाउनलोड करें</a></div>
+  <div class="trust"><span>{ic("check")}न फ़ोन, न ईमेल</span><span>{ic("check")}न विज्ञापन, न ट्रैकर</span><span>{ic("check")}iPhone, Android और कंप्यूटर</span></div>
+</div>
+<div class="phones"><div class="phone p1"><img src="/site/img/shot-chat.webp" alt="GhostChat बातचीत" /></div><div class="phone p2"><img src="/site/img/shot-list.webp" alt="GhostChat चैट सूची" /></div></div>
+</div></section>
+<section class="s"><div class="wrap">
+  <div class="s-head rv"><span class="eyebrow">अलग तरह से बना</span><h2>डिज़ाइन से निजी।<br>सिर्फ़ वादे से नहीं।</h2><p>ज़्यादातर ऐप आपसे अपने डेटा पर भरोसा करने को कहते हैं। GhostChat इस तरह बना है कि हमारे पास भरोसा करने लायक कुछ है ही नहीं।</p></div>
+  <div class="grid g3 big3">
+    <div class="card rv"><div class="ico">{ic("id")}</div><h3>हम नहीं जानते आप कौन हैं</h3><p>न फ़ोन नंबर, न ईमेल, न नाम, न संपर्क, न लोकेशन।</p></div>
+    <div class="card rv"><div class="ico">{ic("server")}</div><h3>सर्वर लगभग कुछ नहीं जानता</h3><p>वह न आपके संदेश पढ़ सकता है, न देख सकता है कि किसने भेजा। सब कुछ केवल मेमोरी में।</p></div>
+    <div class="card rv"><div class="ico">{ic("key")}</div><h3>कुंजियाँ केवल आपके पास</h3><p>कुंजियाँ आपके डिवाइस पर बनती और रहती हैं, आपके पासकोड से लॉक।</p></div>
+  </div>
+</div></section>
+<section class="s alt"><div class="wrap">
+  <div class="s-head rv"><span class="eyebrow">विशेषताएँ</span><h2>वह सब जो आप चाहते हैं।<br><span class="gold-text">और वह जो दूसरे नहीं बनाते।</span></h2></div>
+  {feat_cards(FEATS_HI)}
+</div></section>
+<section class="s"><div class="wrap">
+  <div class="s-head rv"><span class="eyebrow">सवाल-जवाब</span><h2>अच्छे सवाल, सच्चे जवाब</h2></div>
+  {faq_html(FAQ_HI[:4])}
+  <p class="center"><a class="btn ghost" href="/hi/faq">सभी सवाल {ic("arrow")}</a></p>
+</div></section>
+<section class="final"><div class="wrap"><img src="/icon.svg" alt="" /><h2>आपकी बातचीत आपकी है।<br><span class="gold-text">इसे ऐसा ही रखें।</span></h2><p>मुफ़्त। बिना फ़ोन नंबर। एक मिनट में तैयार।</p><div class="cta-row"><a class="btn gold" href="/signin" data-open>GhostChat खोलें {ic("arrow")}</a></div></div></section>
+'''
+write("hi-index.html", page("/hi", "GhostChat: बिना फ़ोन नंबर का निजी मैसेंजर", "गुमनाम, एंड-टू-एंड एन्क्रिप्टेड मैसेजिंग। न फ़ोन नंबर, न ईमेल, न नाम।", home_hi, lang="hi"))
+write("hi-faq.html", page("/hi/faq", "सवाल-जवाब | GhostChat", "GhostChat के बारे में सवाल और जवाब।", f'''<section class="phead"><div class="wrap"><span class="eyebrow">सवाल-जवाब</span><h1>सवाल और जवाब</h1><p>जवाब नहीं मिला? <a href="/contact">हमसे संपर्क करें</a>।</p></div></section><section class="s"><div class="wrap">{faq_html(FAQ_HI)}</div></section>''', lang="hi"))
+
+rows_hi = [
+ ("गुमनाम ID और सार्वजनिक एन्क्रिप्शन कुंजियाँ", "आप तक संदेश पहुँचाने और संपर्कों को आपकी पुष्टि करने देने के लिए", "हमारा सर्वर (केवल मेमोरी में)", "जब तक आपका अकाउंट है"),
+ ("सीलबंद संदेश-लिफ़ाफ़े", "आपके ऑफ़लाइन रहने पर संदेश पहुँचाने के लिए", "हमारा सर्वर (केवल मेमोरी में)", "डिलीवरी पर या 7 दिन बाद मिटा दिए जाते हैं"),
+ ("सहमति का रिकॉर्ड (सूचना का संस्करण और समय)", "यह दिखाने के लिए कि आपको सूचना दी गई और आपने सहमति दी (धारा 6(10))", "आपका डिवाइस और हमारा सर्वर", "जब तक आपका अकाउंट है"),
+ ("IP पता", "कनेक्शन चालू रखने और दुरुपयोग रोकने के लिए", "कनेक्शन के दौरान मेमोरी में; <b>लॉग नहीं किया जाता</b>", "रखा नहीं जाता; Tor पर हमें दिखता भी नहीं"),
+ ("पुश पता (केवल सूचनाएँ चालू करने पर)", "संदेश आने पर खाली संकेत भेजने के लिए, जिसमें कोई सामग्री या भेजने वाला नहीं होता", "हमारा सर्वर (मेमोरी); Apple/Google/Mozilla के पुश सर्विस से", "सूचनाएँ बंद करने तक"),
+ ("ट्रांसफ़र पैकेज (केवल नए डिवाइस पर जाते समय)", "आपका पासकोड-लॉक अकाउंट नए डिवाइस तक ले जाने के लिए; एक और कुंजी से एन्क्रिप्टेड जो हमें कभी नहीं मिलती", "हमारा सर्वर (मेमोरी)", "लेने पर या 10 मिनट बाद मिटा दिया जाता है"),
+ ("संदेश, संपर्क, उपनाम, सेटिंग्स", "आपके डिवाइस पर ऐप चलाने के लिए", "<b>केवल आपका डिवाइस</b>, पासकोड से एन्क्रिप्टेड", "जब तक आप उन्हें न मिटाएँ"),
+ ("आपके भेजे ईमेल", "जवाब देने या शिकायत सुलझाने के लिए", "हमारा ईमेल प्रदाता", "समाधान के 12 महीने बाद तक"),
+]
+privacy_hi = f'''
+<section class="phead"><div class="wrap"><span class="eyebrow">गोपनीयता सूचना</span><h1>गोपनीयता सूचना</h1><p>डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम, 2023 और DPDP नियम, 2025 के अंतर्गत जारी।</p></div></section>
+<div class="prose">
+<p class="meta">संस्करण {{{{NOTICE_V}}}} · अंतिम अद्यतन {{{{UPDATED}}}} · डेटा फ़िड्यूशियरी: {{{{COMPANY}}}}, {{{{ADDRESS}}}}</p>
+<div class="tldr"><h3>सरल शब्दों में</h3><ul>
+<li>हम कभी आपका नाम, फ़ोन नंबर, ईमेल, संपर्क या लोकेशन नहीं माँगते।</li>
+<li>हम आपके संदेश नहीं पढ़ सकते। केवल आप और जिनसे आप बात करते हैं, पढ़ सकते हैं।</li>
+<li>हमारा सर्वर केवल आपकी गुमनाम ID, सार्वजनिक कुंजियाँ और डिलीवरी के इंतज़ार में सीलबंद संदेश रखता है, वह भी केवल मेमोरी में।</li>
+<li>आप कभी भी ऐप के अंदर से सहमति वापस ले सकते हैं और अपना अकाउंट मिटा सकते हैं।</li>
+<li>न विज्ञापन, न ट्रैकिंग, न डेटा की बिक्री या साझा करना।</li></ul></div>
+<h2>1. हम कौन हैं</h2>
+<p>GhostChat का संचालन <b>{{{{COMPANY}}}}</b>, {{{{ADDRESS}}}} द्वारा किया जाता है। DPDP अधिनियम के अंतर्गत हम आपके व्यक्तिगत डेटा के लिए <b>डेटा फ़िड्यूशियरी</b> हैं और आप <b>डेटा प्रिंसिपल</b> हैं।</p>
+<h2>2. हम कौन-सा व्यक्तिगत डेटा संसाधित करते हैं और क्यों</h2>
+<table><thead><tr><th>डेटा</th><th>उद्देश्य</th><th>कहाँ रखा जाता है</th><th>कितने समय तक</th></tr></thead><tbody>{"".join(f"<tr><td>{a}</td><td>{b}</td><td>{c}</td><td>{d}</td></tr>" for a, b, c, d in rows_hi)}</tbody></table>
+<p><b>हम एकत्र नहीं करते:</b> नाम, फ़ोन नंबर, ईमेल पता (जब तक आप हमें न लिखें), संपर्क सूची, लोकेशन, डिवाइस पहचान, विज्ञापन ID, एनालिटिक्स या ब्राउज़िंग इतिहास।</p>
+<h2>3. सहमति और कानूनी आधार</h2>
+<p>हम ऊपर दिया गया डेटा आपकी <b>सहमति</b> (धारा 6) के आधार पर संसाधित करते हैं, जो आप <a href="/signin">साइन-इन पेज</a> पर या ऐप में अकाउंट बनाने से पहले देते हैं। कानून द्वारा अनुमत होने पर हम सहमति के बिना भी डेटा संसाधित कर सकते हैं (धारा 7), जैसे किसी न्यायालय के आदेश का पालन करना।</p>
+<h2>4. आपके अधिकार</h2>
+<ul><li><b>जानकारी का अधिकार</b> (धारा 11)</li><li><b>सुधार और मिटाने का अधिकार</b> (धारा 12)</li><li><b>शिकायत निवारण का अधिकार</b> (धारा 13)</li><li><b>नामांकन का अधिकार</b> (धारा 14): मृत्यु या अक्षमता की स्थिति में आपके अधिकारों का उपयोग करने के लिए किसी व्यक्ति को नामित करना</li><li>कभी भी, उतनी ही आसानी से <b>सहमति वापस लेने का अधिकार</b> जितनी आसानी से आपने दी थी</li></ul>
+<p>अधिकारों का उपयोग करने के लिए अपनी गुमनाम ID के साथ <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a> पर ईमेल करें। हम ऐप के अंदर से यह पुष्टि करने को कहेंगे कि ID आपकी है। हम <b>90 दिनों के भीतर</b> उत्तर देते हैं।</p>
+<h2>5. सहमति वापस लेना और डेटा मिटाना</h2>
+<p>GhostChat → <b>You</b> → <b>Privacy &amp; your data</b> → <b>Withdraw consent &amp; erase account</b>। इससे आपकी कुंजियाँ और चैट डिवाइस से तुरंत मिट जाती हैं, और आपकी ID और कुंजियाँ हमारे सर्वर से हटा दी जाती हैं।</p>
+<h2>6. शिकायतें और डेटा संरक्षण बोर्ड</h2>
+<p>हमारे शिकायत अधिकारी <b>{{{{GRIEVANCE_NAME}}}}</b> से <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a> या {{{{ADDRESS}}}} पर संपर्क करें। हम 24 घंटे में प्राप्ति स्वीकार करते हैं और 15 दिनों में (IT नियम, 2021), और किसी भी स्थिति में 90 दिनों के भीतर (DPDP नियम, 2025) समाधान करते हैं। संतुष्ट न होने पर आप <b>भारतीय डेटा संरक्षण बोर्ड</b> में शिकायत कर सकते हैं।</p>
+<h2>7. बच्चे</h2>
+<p>GhostChat केवल <b>18 वर्ष या उससे अधिक</b> आयु के लोगों के लिए है। हम जानबूझकर बच्चों का डेटा संसाधित नहीं करते और किसी की ट्रैकिंग या लक्षित विज्ञापन नहीं करते।</p>
+<h2>8. सुरक्षा और उल्लंघन</h2>
+<p>हम एंड-टू-एंड और पोस्ट-क्वांटम एन्क्रिप्शन, सील्ड सेंडर, केवल-मेमोरी सर्वर और नियमित सुरक्षा परीक्षण जैसे उचित सुरक्षा उपाय अपनाते हैं। डेटा उल्लंघन होने पर हम डेटा संरक्षण बोर्ड और प्रभावित उपयोगकर्ताओं (ऐप और इस वेबसाइट के माध्यम से) को सूचित करेंगे।</p>
+<h2>9. सेवा प्रदाता और डेटा का स्थान</h2>
+<p>हमारा सर्वर DigitalOcean द्वारा फ़्रैंकफ़र्ट, जर्मनी में होस्ट किया जाता है। Android ऐप GitHub से डाउनलोड होता है। सूचनाएँ चालू करने पर Apple, Google या Mozilla केवल एक खाली संकेत पहुँचाते हैं। हम व्यक्तिगत डेटा किसी को नहीं बेचते या देते।</p>
+<h2>10. कुकीज़</h2><p>हम कोई कुकी, एनालिटिक्स या ट्रैकर उपयोग नहीं करते।</p>
+<h2>11. बदलाव और भाषाएँ</h2>
+<p>इस सूचना में बड़े बदलाव होने पर हम संस्करण बदलेंगे और ऐप में फिर से सहमति माँगेंगे। यह सूचना अंग्रेज़ी और हिन्दी में उपलब्ध है; संविधान की आठवीं अनुसूची की किसी अन्य भाषा में चाहिए तो हमें ईमेल करें। किसी अंतर की स्थिति में <a href="/privacy">अंग्रेज़ी संस्करण</a> मान्य होगा।</p>
+</div>
+'''
+write("hi-privacy.html", page("/hi/privacy", "गोपनीयता सूचना | GhostChat", "DPDP अधिनियम, 2023 के अंतर्गत GhostChat की गोपनीयता सूचना।", privacy_hi, lang="hi"))
+print("hindi built")

@@ -1,10 +1,7 @@
-# Builds the GhostChat Android app (APK) in the cloud — no Android Studio needed.
-# Push this project to a GitHub repo, open the "Actions" tab, run "Build Android APK",
-# and download the APK from the finished run's "Artifacts".
-#
-# Optional (recommended before sharing the app): add your own signing key as repo secrets
-#   GC_KEYSTORE_B64 (base64 of your .jks file), GC_KEYSTORE_PASS, GC_KEY_ALIAS, GC_KEY_PASS
-# so every future version installs over the previous one.
+# Builds the GhostChat Android app (APK) in the cloud and publishes it as a release.
+# Official releases are signed with GhostChat's permanent key (android/gc-release.p12, itself locked
+# with a strong password kept only in the GC_KEYSTORE_PASS repository secret), so every update
+# installs over the previous one and anyone can verify the app is genuine.
 name: Build Android APK
 on:
   workflow_dispatch:
@@ -30,27 +27,49 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.7"
-      - name: Load signing key (if provided)
+      - name: Check for the signing password
+        id: sign
         env:
-          KS: ${{ secrets.GC_KEYSTORE_B64 }}
-        run: |
-          if [ -n "$KS" ]; then echo "$KS" | base64 -d > "$RUNNER_TEMP/gc.jks"; echo "GC_KEYSTORE=$RUNNER_TEMP/gc.jks" >> "$GITHUB_ENV"; fi
+          PW: ${{ secrets.GC_KEYSTORE_PASS }}
+        run: if [ -n "$PW" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::warning::GC_KEYSTORE_PASS secret is missing, so this build is NOT published as an official release."; fi
       - name: Build release APK
         env:
+          GC_KEYSTORE: ${{ steps.sign.outputs.ok == 'true' && format('{0}/android/gc-release.p12', github.workspace) || '' }}
           GC_KEYSTORE_PASS: ${{ secrets.GC_KEYSTORE_PASS }}
-          GC_KEY_ALIAS: ${{ secrets.GC_KEY_ALIAS }}
-          GC_KEY_PASS: ${{ secrets.GC_KEY_PASS }}
-        run: gradle -p android assembleRelease --no-daemon --stacktrace
-      - uses: actions/upload-artifact@v4
-        with:
-          name: GhostChat-APK
-          path: android/app/build/outputs/apk/release/*.apk
-      - name: Publish as a direct download (Releases)
-        run: cp android/app/build/outputs/apk/release/*.apk GhostChat.apk
+          GC_KEY_ALIAS: ghostchat
+          GC_KEY_PASS: ${{ secrets.GC_KEYSTORE_PASS }}
+        run: |
+          if [ -z "$GC_KEYSTORE" ]; then unset GC_KEYSTORE; fi
+          gradle -p android assembleRelease --no-daemon --stacktrace
+      - name: Checksum and signing certificate
+        if: steps.sign.outputs.ok == 'true'
+        run: |
+          cp android/app/build/outputs/apk/release/*.apk GhostChat.apk
+          SHA=$(sha256sum GhostChat.apk | cut -d' ' -f1)
+          BT=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)
+          CERT=$("$BT/apksigner" verify --print-certs GhostChat.apk | grep -m1 "SHA-256 digest" | awk '{print $NF}')
+          echo "$SHA  GhostChat.apk" > GhostChat.apk.sha256
+          {
+            echo "### GhostChat for Android"
+            echo ""
+            echo "Download **GhostChat.apk** below and open it on your Android phone (allow \"install unknown apps\" when asked)."
+            echo ""
+            echo "**Verify your download**"
+            echo "- SHA-256 of GhostChat.apk: \`$SHA\`"
+            echo "- Signing certificate SHA-256: \`$CERT\`"
+            echo "- Official certificate (also on quietline.chat/download): \`7d9f644732769be571c2a06315168a844eca6434ca54777b2863cc51d11360cf\`"
+          } > notes.md
+          echo "CERT=$CERT" >> "$GITHUB_ENV"
+      - name: Refuse to publish if the certificate is not the official one
+        if: steps.sign.outputs.ok == 'true'
+        run: test "$CERT" = "7d9f644732769be571c2a06315168a844eca6434ca54777b2863cc51d11360cf"
       - uses: softprops/action-gh-release@v2
+        if: steps.sign.outputs.ok == 'true'
         with:
           tag_name: apk-${{ github.run_number }}
           name: GhostChat Android ${{ github.run_number }}
-          body: "Download GhostChat.apk below and open it on your Android phone (allow \"install unknown apps\" when asked)."
-          files: GhostChat.apk
+          body_path: notes.md
+          files: |
+            GhostChat.apk
+            GhostChat.apk.sha256
           make_latest: true

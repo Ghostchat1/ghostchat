@@ -20,11 +20,11 @@
   <div class="wrap">
     <a class="brand" href="/"><img src="/icon.svg" alt="" />GhostChat</a>
     <nav class="nav"><a href="/features">Features</a><a href="/security">Security</a><a href="/download" class="on">Download</a><a href="/faq">FAQ</a></nav>
-    <div class="hdr-cta"><a class="btn ghost sm" href="/signin">Sign in</a><a class="btn gold sm" href="/signin" data-open>Open GhostChat</a></div>
+    <div class="hdr-cta"><a class="lang-link" href="/hi" hreflang="hi">हिन्दी</a><a class="btn ghost sm" href="/signin">Sign in</a><a class="btn gold sm" href="/signin" data-open>Open GhostChat</a></div>
     <button class="burger" id="burger" aria-label="Menu" aria-expanded="false"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   </div>
 </header>
-<div class="mnav" id="mnav"><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/faq">FAQ</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a><a class="btn gold" href="/signin" data-open>Open GhostChat</a></div>
+<div class="mnav" id="mnav"><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/faq">FAQ</a><a href="/about">About</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a><a class="lang-link" href="/hi" hreflang="hi">हिन्दी</a><a class="btn gold" href="/signin" data-open>Open GhostChat</a></div>
 <main>
 
 <section class="phead"><div class="wrap"><span class="eyebrow">Download</span><h1>Get GhostChat<br><span class="gold-text">on every device</span></h1><p>No app store account needed. Nothing to sign up for.</p></div></section>
@@ -35,12 +35,19 @@
     <a class="btn gold" href="/signin" data-open>Open in Safari <svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
   <div class="card rv"><div class="ico"><svg class="i" viewBox="0 0 24 24"><path d="M5 10h14v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2zM7.5 10a4.5 4.5 0 0 1 9 0M8 4.5l1.5 2M16 4.5l-1.5 2M2.5 11v5M21.5 11v5"/><circle cx="9.5" cy="8" r=".5"/><circle cx="14.5" cy="8" r=".5"/></svg></div><h3>Android</h3><p>Install the app directly. Its code is bundled inside, it blocks screenshots, and it can work over Bluetooth without internet.</p>
     <ol><li>Tap <b>Download APK</b> below.</li><li>Open the file. If asked, allow <b>Install unknown apps</b> for your browser.</li><li>Open GhostChat and create your ID.</li></ol>
-    <a class="btn gold" href="https://github.com/Ghostchat1/ghostchat/releases/latest/download/GhostChat.apk" rel="noopener">Download APK <svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 19h16"/></svg></a></div>
+    <a class="btn gold" href="https://github.com/Ghostchat1/ghostchat/releases/latest/download/GhostChat.apk" rel="noopener">Download APK <svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 19h16"/></svg></a>
+    <p class="small muted">Installed a test version before 27 Nov 2026? Uninstall it once (after saving a backup). Official releases are signed with our permanent key, so future updates install over each other.</p></div>
   <div class="card rv"><div class="ico"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div><h3>Computer</h3><p>Works in any modern browser on Windows, Mac or Linux. In Chrome or Edge you can install it as an app from the address bar.</p>
     <a class="btn ghost" href="/signin" data-open>Open in your browser <svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
   <div class="card rv" id="tor"><div class="ico"><svg class="i" viewBox="0 0 24 24"><path d="M12 3c-1 3-6 6-6 11a6 6 0 0 0 12 0c0-5-5-8-6-11z"/><path d="M12 9c-1 2-3 3.5-3 6a3 3 0 0 0 6 0c0-2.5-2-4-3-6z"/></svg></div><h3>Tor (maximum anonymity)</h3><p>Hide your IP address from everyone, including us. Use <b>Tor Browser</b> on a computer or <b>Onion Browser</b> on iPhone, and open:</p>
     <p><code>{{ONION}}</code></p><p class="small muted">Accounts on the Tor address and the normal address are separate.</p></div>
 </div>
+<div class="card rv" id="verify"><div class="ico"><svg class="i" viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg></div><h3>Verify your Android download</h3>
+<p>Every official APK is signed with the same GhostChat key. Make sure your copy is genuine before you install it:</p>
+<ol><li><b>Signing certificate (SHA-256):</b><br><code>7D:9F:64:47:32:76:9B:E5:71:C2:A0:63:15:16:8A:84:4E:CA:64:34:CA:54:77:7B:28:63:CC:51:D1:13:60:CF</code></li>
+<li>Each release lists the file's SHA-256 checksum and includes a <code>GhostChat.apk.sha256</code> file. See <a href="https://github.com/Ghostchat1/ghostchat/releases/latest" rel="noopener">the latest release</a>.</li>
+<li>On a computer: <code>sha256sum GhostChat.apk</code> and <code>apksigner verify --print-certs GhostChat.apk</code> must match the values above.</li></ol>
+<p class="small muted">The source code is public at <a href="https://github.com/Ghostchat1/ghostchat" rel="noopener">github.com/Ghostchat1/ghostchat</a>. Releases are built automatically from that code by GitHub, not on anyone's laptop.</p></div>
 </div></section>
 
 </main>
@@ -48,9 +55,9 @@
   <div class="wrap">
     <div class="cols">
       <div><a class="brand" href="/"><img src="/icon.svg" alt="" />GhostChat</a><p>Private messaging with no phone number, no email and no name. Built in India for the Digital Personal Data Protection Act, 2023.</p></div>
-      <div><h5>Product</h5><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/signin">Open GhostChat</a></div>
-      <div><h5>Help</h5><a href="/faq">FAQ</a><a href="/contact">Contact &amp; grievances</a><a href="/download#tor">Tor (.onion) access</a></div>
-      <div><h5>Legal</h5><a href="/privacy">Privacy notice</a><a href="/terms">Terms of use</a><a href="/contact#grievance">Grievance officer</a></div>
+      <div><h5>Product</h5><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/changelog">What's new</a><a href="/signin">Open GhostChat</a></div>
+      <div><h5>Company</h5><a href="/about">About &amp; our promises</a><a href="/transparency">Transparency report</a><a href="/press">Press kit</a><a href="/faq">FAQ</a><a href="/contact">Contact &amp; grievances</a></div>
+      <div><h5>Legal</h5><a href="/privacy">Privacy notice</a><a href="/hi/privacy">गोपनीयता सूचना (हिन्दी)</a><a href="/terms">Terms of use</a><a href="/contact#grievance">Grievance officer</a></div>
     </div>
     <div class="bottom"><span>© 2026 {{COMPANY}}. All rights reserved.</span><span>No cookies · No trackers · No ads</span></div>
   </div>

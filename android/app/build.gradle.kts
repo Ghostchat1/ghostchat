@@ -11,8 +11,8 @@ android {
         applicationId = "net.ghostchat.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "5.0"
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "62").toInt() + 100
+        versionName = "6.2"
     }
 
     // Sign with your own key if provided (needed so future updates install over this one).
