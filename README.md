@@ -1,4 +1,4 @@
-# GhostChat v5: anonymous messenger on Tor
+# Raazdar v5: anonymous messenger on Tor
 
 A WhatsApp-style chat app with **no phone, no email and no name**. It runs as a **Tor onion service**, so neither the server's location nor the users' IP addresses are exposed.
 
@@ -68,7 +68,7 @@ Tested:
 ### Android app (`android/` folder)
 - **Code bundled inside the app.** The app never downloads its code from the server, which closes the biggest remaining weakness of the web version.
 - **Screenshots blocked.** Screenshots, screen recording and casting are blocked, and the app shows blank in the recent-apps view (FLAG_SECURE).
-- **Panic uninstall.** A wipe erases every byte of app data instantly, and Android's own "Uninstall GhostChat?" prompt appears. One tap removes the app. **Android does not allow any app to uninstall itself silently**, so this one tap is as far as any app can go. The data is already gone before the prompt appears.
+- **Panic uninstall.** A wipe erases every byte of app data instantly, and Android's own "Uninstall Raazdar?" prompt appears. One tap removes the app. **Android does not allow any app to uninstall itself silently**, so this one tap is as far as any app can go. The data is already gone before the prompt appears.
 - **Offline Bluetooth mesh.** With no internet, already-encrypted messages hop phone-to-phone over Bluetooth, and phones in between can carry messages for others. Carriers see only the recipient's anonymous ID, never the sender or the content. It works automatically between phones paired in Bluetooth settings. Unpaired phones are found while they're "visible", which Android allows for up to 5 minutes at a time.
 - **Calculator disguise.** The real home-screen icon and name change to "Calculator".
 - **How to get the APK:** see `android/README.md`. The build runs free on GitHub, so you don't need Android Studio.
@@ -93,7 +93,7 @@ Tested end to end with two users: quantum-safe messages, offline delivery, the s
 
 **Honest notes on the new features:**
 - The two vault slots start the same size. A heavily used real account can grow past the decoy, so use the decoy a little too.
-- The decoy and the calculator fool a person searching your phone. An expert who knows GhostChat's code knows these features exist and can guess you may be using them. That's true of every deniability feature in every app.
+- The decoy and the calculator fool a person searching your phone. An expert who knows Raazdar's code knows these features exist and can guess you may be using them. That's true of every deniability feature in every app.
 - A wipe triggered from the lock or calculator screen can't erase chats from contacts' phones, because the keys needed to send that order are themselves locked. Wipe while unlocked (hold 🔒) for that.
 - The calculator disguise is strongest in Tor Browser. If the app was added to a home screen, the installed icon and name can't be changed by a web app.
 
@@ -114,10 +114,10 @@ Tested end to end with two users: quantum-safe messages, offline delivery, the s
 4. Everything on the device is erased: the encrypted vault, settings, offline app copy, service worker and caches.
 5. The browser is told to **clear all site data** (`Clear-Site-Data`). The tab lands on a blank "New Tab" page, and the back button doesn't return to the chats.
 
-Tested: every trigger left zero GhostChat data on the device, the server forgot the ID, and the contact's copy of the chat disappeared.
+Tested: every trigger left zero Raazdar data on the device, the server forgot the ID, and the contact's copy of the chat disappeared.
 
 **Can it uninstall the app itself?** No website or web app can uninstall itself. Phones and browsers don't allow it. In practice:
-- **Best setup: use it in Tor Browser and don't add it to the home screen.** Then there's nothing installed to remove. Tor Browser keeps no history, so after a wipe there's no trace that GhostChat was used.
+- **Best setup: use it in Tor Browser and don't add it to the home screen.** Then there's nothing installed to remove. Tor Browser keeps no history, so after a wipe there's no trace that Raazdar was used.
 - If it was added to the home screen, the icon stays after a wipe, but opening it shows an empty, never-used app. Long-press the icon → Remove to delete it.
 - A native Android version could open the system "Uninstall?" prompt as the last step of a wipe, and the user taps OK. iPhone doesn't let any app uninstall itself.
 

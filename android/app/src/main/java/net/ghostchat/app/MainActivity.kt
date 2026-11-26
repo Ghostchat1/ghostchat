@@ -29,7 +29,7 @@ import org.json.JSONObject
 import java.io.IOException
 
 /**
- * GhostChat for Android.
+ * Raazdar for Android.
  *  - The whole app (HTML/JS/crypto) is bundled inside the APK and served from a private
  *    in-app address, so its code is never downloaded from the server.
  *  - FLAG_SECURE blocks screenshots, screen recording and casting, and blanks the
@@ -173,7 +173,7 @@ class MainActivity : Activity() {
             WebStorage.getInstance().deleteAllData()
             CookieManager.getInstance().removeAllCookies(null)
         } catch (e: Exception) { }
-        // 1) Android's own "Uninstall GhostChat?" prompt. One tap. (Android never allows any app to uninstall itself silently.)
+        // 1) Android's own "Uninstall Raazdar?" prompt. One tap. (Android never allows any app to uninstall itself silently.)
         try {
             startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:$packageName")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: Exception) { }
@@ -221,7 +221,7 @@ class MainActivity : Activity() {
     }
 }
 
-/** Tells the keyboard not to learn or remember anything typed in GhostChat (VAPT fix A4). */
+/** Tells the keyboard not to learn or remember anything typed in Raazdar (VAPT fix A4). */
 class SecureWebView(ctx: Context) : WebView(ctx) {
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
         val ic = super.onCreateInputConnection(outAttrs)

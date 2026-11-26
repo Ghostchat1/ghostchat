@@ -1,8 +1,8 @@
 {
   "name": "ghostchat-desktop",
-  "productName": "GhostChat",
+  "productName": "Raazdar",
   "version": "6.3.0",
-  "description": "GhostChat desktop: anonymous end-to-end encrypted messenger",
+  "description": "Raazdar desktop: anonymous end-to-end encrypted messenger",
   "author": "Hyperviz Labs <privacy@quietline.chat>",
   "license": "UNLICENSED",
   "main": "main.js",
@@ -15,8 +15,8 @@
     "electron-builder": "^25.1.8"
   },
   "build": {
-    "appId": "chat.quietline.ghostchat",
-    "productName": "GhostChat",
+    "appId": "app.raazdar.desktop",
+    "productName": "Raazdar",
     "files": [
       "main.js",
       "preload.js",
@@ -26,7 +26,7 @@
       "output": "dist",
       "buildResources": "build"
     },
-    "artifactName": "GhostChat-${version}-${os}-${arch}.${ext}",
+    "artifactName": "Raazdar-${version}-${os}-${arch}.${ext}",
     "win": {
       "target": [
         {
@@ -49,7 +49,7 @@
       "deleteAppDataOnUninstall": true
     },
     "portable": {
-      "artifactName": "GhostChat-${version}-windows-portable.${ext}"
+      "artifactName": "Raazdar-${version}-windows-portable.${ext}"
     },
     "mac": {
       "target": [
@@ -63,8 +63,8 @@
       "category": "public.app-category.social-networking",
       "identity": null,
       "extendInfo": {
-        "NSCameraUsageDescription": "GhostChat uses the camera only during video calls you start or accept.",
-        "NSMicrophoneUsageDescription": "GhostChat uses the microphone only for calls and voice messages."
+        "NSCameraUsageDescription": "Raazdar uses the camera only during video calls you start or accept.",
+        "NSMicrophoneUsageDescription": "Raazdar uses the microphone only for calls and voice messages."
       }
     },
     "linux": {

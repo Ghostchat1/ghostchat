@@ -1,4 +1,4 @@
-// GhostChat v2 relay server — built to run as a Tor onion service.
+// Raazdar v2 relay server — built to run as a Tor onion service.
 //
 // What this server knows:     an anonymous ID's public keys, and locked blobs waiting for that ID.
 // What it never knows:        phone, email, IP (behind Tor every visitor is 127.0.0.1), message content,
@@ -281,7 +281,7 @@ const server = http.createServer(async (req, res) => {
       }
       res.writeHead(200, { "Content-Type": MIME[".html"] });
       return res.end(url.searchParams.has("home")
-        ? '<!doctype html><meta http-equiv="refresh" content="0;url=/app"><title>GhostChat</title>'
+        ? '<!doctype html><meta http-equiv="refresh" content="0;url=/app"><title>Raazdar</title>'
         : '<!doctype html><meta name="viewport" content="width=device-width"><title>New Tab</title>');
     }
     // Website pages live in public/site/; the messenger itself is at /app.
@@ -410,5 +410,5 @@ process.on("unhandledRejection", () => {}); // defence in depth: never crash on 
 
 server.listen(PORT, HOST, () => {
   // The only log line. No requests, IDs or addresses are ever logged.
-  console.log(`GhostChat v5 listening on ${HOST}:${PORT} (storage: ${persistent ? "disk" : "RAM only"})`);
+  console.log(`Raazdar v5 listening on ${HOST}:${PORT} (storage: ${persistent ? "disk" : "RAM only"})`);
 });

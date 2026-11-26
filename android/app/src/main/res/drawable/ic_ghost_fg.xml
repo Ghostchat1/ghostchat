@@ -1,10 +1,10 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="512" android:viewportHeight="512">
-    <group android:scaleX="0.62" android:scaleY="0.62" android:pivotX="256" android:pivotY="256">
-        <path android:fillColor="#2FD5A5"
-            android:pathData="M256,92c-82,0 -140,60 -140,140v170c0,14 16,21 26,12l30,-26 30,26c8,7 20,7 28,0l26,-22 26,22c8,7 20,7 28,0l30,-26 30,26c10,9 26,2 26,-12V232c0,-80 -58,-140 -140,-140z" />
-        <path android:fillColor="#0F1720" android:pathData="M184,236a24,24 0,1 0,48 0a24,24 0,1 0,-48 0z" />
-        <path android:fillColor="#0F1720" android:pathData="M280,236a24,24 0,1 0,48 0a24,24 0,1 0,-48 0z" />
+    <!-- Raazdar: a chat bubble with a keyhole ("the one who keeps your secrets") -->
+    <group android:scaleX="0.64" android:scaleY="0.64" android:pivotX="256" android:pivotY="262">
+        <path android:fillColor="#D4AF63" android:pathData="M168 112H344A64 64 0 0 1 408 176V296A64 64 0 0 1 344 360H236L172 408C164 414 154 408 156 398L164 360H168A64 64 0 0 1 104 296V176A64 64 0 0 1 168 112Z" />
+        <path android:fillColor="#121114" android:pathData="M216,214a40,40 0,1 0,80 0a40,40 0,1 0,-80 0z" />
+        <path android:fillColor="#121114" android:pathData="M238 240L224 308Q222 318 232 318H280Q290 318 288 308L274 240Z" />
     </group>
 </vector>

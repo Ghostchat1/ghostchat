@@ -13,7 +13,7 @@ The relay server (`server.js`), the web app (`public/`), the Android app (`andro
 (`desktop/`), the call relay configuration (`deploy/setup-calls.sh`) and quietline.chat / the .onion address.
 
 ## Testing so far
-- **Internal VAPT / OWASP testing** by the GhostChat team: automated attack suites in `security/`
+- **Internal VAPT / OWASP testing** by the Raazdar team: automated attack suites in `security/`
   (server: 27 checks, client checks) with before/after results published in that folder.
 - **Independent third-party audit:** not yet done. When it is, the full report will be published here.
 

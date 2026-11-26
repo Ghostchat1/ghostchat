@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Applies the downloaded GhostChat release (in /root/ghostchat) to the running server.
+# Applies the downloaded Raazdar release (in /root/ghostchat) to the running server.
 # Run automatically by `ghostchat-update`.
 set -e
 SRC=/root/ghostchat; APP=/opt/ghostchat
@@ -33,7 +33,7 @@ systemctl daemon-reload
 systemctl restart ghostchat
 sleep 2
 if systemctl is-active --quiet ghostchat; then
-  echo "✅ GhostChat updated: $(grep -o 'GhostChat v[0-9.]*' $APP/public/app.js | tail -1)"
+  echo "✅ Raazdar updated: $(grep -oE '(GhostChat|Raazdar) v[0-9.]*' $APP/public/app.js | tail -1)"
 else
-  echo "❌ GhostChat didn't start. Send a screenshot of: journalctl -u ghostchat -n 20"
+  echo "❌ Raazdar didn't start. Send a screenshot of: journalctl -u ghostchat -n 20"
 fi

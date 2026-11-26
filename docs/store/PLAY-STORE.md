@@ -1,6 +1,6 @@
 # Google Play: everything to paste
 
-Every official build now also produces **GhostChat-playstore.aab** (same app, same permanent signing key)
+Every official build now also produces **Raazdar-playstore.aab** (same app, same permanent signing key)
 in the Android release on GitHub. That is the file you upload to Play.
 
 ## Before you start (one-time)
@@ -9,12 +9,12 @@ in the Android release on GitHub. That is the file you upload to Play.
      D-U-N-S number for the company, but they skip Google's rule that new *personal* accounts must run a
      closed test with at least 12 testers for 14 days before they can publish.
 2. When Play asks about app signing, accept **Play App Signing** (Google holds the key that signs what
-   users download) and upload **GhostChat-playstore.aab**. Our permanent key then acts as the *upload key*.
+   users download) and upload **Raazdar-playstore.aab**. Our permanent key then acts as the *upload key*.
    Play copies and GitHub copies will have different signatures, so someone switching between them must
    uninstall first (after saving a backup). Keep publishing the GitHub APK for people who avoid Google.
 
 ## Store listing
-- **App name:** GhostChat – Private Messenger
+- **App name:** Raazdar – Private Messenger
 - **Short description (80):** Private messenger with no phone number. End-to-end encrypted chats and calls.
 - **Category:** Communication
 - **Contact email:** privacy@quietline.chat · **Website:** https://quietline.chat
@@ -22,7 +22,7 @@ in the Android release on GitHub. That is the file you upload to Play.
 
 **Full description**
 ```
-GhostChat is a private messenger that never asks for your phone number, email or contacts.
+Raazdar is a private messenger that never asks for your phone number, email or contacts.
 
 • No phone number. Your phone creates a random ID; share it as a QR code or link.
 • End-to-end encrypted messages, voice notes, photos, videos and files, using modern
@@ -35,7 +35,7 @@ GhostChat is a private messenger that never asks for your phone number, email or
 • Block and report anyone, at any time.
 • No ads, no trackers, no analytics.
 
-GhostChat is made by Hyperviz Labs, Ludhiana, India. Our code is public:
+Raazdar is made by Hyperviz Labs, Ludhiana, India. Our code is public:
 github.com/Ghostchat1/ghostchat
 ```
 - **Graphics:** icon 512×512 (`public/icon-512.png`), feature graphic 1024×500, 2–8 phone screenshots
@@ -56,7 +56,7 @@ Answer from what the app actually does (this is what's in our privacy notice):
 - **Do you provide a way for users to request that their data is deleted?** Yes (in the app: You → Privacy & your data → Withdraw consent & erase account).
 - Data types to declare, each as *Collected · Not shared · Required · Purpose: App functionality*:
   - **Messages → Other in-app messages** (end-to-end encrypted; we can't read them; deleted on delivery or after 7 days).
-  - **Device or other IDs** (the random GhostChat ID; not linked to a person).
+  - **Device or other IDs** (the random Raazdar ID; not linked to a person).
   - **Photos and videos / Files and docs** (only large files, end-to-end encrypted, deleted after 7 days).
   - **Audio → Voice or sound recordings** (voice notes, end-to-end encrypted).
 - Do **not** declare: name, email, phone, contacts, location, financial info, app activity, analytics, ads.
@@ -71,7 +71,7 @@ Answer from what the app actually does (this is what's in our privacy notice):
 
 ## One change before the first Play upload
 Play restricts the "delete other apps" permission (`REQUEST_DELETE_PACKAGES`) that our panic
-"uninstall GhostChat" option uses. Before the first upload, a Play-only build should leave that permission
+"uninstall Raazdar" option uses. Before the first upload, a Play-only build should leave that permission
 out (the in-app wipe still works). Ask Claude for the "Play build without self-uninstall" when your account is ready.
 
 ## App access (for the reviewer)

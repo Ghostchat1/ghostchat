@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the static GhostChat website into public/site/. {{TOKENS}} are filled by the server from site/config.json."""
+"""Builds the static Raazdar website into public/site/. {{TOKENS}} are filled by the server from site/config.json."""
 import os, html
 OUT = "/home/claude/ghostchat/public/site"
 
@@ -67,21 +67,21 @@ def page(path, title, desc, body, active="", lang="en"):
 <body>
 <header class="hdr">
   <div class="wrap">
-    <a class="brand" href="/"><img src="/icon.svg" alt="" />GhostChat</a>
+    <a class="brand" href="/"><img src="/icon.svg" alt="" />Raazdar</a>
     <nav class="nav">{nav}</nav>
-    <div class="hdr-cta">{langlink}<a class="btn ghost sm" href="/signin">{"साइन इन" if lang == "hi" else "Sign in"}</a><a class="btn gold sm" href="/signin" data-open>{"GhostChat खोलें" if lang == "hi" else "Open GhostChat"}</a></div>
+    <div class="hdr-cta">{langlink}<a class="btn ghost sm" href="/signin">{"साइन इन" if lang == "hi" else "Sign in"}</a><a class="btn gold sm" href="/signin" data-open>{"Raazdar खोलें" if lang == "hi" else "Open Raazdar"}</a></div>
     <button class="burger" id="burger" aria-label="Menu" aria-expanded="false">{ic("menu")}</button>
   </div>
 </header>
-<div class="mnav" id="mnav">{mnav}<a class="btn gold" href="/signin" data-open>Open GhostChat</a></div>
+<div class="mnav" id="mnav">{mnav}<a class="btn gold" href="/signin" data-open>Open Raazdar</a></div>
 <main>
 {body}
 </main>
 <footer class="ftr">
   <div class="wrap">
     <div class="cols">
-      <div><a class="brand" href="/"><img src="/icon.svg" alt="" />GhostChat</a><p>Private messaging with no phone number, no email and no name. Built in India for the Digital Personal Data Protection Act, 2023.</p></div>
-      <div><h5>Product</h5><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/changelog">What's new</a><a href="/signin">Open GhostChat</a></div>
+      <div><a class="brand" href="/"><img src="/icon.svg" alt="" />Raazdar</a><p>Private messaging with no phone number, no email and no name. Built in India for the Digital Personal Data Protection Act, 2023.</p></div>
+      <div><h5>Product</h5><a href="/features">Features</a><a href="/security">Security</a><a href="/download">Download</a><a href="/changelog">What's new</a><a href="/signin">Open Raazdar</a></div>
       <div><h5>Company</h5><a href="/about">About &amp; our promises</a><a href="/transparency">Transparency report</a><a href="/press">Press kit</a><a href="/faq">FAQ</a><a href="/contact">Contact &amp; grievances</a></div>
       <div><h5>Legal</h5><a href="/privacy">Privacy notice</a><a href="/hi/privacy">गोपनीयता सूचना (हिन्दी)</a><a href="/terms">Terms of use</a><a href="/contact#grievance">Grievance officer</a></div>
     </div>
@@ -127,26 +127,26 @@ def cmp_table():
     rows = ""
     for label, us, them in CMP:
         rows += f'<tr><td>{label}</td>{cell(us, us, True)}{cell(them, us)}</tr>'
-    return f'<div class="tbl-wrap rv"><table class="cmp"><thead><tr><th></th><th class="us">GhostChat</th><th>Typical messengers</th></tr></thead><tbody>{rows}</tbody></table></div>'
+    return f'<div class="tbl-wrap rv"><table class="cmp"><thead><tr><th></th><th class="us">Raazdar</th><th>Typical messengers</th></tr></thead><tbody>{rows}</tbody></table></div>'
 
 FAQ = [
- ("Do I really not need a phone number?", "<p>Yes. GhostChat never asks for a phone number, email, name or contacts. When you sign up, your phone creates a random ID and a set of encryption keys. That ID is all anyone, including us, ever sees.</p>"),
- ("Can GhostChat read my messages?", "<p>No. Messages are encrypted on your phone and can only be decrypted on the recipient's phone. Our server only ever holds sealed envelopes it cannot open, and it deletes them once they're delivered (or after 7 days).</p>"),
+ ("Do I really not need a phone number?", "<p>Yes. Raazdar never asks for a phone number, email, name or contacts. When you sign up, your phone creates a random ID and a set of encryption keys. That ID is all anyone, including us, ever sees.</p>"),
+ ("Can Raazdar read my messages?", "<p>No. Messages are encrypted on your phone and can only be decrypted on the recipient's phone. Our server only ever holds sealed envelopes it cannot open, and it deletes them once they're delivered (or after 7 days).</p>"),
  ("What happens if I forget my passcode?", "<p>Nobody can recover it, not even us. That's the price of real privacy. Keep an <b>encrypted backup</b> (You → Encrypted backup) somewhere safe; you can restore it with your passcode on any device.</p>"),
- ("Is it free?", "<p>Yes. GhostChat has no ads and does not sell or share data. There's nothing to sell.</p>"),
- ("How is this different from other private messengers?", "<p>Most messengers still tie your account to a phone number, and some now offer number-free sign-up only as a paid or beta option. GhostChat has never needed one, and it's free. It also hides the sender from the server (sealed sender), uses post-quantum encryption, works over Tor, and adds protection for people at risk: a panic wipe, duress passcode, auto-erase, calculator disguise and a decoy account.</p>"),
- ("Does it work on iPhone and Android?", "<p>Yes. On iPhone, open GhostChat in Safari and add it to your Home Screen. On Android, install the app or use the browser. It also works on any computer. See <a href=\"/download\">Download</a>.</p>"),
+ ("Is it free?", "<p>Yes. Raazdar has no ads and does not sell or share data. There's nothing to sell.</p>"),
+ ("How is this different from other private messengers?", "<p>Most messengers still tie your account to a phone number, and some now offer number-free sign-up only as a paid or beta option. Raazdar has never needed one, and it's free. It also hides the sender from the server (sealed sender), uses post-quantum encryption, works over Tor, and adds protection for people at risk: a panic wipe, duress passcode, auto-erase, calculator disguise and a decoy account.</p>"),
+ ("Does it work on iPhone and Android?", "<p>Yes. On iPhone, open Raazdar in Safari and add it to your Home Screen. On Android, install the app or use the browser. It also works on any computer. See <a href=\"/download\">Download</a>.</p>"),
  ("What does the panic button do?", "<p>Holding the lock button for two seconds (or typing your duress passcode) erases your keys, chats and settings from the device instantly, and can tell your contacts' apps to erase your conversations too. It cannot be undone.</p>"),
- ("Who can see that I use GhostChat?", "<p>On the normal web address, your internet provider can see you connect to quietline.chat (not what you send). For maximum anonymity use our Tor address, which hides your IP address from everyone, including us. See <a href=\"/security\">Security</a>.</p>"),
- ("Is GhostChat legal to use in India?", "<p>Yes. Private, encrypted communication is lawful. Using GhostChat for anything illegal is not, and is prohibited by our <a href=\"/terms\">Terms</a>. We follow the Digital Personal Data Protection Act, 2023 and the IT Act, 2000.</p>"),
- ("How do you make money without selling data?", "<p>From organisations, not from you. Companies, law firms and newsrooms pay for private GhostChat servers and our anonymous whistleblower channel. The personal app stays free, with no ads, ever. See <a href=\"/about#money\">how we make money</a>.</p>"),
- ("How do I move GhostChat to a new phone?", "<p>Open You → <b>Move to a new device</b>. Scan the QR code (or open the link) on the new phone and enter your passcode. The link works once and expires in 10 minutes. Then erase the old phone.</p>"),
- ("Will I get notifications when the app is closed?", "<p>Yes, if you turn them on (You → Notifications). They only ever say “New activity”, never a name or message. On iPhone, add GhostChat to your Home Screen first.</p>"),
+ ("Who can see that I use Raazdar?", "<p>On the normal web address, your internet provider can see you connect to quietline.chat (not what you send). For maximum anonymity use our Tor address, which hides your IP address from everyone, including us. See <a href=\"/security\">Security</a>.</p>"),
+ ("Is Raazdar legal to use in India?", "<p>Yes. Private, encrypted communication is lawful. Using Raazdar for anything illegal is not, and is prohibited by our <a href=\"/terms\">Terms</a>. We follow the Digital Personal Data Protection Act, 2023 and the IT Act, 2000.</p>"),
+ ("How do you make money without selling data?", "<p>From organisations, not from you. Companies, law firms and newsrooms pay for private Raazdar servers and our anonymous whistleblower channel. The personal app stays free, with no ads, ever. See <a href=\"/about#money\">how we make money</a>.</p>"),
+ ("How do I move Raazdar to a new phone?", "<p>Open You → <b>Move to a new device</b>. Scan the QR code (or open the link) on the new phone and enter your passcode. The link works once and expires in 10 minutes. Then erase the old phone.</p>"),
+ ("Will I get notifications when the app is closed?", "<p>Yes, if you turn them on (You → Notifications). They only ever say “New activity”, never a name or message. On iPhone, add Raazdar to your Home Screen first.</p>"),
  ("Are calls encrypted? Can the other person see my IP address?", "<p>Calls are end-to-end encrypted. The call is set up inside your encrypted chat, so nobody can slip into the middle, and the audio and video are encrypted between the two phones. Every call goes through our relay, so neither of you learns the other's IP address. The relay can't hear or see the call and keeps no logs. Calls are switched off on the Tor address, because a call can't travel over Tor without revealing your IP.</p>"),
  ("How big a file can I send?", "<p>Up to 25&nbsp;MB, including videos. Files over 1&nbsp;MB are encrypted on your phone and parked on our server, which can't open them, until your contact downloads them. They are deleted after 7 days.</p>"),
- ("Is there a desktop app?", "<p>Yes, for Windows, Mac and Linux. It blocks screenshots of its window and only ever opens GhostChat. You can also simply use GhostChat in any modern browser.</p>"),
- ("Has GhostChat been independently audited?", "<p>Not yet. Our code is public and goes through regular internal security testing (OWASP and VAPT), and we publish the results. An independent audit by an outside firm is planned, and we will publish its report in full.</p>"),
- ("How do I delete my account?", "<p>Open GhostChat → You → Privacy &amp; your data → <b>Withdraw consent &amp; erase account</b>. Your keys and chats are wiped from the device, your ID is removed from our server, and your contacts' copies can be erased as well.</p>"),
+ ("Is there a desktop app?", "<p>Yes, for Windows, Mac and Linux. It blocks screenshots of its window and only ever opens Raazdar. You can also simply use Raazdar in any modern browser.</p>"),
+ ("Has Raazdar been independently audited?", "<p>Not yet. Our code is public and goes through regular internal security testing (OWASP and VAPT), and we publish the results. An independent audit by an outside firm is planned, and we will publish its report in full.</p>"),
+ ("How do I delete my account?", "<p>Open Raazdar → You → Privacy &amp; your data → <b>Withdraw consent &amp; erase account</b>. Your keys and chats are wiped from the device, your ID is removed from our server, and your contacts' copies can be erased as well.</p>"),
 ]
 def faq_html(items): return '<div class="faq">' + "".join(f"<details class=\"rv\"><summary>{q}</summary>{a}</details>" for q, a in items) + "</div>"
 
@@ -155,21 +155,21 @@ home = f'''
   <div class="wrap">
     <div>
       <span class="eyebrow"><i></i>Post-quantum · Sealed sender · No phone number</span>
-      <h1>Talk freely.<br><span class="gold-text">Leave no trace.</span></h1>
-      <p class="lead">GhostChat is a private messenger that needs no phone number, no email and no name. Every message is end-to-end encrypted, and even our own server can't see who sent it.</p>
+      <h1>Your secrets<br><span class="gold-text">stay yours.</span></h1>
+      <p class="lead">Raazdar is a private messenger that needs no phone number, no email and no name. Every message is end-to-end encrypted, and even our own server can't see who sent it.</p>
       <div class="cta-row"><a class="btn gold" href="/signin" data-open>Get started, it's free {ic("arrow")}</a><a class="btn ghost" href="#how">How it works</a></div>
       <div class="trust"><span>{ic("check")}No phone or email</span><span>{ic("check")}No ads or trackers</span><span>{ic("check")}iPhone, Android &amp; desktop</span></div>
     </div>
     <div class="phones">
-      <div class="phone p1"><img src="/site/img/shot-chat.webp" alt="A GhostChat conversation with a reply, a reaction, a PDF and a voice note" /></div>
-      <div class="phone p2"><img src="/site/img/shot-list.webp" alt="The GhostChat chat list" /></div>
+      <div class="phone p1"><img src="/site/img/shot-chat.webp" alt="A Raazdar conversation with a reply, a reaction, a PDF and a voice note" /></div>
+      <div class="phone p2"><img src="/site/img/shot-list.webp" alt="The Raazdar chat list" /></div>
     </div>
   </div>
 </section>
 
 <section class="s">
   <div class="wrap">
-    <div class="s-head rv"><span class="eyebrow">Built differently</span><h2>Private by design.<br>Not by promise.</h2><p>Most apps ask you to trust them with your data. GhostChat is built so there's nothing to trust us with.</p></div>
+    <div class="s-head rv"><span class="eyebrow">Built differently</span><h2>Private by design.<br>Not by promise.</h2><p>Most apps ask you to trust them with your data. Raazdar is built so there's nothing to trust us with.</p></div>
     <div class="grid g3 big3">
       <div class="card rv"><div class="ico">{ic("id")}</div><h3>We don't know who you are</h3><p>No phone number, email, name, contacts or location. Your identity is a random ID your phone creates.</p></div>
       <div class="card rv"><div class="ico">{ic("server")}</div><h3>Our server knows almost nothing</h3><p>It can't read your messages or see who sent them. It runs in memory only and deletes envelopes after delivery.</p></div>
@@ -199,7 +199,7 @@ home = f'''
 
 <section class="s alt">
   <div class="wrap">
-    <div class="s-head rv"><span class="eyebrow">Compare</span><h2>What sets GhostChat apart</h2><p>How GhostChat compares with the messaging apps most people use every day.</p></div>
+    <div class="s-head rv"><span class="eyebrow">Compare</span><h2>What sets Raazdar apart</h2><p>How Raazdar compares with the messaging apps most people use every day.</p></div>
     {cmp_table()}
     <p class="small muted center">“Typical messengers” describes common mainstream apps; features vary between apps and versions.</p>
   </div>
@@ -211,10 +211,10 @@ home = f'''
       <div>
         <span class="eyebrow">Security centre</span>
         <h2>See exactly how protected you are.</h2>
-        <p>GhostChat scores your setup and shows what's left: a backup, a duress passcode, auto-erase, remote erase. One tap fixes each.</p>
+        <p>Raazdar scores your setup and shows what's left: a backup, a duress passcode, auto-erase, remote erase. One tap fixes each.</p>
         <p><a class="btn ghost" href="/security">How our security works {ic("arrow")}</a></p>
       </div>
-      <div class="shot"><div class="phone"><img src="/site/img/shot-security.webp" alt="GhostChat security centre with a protection score" /></div></div>
+      <div class="shot"><div class="phone"><img src="/site/img/shot-security.webp" alt="Raazdar security centre with a protection score" /></div></div>
     </div>
     <div class="stats">
       <div class="stat rv"><b class="gold-text">0</b><span>phone numbers stored</span></div>
@@ -238,12 +238,12 @@ home = f'''
     <img src="/icon.svg" alt="" />
     <h2>Your conversations are yours.<br><span class="gold-text">Keep them that way.</span></h2>
     <p>Free. No phone number. Ready in under a minute.</p>
-    <div class="cta-row" style=""><a class="btn gold" href="/signin" data-open>Open GhostChat {ic("arrow")}</a><a class="btn ghost" href="/download">Get the app</a></div>
+    <div class="cta-row" style=""><a class="btn gold" href="/signin" data-open>Open Raazdar {ic("arrow")}</a><a class="btn ghost" href="/download">Get the app</a></div>
   </div>
 </section>
 '''
 home = home.replace(' style=""', "")
-write("index.html", page("/", "GhostChat: private messaging with no phone number", "Anonymous, end-to-end encrypted messaging. No phone number, no email, no name. Post-quantum encryption, sealed sender, panic wipe.", home))
+write("index.html", page("/", "Raazdar: private messaging with no phone number", "Anonymous, end-to-end encrypted messaging. No phone number, no email, no name. Post-quantum encryption, sealed sender, panic wipe.", home))
 
 # ------------------------------------------------------------------ FEATURES
 def split(eyebrow, title, text, bullets, img, alt, rev=False):
@@ -254,11 +254,11 @@ features = f'''
 <section class="phead"><div class="wrap"><span class="eyebrow">Features</span><h1>A complete messenger.<br><span class="gold-text">Built to forget.</span></h1><p>Everything you use every day, rebuilt so that nothing about you is collected, kept or exposed.</p></div></section>
 <section class="s"><div class="wrap">
 {split("Messaging", "Everything you'd expect. Nothing you'd regret.", "Rich, fast messaging, with every message, photo, file and voice note end-to-end encrypted before it leaves your phone.",
- ["Replies, reactions and starred messages", "Encrypted voice and video calls that hide your IP address", "Voice messages, videos and documents up to 25&nbsp;MB", "Photos cleaned of location, camera and time data", "Groups where the server can't even tell a group exists", "Search, pin and filter chats"], "shot-chat.webp", "A GhostChat conversation")}
+ ["Replies, reactions and starred messages", "Encrypted voice and video calls that hide your IP address", "Voice messages, videos and documents up to 25&nbsp;MB", "Photos cleaned of location, camera and time data", "Groups where the server can't even tell a group exists", "Search, pin and filter chats"], "shot-chat.webp", "A Raazdar conversation")}
 {split("Identity", "Your identity is a random ID. Nothing more.", "No phone number, no email, no contact upload. Share your QR code or invite link only with people you choose.",
- ["16-character random ID made on your device", "A unique pattern avatar instead of a photo", "Safety numbers to verify a contact in person", "Nickname optional, seen only inside encrypted messages"], "shot-you.webp", "GhostChat profile page with an anonymous ID", True)}
+ ["16-character random ID made on your device", "A unique pattern avatar instead of a photo", "Safety numbers to verify a contact in person", "Nickname optional, seen only inside encrypted messages"], "shot-you.webp", "Raazdar profile page with an anonymous ID", True)}
 {split("Protection", "Built for the moment things go wrong.", "Designed with journalists, lawyers and anyone under pressure in mind.",
- ["Panic: hold the lock two seconds to erase everything", "Duress passcode that silently wipes instead of unlocking", "Auto-erase if the app isn't opened for days", "Remote erase of your chats from contacts' phones", "Calculator disguise and a believable decoy account", "Disappearing messages and view-once photos"], "shot-security.webp", "GhostChat security centre")}
+ ["Panic: hold the lock two seconds to erase everything", "Duress passcode that silently wipes instead of unlocking", "Auto-erase if the app isn't opened for days", "Remote erase of your chats from contacts' phones", "Calculator disguise and a believable decoy account", "Disappearing messages and view-once photos"], "shot-security.webp", "Raazdar security centre")}
 </div></section>
 <section class="s alt"><div class="wrap">
 <div class="s-head rv"><span class="eyebrow">And more</span><h2>The details that matter</h2></div>
@@ -273,13 +273,13 @@ features = f'''
  ("india", "Built for India's DPDP Act", "Clear notice, real consent, your rights honoured, and a named grievance officer."),
 ])}
 </div></section>
-<section class="final"><div class="wrap"><h2>Try it in under a minute.</h2><p>No sign-up form. No phone number. Free.</p><a class="btn gold" href="/signin" data-open>Open GhostChat {ic("arrow")}</a></div></section>
+<section class="final"><div class="wrap"><h2>Try it in under a minute.</h2><p>No sign-up form. No phone number. Free.</p><a class="btn gold" href="/signin" data-open>Open Raazdar {ic("arrow")}</a></div></section>
 '''
-write("features.html", page("/features", "Features | GhostChat", "Voice, files, groups, disappearing messages, panic wipe, duress passcode, decoy account and more, with no phone number.", features, "/features"))
+write("features.html", page("/features", "Features | Raazdar", "Voice, files, groups, disappearing messages, panic wipe, duress passcode, decoy account and more, with no phone number.", features, "/features"))
 
 # ------------------------------------------------------------------ SECURITY
 security = f'''
-<section class="phead"><div class="wrap"><span class="eyebrow">Security</span><h1>How GhostChat<br><span class="gold-text">keeps you invisible</span></h1><p>A plain-language tour of what protects you, and an honest list of what can't.</p></div></section>
+<section class="phead"><div class="wrap"><span class="eyebrow">Security</span><h1>How Raazdar<br><span class="gold-text">keeps you invisible</span></h1><p>A plain-language tour of what protects you, and an honest list of what can't.</p></div></section>
 <section class="s"><div class="wrap">
 {feat_cards([
  ("atom", "Hybrid post-quantum key exchange", "Each conversation starts with ML-KEM-768 (the NIST post-quantum standard) combined with P-384 elliptic-curve Diffie-Hellman. An attacker would have to break both."),
@@ -305,7 +305,7 @@ security = f'''
 </div></section>
 <section class="s"><div class="wrap prose" style="padding-bottom:0">
 <h2>Honest limits</h2>
-<p>No tool makes you invisible on its own. GhostChat can't protect you if:</p>
+<p>No tool makes you invisible on its own. Raazdar can't protect you if:</p>
 <ul>
 <li><b>Your device is compromised.</b> Spyware on your phone can read the screen. Keep your phone updated and locked.</li>
 <li><b>Someone knows your passcode.</b> Use a few random words, and set a duress passcode for emergencies.</li>
@@ -315,23 +315,23 @@ security = f'''
 </ul>
 <p>Found a vulnerability? Please tell us privately at <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a>. We respond to every report.</p>
 </div></section>
-<section class="final"><div class="wrap"><h2>Privacy you can verify.</h2><p>Compare safety numbers with a contact and see it for yourself.</p><a class="btn gold" href="/signin" data-open>Open GhostChat {ic("arrow")}</a></div></section>
+<section class="final"><div class="wrap"><h2>Privacy you can verify.</h2><p>Compare safety numbers with a contact and see it for yourself.</p><a class="btn gold" href="/signin" data-open>Open Raazdar {ic("arrow")}</a></div></section>
 '''.replace(' style="padding-bottom:0"', "")
-write("security.html", page("/security", "Security | GhostChat", "Post-quantum encryption, double ratchet, sealed sender, memory-only server and Tor. How GhostChat protects you, and its honest limits.", security, "/security"))
+write("security.html", page("/security", "Security | Raazdar", "Post-quantum encryption, double ratchet, sealed sender, memory-only server and Tor. How Raazdar protects you, and its honest limits.", security, "/security"))
 
 # ------------------------------------------------------------------ DOWNLOAD
 download = f'''
-<section class="phead"><div class="wrap"><span class="eyebrow">Download</span><h1>Get GhostChat<br><span class="gold-text">on every device</span></h1><p>No app store account needed. Nothing to sign up for.</p></div></section>
+<section class="phead"><div class="wrap"><span class="eyebrow">Download</span><h1>Get Raazdar<br><span class="gold-text">on every device</span></h1><p>No app store account needed. Nothing to sign up for.</p></div></section>
 <section class="s"><div class="wrap">
 <div class="grid g2 dl">
-  <div class="card rv"><div class="ico">{ic("apple")}</div><h3>iPhone &amp; iPad</h3><p>Install GhostChat to your Home Screen straight from Safari. It opens full-screen like any app.</p>
-    <ol><li>Open <b>quietline.chat</b> in <b>Safari</b> and tap <b>Open GhostChat</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li><li>Choose <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol>
+  <div class="card rv"><div class="ico">{ic("apple")}</div><h3>iPhone &amp; iPad</h3><p>Install Raazdar to your Home Screen straight from Safari. It opens full-screen like any app.</p>
+    <ol><li>Open <b>quietline.chat</b> in <b>Safari</b> and tap <b>Open Raazdar</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li><li>Choose <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol>
     <a class="btn gold" href="/signin" data-open>Open in Safari {ic("arrow")}</a></div>
   <div class="card rv"><div class="ico">{ic("android")}</div><h3>Android</h3><p>Install the app directly. Its code is bundled inside, it blocks screenshots, and it can work over Bluetooth without internet.</p>
-    <ol><li>Tap <b>Download APK</b> below.</li><li>Open the file. If asked, allow <b>Install unknown apps</b> for your browser.</li><li>Open GhostChat and create your ID.</li></ol>
-    <a class="btn gold" href="https://github.com/Ghostchat1/ghostchat/releases/latest/download/GhostChat.apk" rel="noopener">Download APK {ic("save")}</a>
+    <ol><li>Tap <b>Download APK</b> below.</li><li>Open the file. If asked, allow <b>Install unknown apps</b> for your browser.</li><li>Open Raazdar and create your ID.</li></ol>
+    <a class="btn gold" href="https://github.com/Ghostchat1/ghostchat/releases/latest/download/Raazdar.apk" rel="noopener">Download APK {ic("save")}</a>
     <p class="small muted">Installed a test version before 27 Nov 2026? Uninstall it once (after saving a backup). Official releases are signed with our permanent key, so future updates install over each other.</p></div>
-  <div class="card rv" id="desktop"><div class="ico">{ic("desktop")}</div><h3>Windows, Mac &amp; Linux</h3><p>The desktop app blocks screenshots of its window and only ever opens GhostChat. Or simply use it in any modern browser.</p>
+  <div class="card rv" id="desktop"><div class="ico">{ic("desktop")}</div><h3>Windows, Mac &amp; Linux</h3><p>The desktop app blocks screenshots of its window and only ever opens Raazdar. Or simply use it in any modern browser.</p>
     <ol><li>Open the <b>latest desktop release</b> and download the file for your computer: <b>Setup .exe</b> (Windows), <b>.dmg</b> (Mac), <b>.AppImage</b> or <b>.deb</b> (Linux).</li><li><b>Windows:</b> if SmartScreen warns, choose <i>More info → Run anyway</i>. <b>Mac:</b> the first time, right-click the app and choose <i>Open</i>.</li></ol>
     <div class="cta-row"><a class="btn gold" href="https://github.com/Ghostchat1/ghostchat/releases?q=desktop" rel="noopener">Desktop downloads {ic("save")}</a> <a class="btn ghost" href="/signin" data-open>Use in browser {ic("arrow")}</a></div>
     <p class="small muted">The desktop apps aren't code-signed by Microsoft or Apple yet, which is why your computer warns. Check your file against the release's SHA256SUMS.txt.</p></div>
@@ -339,21 +339,21 @@ download = f'''
     <p><code>{{{{ONION}}}}</code></p><p class="small muted">Accounts on the Tor address and the normal address are separate.</p></div>
 </div>
 <div class="card rv" id="verify"><div class="ico">{ic("shield")}</div><h3>Verify your Android download</h3>
-<p>Every official APK is signed with the same GhostChat key. Make sure your copy is genuine before you install it:</p>
+<p>Every official APK is signed with the same Raazdar key. Make sure your copy is genuine before you install it:</p>
 <ol><li><b>Signing certificate (SHA-256):</b><br><code>7D:9F:64:47:32:76:9B:E5:71:C2:A0:63:15:16:8A:84:4E:CA:64:34:CA:54:77:7B:28:63:CC:51:D1:13:60:CF</code></li>
-<li>Each release lists the file's SHA-256 checksum and includes a <code>GhostChat.apk.sha256</code> file. See <a href="https://github.com/Ghostchat1/ghostchat/releases/latest" rel="noopener">the latest release</a>.</li>
-<li>On a computer: <code>sha256sum GhostChat.apk</code> and <code>apksigner verify --print-certs GhostChat.apk</code> must match the values above.</li></ol>
+<li>Each release lists the file's SHA-256 checksum and includes a <code>Raazdar.apk.sha256</code> file. See <a href="https://github.com/Ghostchat1/ghostchat/releases/latest" rel="noopener">the latest release</a>.</li>
+<li>On a computer: <code>sha256sum Raazdar.apk</code> and <code>apksigner verify --print-certs Raazdar.apk</code> must match the values above.</li></ol>
 <p class="small muted">The source code is public at <a href="https://github.com/Ghostchat1/ghostchat" rel="noopener">github.com/Ghostchat1/ghostchat</a>. Releases are built automatically from that code by GitHub, not on anyone's laptop.</p></div>
 </div></section>
 '''
-write("download.html", page("/download", "Download | GhostChat", "Install GhostChat on iPhone, Android or your computer, or use it over Tor.", download, "/download"))
+write("download.html", page("/download", "Download | Raazdar", "Install Raazdar on iPhone, Android or your computer, or use it over Tor.", download, "/download"))
 
 # ------------------------------------------------------------------ FAQ
 faq = f'''
 <section class="phead"><div class="wrap"><span class="eyebrow">FAQ</span><h1>Questions &amp; answers</h1><p>Can't find what you need? <a href="/contact">Contact us</a>.</p></div></section>
 <section class="s"><div class="wrap">{faq_html(FAQ)}</div></section>
 '''
-write("faq.html", page("/faq", "FAQ | GhostChat", "Answers about GhostChat: no phone number, encryption, backups, panic wipe, iPhone and Android, DPDP rights.", faq, "/faq"))
+write("faq.html", page("/faq", "FAQ | Raazdar", "Answers about Raazdar: no phone number, encryption, backups, panic wipe, iPhone and Android, DPDP rights.", faq, "/faq"))
 
 # ------------------------------------------------------------------ PRIVACY (DPDP)
 DATA_ROWS = [
@@ -386,10 +386,10 @@ privacy = f'''
 <li><a href="#cookies">Cookies and tracking</a></li><li><a href="#law">Requests from authorities</a></li><li><a href="#changes">Changes and languages</a></li></ol></div>
 
 <h2 id="who">1. Who we are</h2>
-<p>GhostChat is operated by <b>{{{{COMPANY}}}}</b>, {{{{ADDRESS}}}} (“we”, “us”). For your personal data we are the <b>Data Fiduciary</b> under the Digital Personal Data Protection Act, 2023 (“DPDP Act”). You are the <b>Data Principal</b>.</p>
+<p>Raazdar is operated by <b>{{{{COMPANY}}}}</b>, {{{{ADDRESS}}}} (“we”, “us”). For your personal data we are the <b>Data Fiduciary</b> under the Digital Personal Data Protection Act, 2023 (“DPDP Act”). You are the <b>Data Principal</b>.</p>
 
 <h2 id="data">2. Personal data we process and why</h2>
-<p>GhostChat is designed to process as little personal data as possible. This is the complete list:</p>
+<p>Raazdar is designed to process as little personal data as possible. This is the complete list:</p>
 <table><thead><tr><th>Data</th><th>Purpose</th><th>Where it is kept</th><th>How long</th></tr></thead><tbody>{rows}</tbody></table>
 <p><b>We do not collect:</b> your name, phone number, email address (unless you write to us), address book, location, device identifiers, advertising IDs, analytics or browsing history. Message contents are end-to-end encrypted and cannot be read by us.</p>
 <p>Your anonymous ID is random and is not linked to you by us. We still treat it, and your public keys, as personal data and protect them accordingly.</p>
@@ -410,14 +410,14 @@ privacy = f'''
 <p><b>How to exercise them:</b> email <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a> with your anonymous ID. Because we don't know who you are, we will ask you to prove that the ID is yours from inside the app before acting. We respond within a reasonable time, and in any case <b>within 90 days</b>, as the DPDP Rules, 2025 require.</p>
 
 <h2 id="withdraw">5. Withdrawing consent and erasing your data</h2>
-<p>Open GhostChat → <b>You</b> → <b>Privacy &amp; your data</b> → <b>Withdraw consent &amp; erase account</b>. This immediately erases your keys and chats from your device, removes your ID and keys from our server, deletes messages waiting for you, and (if you choose) asks your contacts' apps to erase your conversations. Withdrawal doesn't affect processing done before it. Without an account, the service can't be provided.</p>
+<p>Open Raazdar → <b>You</b> → <b>Privacy &amp; your data</b> → <b>Withdraw consent &amp; erase account</b>. This immediately erases your keys and chats from your device, removes your ID and keys from our server, deletes messages waiting for you, and (if you choose) asks your contacts' apps to erase your conversations. Withdrawal doesn't affect processing done before it. Without an account, the service can't be provided.</p>
 
 <h2 id="grievance">6. Grievances and the Data Protection Board</h2>
 <p>Contact our Grievance Officer, <b>{{{{GRIEVANCE_NAME}}}}</b>, at <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a> or {{{{ADDRESS}}}}. Details are also on our <a href="/contact">contact page</a>. We acknowledge complaints within 24 hours and aim to resolve them within 15 days (Information Technology Rules, 2021), and never later than 90 days (DPDP Rules, 2025).</p>
 <p>If you are not satisfied with our response, you may complain to the <b>Data Protection Board of India</b> after using our grievance process (DPDP Act, section 13(3)).</p>
 
 <h2 id="children">7. Children</h2>
-<p>GhostChat is only for people aged <b>18 or older</b>. Everyone must confirm this before creating an account. We do not knowingly process children's personal data and do not carry out tracking, behavioural monitoring or targeted advertising of anyone. If you believe a child is using GhostChat, contact us and we will help erase the account.</p>
+<p>Raazdar is only for people aged <b>18 or older</b>. Everyone must confirm this before creating an account. We do not knowingly process children's personal data and do not carry out tracking, behavioural monitoring or targeted advertising of anyone. If you believe a child is using Raazdar, contact us and we will help erase the account.</p>
 
 <h2 id="security">8. Security and breaches</h2>
 <p>We protect personal data with reasonable security safeguards (DPDP Act, section 8(5)), including end-to-end and post-quantum encryption, sealed sender, a memory-only server, encrypted on-device storage, strict access controls and regular security testing. See <a href="/security">Security</a>.</p>
@@ -430,36 +430,36 @@ privacy = f'''
 <p>We use <b>no cookies, analytics or trackers</b>, on the website or in the app. The app stores its encrypted data in your browser's or phone's local storage only so that it can work. That data never leaves your device unless you make a backup.</p>
 
 <h2 id="law">11. Requests from authorities</h2>
-<p>We comply with valid legal orders under Indian law. Because of how GhostChat is built, we hold very little: we cannot provide message contents, sender identities, contact lists or IP logs, because we do not have them.</p>
+<p>We comply with valid legal orders under Indian law. Because of how Raazdar is built, we hold very little: we cannot provide message contents, sender identities, contact lists or IP logs, because we do not have them.</p>
 
 <h2 id="changes">12. Changes and languages</h2>
 <p>If we change this notice in a way that affects how we process your data, we will update the version number and ask for your consent again in the app. This notice is available in English and Hindi (हिन्दी). To request it in another language listed in the Eighth Schedule to the Constitution, email us.</p>
-<p class="note">The DPDP Act and DPDP Rules, 2025 are being brought into force in phases, with most obligations applying from May 2027. GhostChat already follows them.</p>
+<p class="note">The DPDP Act and DPDP Rules, 2025 are being brought into force in phases, with most obligations applying from May 2027. Raazdar already follows them.</p>
 </div>
 '''
-write("privacy.html", page("/privacy", "Privacy notice | GhostChat", "GhostChat privacy notice under India's Digital Personal Data Protection Act, 2023: what we process, why, your rights and our grievance officer.", privacy))
+write("privacy.html", page("/privacy", "Privacy notice | Raazdar", "Raazdar privacy notice under India's Digital Personal Data Protection Act, 2023: what we process, why, your rights and our grievance officer.", privacy))
 
 # ------------------------------------------------------------------ TERMS
 terms = f'''
-<section class="phead"><div class="wrap"><span class="eyebrow">Terms</span><h1>Terms of use</h1><p>The rules for using GhostChat, in plain language.</p></div></section>
+<section class="phead"><div class="wrap"><span class="eyebrow">Terms</span><h1>Terms of use</h1><p>The rules for using Raazdar, in plain language.</p></div></section>
 <div class="prose">
 <p class="meta">Last updated {{{{UPDATED}}}} · Provider: {{{{COMPANY}}}}, {{{{ADDRESS}}}}</p>
-<h2>1. Agreement</h2><p>By creating a GhostChat account you agree to these Terms and confirm you have read our <a href="/privacy">Privacy notice</a>. If you don't agree, don't use GhostChat.</p>
-<h2>2. Who can use GhostChat</h2><p>You must be at least <b>18 years old</b> and legally able to enter into a contract under Indian law.</p>
+<h2>1. Agreement</h2><p>By creating a Raazdar account you agree to these Terms and confirm you have read our <a href="/privacy">Privacy notice</a>. If you don't agree, don't use Raazdar.</p>
+<h2>2. Who can use Raazdar</h2><p>You must be at least <b>18 years old</b> and legally able to enter into a contract under Indian law.</p>
 <h2>3. Your account</h2><ul><li>Your account exists only on your device and is protected by your passcode. <b>We cannot recover a lost passcode or account.</b> Keep an encrypted backup.</li><li>You are responsible for keeping your device, passcode and backups safe.</li><li>Erasing your account (by panic, duress passcode, auto-erase or withdrawal of consent) is permanent.</li></ul>
-<h2>4. Acceptable use</h2><p>You must not use GhostChat to host, share or transmit anything that is unlawful under Indian law, including content that:</p>
+<h2>4. Acceptable use</h2><p>You must not use Raazdar to host, share or transmit anything that is unlawful under Indian law, including content that:</p>
 <ul><li>sexually exploits or abuses children, or is obscene or pornographic;</li><li>threatens the unity, integrity, defence, security or sovereignty of India, or incites violence or terrorism;</li><li>harasses, defames, threatens, impersonates or invades the privacy of another person;</li><li>promotes fraud, scams, money laundering, illegal gambling or trade in prohibited goods;</li><li>contains malware or is used to attack, spam or overload our service or anyone else's;</li><li>infringes another person's intellectual property.</li></ul>
 <p>We cannot read messages, but we may suspend access for any ID that we reasonably believe violates these rules, for example based on a report with evidence or a lawful order.</p>
 <h2>5. Reporting abuse</h2><p>If someone sends you unlawful content, you can delete the chat and block the ID by deleting the contact. To report it, email <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a> with the sender's ID and screenshots. We will act as required by the Information Technology Act, 2000 and the IT Rules, 2021.</p>
-<h2>6. Our service</h2><p>GhostChat is provided free of charge, “as is” and “as available”. We work hard to keep it secure and available but can't guarantee it will be uninterrupted or error-free. We may change, suspend or discontinue features, with notice where reasonable.</p>
+<h2>6. Our service</h2><p>Raazdar is provided free of charge, “as is” and “as available”. We work hard to keep it secure and available but can't guarantee it will be uninterrupted or error-free. We may change, suspend or discontinue features, with notice where reasonable.</p>
 <h2>7. Limitation of liability</h2><p>To the extent permitted by law, we are not liable for indirect or consequential losses, or for loss of data, messages or accounts, including loss caused by a forgotten passcode or a deliberate erase. Nothing in these Terms limits liability that cannot be limited under Indian law.</p>
-<h2>8. Intellectual property</h2><p>The GhostChat name, logo and design belong to {{{{COMPANY}}}}. Your messages belong to you.</p>
+<h2>8. Intellectual property</h2><p>The Raazdar name, logo and design belong to {{{{COMPANY}}}}. Your messages belong to you.</p>
 <h2>9. Governing law</h2><p>These Terms are governed by the laws of India. Courts at {{{{JURISDICTION}}}} have exclusive jurisdiction, subject to any mandatory consumer protection rights you have.</p>
 <h2>10. Grievance Officer</h2><p>In accordance with the Information Technology Act, 2000, the IT Rules, 2021 and the DPDP Act, 2023, our Grievance Officer is <b>{{{{GRIEVANCE_NAME}}}}</b>, reachable at <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a>. See <a href="/contact">Contact</a>.</p>
 <h2>11. Changes</h2><p>We may update these Terms. Material changes will be announced in the app and on this page before they take effect.</p>
 </div>
 '''
-write("terms.html", page("/terms", "Terms of use | GhostChat", "The terms for using GhostChat: eligibility, acceptable use, your account and our grievance officer.", terms))
+write("terms.html", page("/terms", "Terms of use | Raazdar", "The terms for using Raazdar: eligibility, acceptable use, your account and our grievance officer.", terms))
 
 # ------------------------------------------------------------------ CONTACT
 contact = f'''
@@ -484,11 +484,11 @@ contact = f'''
 <p class="center small muted">Writing to us by email means we will see your email address. If you prefer to stay anonymous, use a new email address created just for this.</p>
 </div></div>
 '''
-write("contact.html", page("/contact", "Contact & grievances | GhostChat", "Contact GhostChat: privacy requests, security reports, abuse reports and our Grievance Officer under the DPDP Act and IT Rules.", contact))
+write("contact.html", page("/contact", "Contact & grievances | Raazdar", "Contact Raazdar: privacy requests, security reports, abuse reports and our Grievance Officer under the DPDP Act and IT Rules.", contact))
 
 # ------------------------------------------------------------------ SIGN IN (DPDP consent)
 notice_en = f'''<div data-lang="en">
-<p>Before you use GhostChat, please read what personal data we process. This notice is separate from our other terms, as the DPDP Act, 2023 requires.</p>
+<p>Before you use Raazdar, please read what personal data we process. This notice is separate from our other terms, as the DPDP Act, 2023 requires.</p>
 <h4>What we process</h4>
 <table><tr><th>Data</th><th>Why</th></tr>
 <tr><td>Anonymous ID &amp; public keys</td><td>To deliver messages to you</td></tr>
@@ -499,7 +499,7 @@ notice_en = f'''<div data-lang="en">
 <h4>Your rights</h4><ul><li>Withdraw consent at any time: <b>You → Privacy &amp; your data → Withdraw consent &amp; erase account</b>.</li><li>Access, correct or erase your data, nominate someone, and raise a grievance, answered within 90 days.</li><li>Complain to the Data Protection Board of India.</li></ul>
 <h4>Contact</h4><p>Grievance Officer: {{{{GRIEVANCE_NAME}}}}, <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a>. Full notice: <a href="/privacy" target="_blank" rel="noopener">Privacy notice</a>.</p></div>'''
 notice_hi = f'''<div data-lang="hi" class="hidden">
-<p>GhostChat का उपयोग करने से पहले, कृपया पढ़ें कि हम कौन-सा व्यक्तिगत डेटा संसाधित करते हैं। यह सूचना डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम, 2023 के अनुसार हमारी अन्य शर्तों से अलग है।</p>
+<p>Raazdar का उपयोग करने से पहले, कृपया पढ़ें कि हम कौन-सा व्यक्तिगत डेटा संसाधित करते हैं। यह सूचना डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम, 2023 के अनुसार हमारी अन्य शर्तों से अलग है।</p>
 <h4>हम क्या संसाधित करते हैं</h4>
 <table><tr><th>डेटा</th><th>क्यों</th></tr>
 <tr><td>गुमनाम ID और सार्वजनिक कुंजियाँ</td><td>आप तक संदेश पहुँचाने के लिए</td></tr>
@@ -513,13 +513,13 @@ signin = f'''
 <div class="auth" id="auth">
   <aside class="auth-art">
     <span class="eyebrow"><i></i>End-to-end encrypted</span>
-    <h1>Welcome to<br><span class="gold-text">GhostChat</span></h1>
+    <h1>Welcome to<br><span class="gold-text">Raazdar</span></h1>
     <p>No username. No password to send anywhere. Your account lives encrypted on your device, and you unlock it with your passcode.</p>
     <ul><li>{ic("check")}<span>No phone number or email, ever</span></li><li>{ic("check")}<span>Messages only you and your contact can read</span></li><li>{ic("check")}<span>Erase everything in two seconds</span></li></ul>
   </aside>
   <div class="auth-main">
     <div class="auth-box">
-      <div class="tabs"><button data-m="new" class="on">New to GhostChat</button><button data-m="in">I have an account</button></div>
+      <div class="tabs"><button data-m="new" class="on">New to Raazdar</button><button data-m="in">I have an account</button></div>
       <div id="t-new"><h2>Create your anonymous ID</h2><p>It takes under a minute. First, please review how we handle your data.</p></div>
       <div id="t-in" class="hidden"><h2>Sign in</h2><p>You'll unlock with your passcode on the next screen. On a new device, choose <b>Restore from encrypted backup</b> there.</p></div>
       <div id="consented" class="done hidden">✓ You gave consent on this device on <span id="c-when"></span>. <a href="#" id="c-withdraw">Withdraw</a></div>
@@ -528,7 +528,7 @@ signin = f'''
         <div class="notice-b">{notice_en}{notice_hi}</div>
       </div>
       <div class="checks">
-        <label class="chk"><input type="checkbox" id="c-notice" /><span>I have read the privacy notice and <b>consent</b> to the processing of the data listed above to use GhostChat.</span></label>
+        <label class="chk"><input type="checkbox" id="c-notice" /><span>I have read the privacy notice and <b>consent</b> to the processing of the data listed above to use Raazdar.</span></label>
         <label class="chk"><input type="checkbox" id="c-adult" /><span>I confirm I am <b>18 years of age or older</b>.</span></label>
         <label class="chk"><input type="checkbox" id="c-terms" /><span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms of use</a>.</span></label>
       </div>
@@ -538,21 +538,21 @@ signin = f'''
   </div>
 </div>
 '''
-write("signin.html", page("/signin", "Sign in | GhostChat", "Create an anonymous GhostChat ID or unlock your account. No phone number or email needed.", signin))
+write("signin.html", page("/signin", "Sign in | Raazdar", "Create an anonymous Raazdar ID or unlock your account. No phone number or email needed.", signin))
 
 
 # ------------------------------------------------------------------ ABOUT
 about = f'''
-<section class="phead"><div class="wrap"><span class="eyebrow">About</span><h1>Privacy is a right.<br><span class="gold-text">Not a premium feature.</span></h1><p>GhostChat is built in Ludhiana by {{{{COMPANY}}}} for anyone who needs to talk without being watched.</p></div></section>
+<section class="phead"><div class="wrap"><span class="eyebrow">About</span><h1>Privacy is a right.<br><span class="gold-text">Not a premium feature.</span></h1><p>Raazdar is built in Ludhiana by {{{{COMPANY}}}} for anyone who needs to talk without being watched.</p></div></section>
 <div class="prose">
-<h2>Why we built GhostChat</h2>
+<h2>Why we built Raazdar</h2>
 <p>Almost every messenger starts by asking for your phone number, which in India is tied to your name, your ID documents and your bank. We think private conversation shouldn't require an identity at all. So we built a messenger that never asks who you are, can't read what you say, and can erase itself in two seconds.</p>
 <h2 id="promises">Our promises</h2>
 <ul>
 <li><b>No ads. Ever.</b> Not now, not “once we scale”.</li>
 <li><b>We never sell, rent or share personal data.</b> We hold almost none, and we'll keep it that way.</li>
 <li><b>No trackers, analytics or third-party code</b> on the website or in the app.</li>
-<li><b>We will never ask for your phone number, email or name</b> to use GhostChat.</li>
+<li><b>We will never ask for your phone number, email or name</b> to use Raazdar.</li>
 <li><b>We will never quietly weaken encryption.</b> If a law ever forced a change, we would say so publicly before it took effect.</li>
 <li><b>The personal app stays free.</b> Core messaging, encryption and safety features will never sit behind a paywall.</li>
 <li><b>We publish every government request</b> we receive in our <a href="/transparency">transparency report</a>.</li>
@@ -560,16 +560,16 @@ about = f'''
 <h2 id="money">How we make money</h2>
 <p>We earn from <b>organisations</b>, not from your data. Everything below uses the same encryption as the free app, and none of it gives us access to anyone's messages.</p>
 <table><thead><tr><th>Offer</th><th>For</th><th>What it is</th></tr></thead><tbody>
-<tr><td><b>GhostChat for Teams</b></td><td>Law firms, hospitals, companies, newsrooms</td><td>A private GhostChat server for your organisation, hosted in India or on your own premises, with an admin console to add and remove staff and wipe lost phones.</td></tr>
+<tr><td><b>Raazdar for Teams</b></td><td>Law firms, hospitals, companies, newsrooms</td><td>A private Raazdar server for your organisation, hosted in India or on your own premises, with an admin console to add and remove staff and wipe lost phones.</td></tr>
 <tr><td><b>Whistleblower channel</b></td><td>Companies needing a vigil mechanism or POSH reporting</td><td>An anonymous reporting page where employees can raise concerns and talk to investigators without ever revealing who they are.</td></tr>
-<tr><td><b>Supporter</b> (optional)</td><td>Individuals who want to help</td><td>Pay what you like with a voucher code that is never linked to your GhostChat ID. You get cosmetic extras like more disguise icons and themes, never extra privacy.</td></tr>
+<tr><td><b>Supporter</b> (optional)</td><td>Individuals who want to help</td><td>Pay what you like with a voucher code that is never linked to your Raazdar ID. You get cosmetic extras like more disguise icons and themes, never extra privacy.</td></tr>
 </tbody></table>
 <p>Interested in Teams or the whistleblower channel? Write to <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a>.</p>
 <h2>Who we are</h2>
 <p>{{{{COMPANY}}}}, {{{{ADDRESS}}}}. Grievance Officer: {{{{GRIEVANCE_NAME}}}}. See <a href="/contact">contact</a>.</p>
 </div>
 '''
-write("about.html", page("/about", "About & our promises | GhostChat", "Who builds GhostChat, the promises we make, and how we make money without ads or selling data.", about))
+write("about.html", page("/about", "About & our promises | Raazdar", "Who builds Raazdar, the promises we make, and how we make money without ads or selling data.", about))
 
 # ------------------------------------------------------------------ TRANSPARENCY
 transparency = f'''
@@ -578,7 +578,7 @@ transparency = f'''
 <p class="meta">Last updated {{{{UPDATED}}}} · Published twice a year, and whenever a request is received, as far as the law allows.</p>
 <div class="tldr"><h3>Requests received so far</h3><p><b>0</b> government or court requests for user data. <b>0</b> takedown orders. <b>0</b> accounts disclosed.</p></div>
 <h2>What we could hand over, if legally required</h2>
-<p>Because of how GhostChat is built, this is the complete list of what exists on our server for an anonymous ID:</p>
+<p>Because of how Raazdar is built, this is the complete list of what exists on our server for an anonymous ID:</p>
 <table><thead><tr><th>Exists</th><th>Does not exist</th></tr></thead><tbody>
 <tr><td>Whether the ID exists, and its public encryption keys</td><td>Name, phone number, email, address</td></tr>
 <tr><td>The privacy-notice version it consented to, and when</td><td>Message contents, photos, files or voice notes</td></tr>
@@ -600,41 +600,42 @@ transparency = f'''
 <p class="note">Legal requests should be sent to our Grievance Officer at <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a>, {{{{ADDRESS}}}}.</p>
 </div>
 '''
-write("transparency.html", page("/transparency", "Transparency report | GhostChat", "Every legal request for GhostChat user data and exactly what we could provide: almost nothing.", transparency))
+write("transparency.html", page("/transparency", "Transparency report | Raazdar", "Every legal request for Raazdar user data and exactly what we could provide: almost nothing.", transparency))
 
 # ------------------------------------------------------------------ CHANGELOG
 CHANGES = [
+ ("6.4", "27 Nov 2026", ["GhostChat is now Raazdar: the one who keeps your secrets", "New home at raazdar.app (quietline.chat keeps working)"]),
  ("6.3", "27 Nov 2026", ["Encrypted voice and video calls, relayed so neither person sees the other's IP address", "Send videos and files up to 25 MB, encrypted before they leave your phone", "Block and report contacts", "Desktop apps for Windows, Mac and Linux, with screenshot blocking", "Google Play package built and signed with our permanent key"]),
- ("6.2", "27 Nov 2026", ["Notifications when GhostChat is closed: content-free wake-ups that never show names or text", "Move to a new device with a one-time QR link (works once, expires in 10 minutes)", "Android app now signed with a permanent key, with published checksums", "Waiting messages survive server updates, still never written to disk", "About, transparency report, press kit and Hindi pages on the website"]),
+ ("6.2", "27 Nov 2026", ["Notifications when Raazdar is closed: content-free wake-ups that never show names or text", "Move to a new device with a one-time QR link (works once, expires in 10 minutes)", "Android app now signed with a permanent key, with published checksums", "Waiting messages survive server updates, still never written to disk", "About, transparency report, press kit and Hindi pages on the website"]),
  ("6.1", "26 Nov 2026", ["New website with features, security, FAQ and download pages", "DPDP Act sign-in with a separate privacy notice in English and Hindi", "Privacy & your data in the app: rights, consent and erase"]),
  ("6.0", "26 Nov 2026", ["Complete redesign in graphite and gold, with Chats, Security and You tabs", "Voice messages, documents, replies, reactions, stars, pins and in-chat search", "Security centre with a protection score", "QR code invites and generated avatars"]),
  ("5.x", "Nov 2026", ["Works on iPhone, including Onion Browser over Tor", "Fast normal web address alongside the .onion address", "Bigger photos and storage fallbacks for strict browsers"]),
 ]
 changelog = f'''
-<section class="phead"><div class="wrap"><span class="eyebrow">Changelog</span><h1>What's new</h1><p>Every GhostChat release, in plain words.</p></div></section>
+<section class="phead"><div class="wrap"><span class="eyebrow">Changelog</span><h1>What's new</h1><p>Every Raazdar release, in plain words.</p></div></section>
 <div class="prose">{"".join(f'<h2>Version {v} <span class="muted small">· {d}</span></h2><ul>' + "".join(f"<li>{x}</li>" for x in items) + "</ul>" for v, d, items in CHANGES)}</div>
 '''
-write("changelog.html", page("/changelog", "What's new | GhostChat", "GhostChat release notes.", changelog))
+write("changelog.html", page("/changelog", "What's new | Raazdar", "Raazdar release notes.", changelog))
 
 # ------------------------------------------------------------------ PRESS
 press = f'''
-<section class="phead"><div class="wrap"><span class="eyebrow">Press</span><h1>Press kit</h1><p>Logos, colours and a short description you're free to use when writing about GhostChat.</p></div></section>
+<section class="phead"><div class="wrap"><span class="eyebrow">Press</span><h1>Press kit</h1><p>Logos, colours and a short description you're free to use when writing about Raazdar.</p></div></section>
 <div class="prose">
-<h2>About GhostChat (boilerplate)</h2>
-<p>GhostChat is a private messenger from {{{{COMPANY}}}}, Ludhiana, that requires no phone number, email or name. Messages are end-to-end encrypted with hybrid post-quantum cryptography and sealed sender, so even GhostChat's own server cannot read them or see who sent them. It adds protections for people at risk, including a panic wipe, duress passcode, calculator disguise and decoy account, and is built to comply with India's Digital Personal Data Protection Act, 2023.</p>
+<h2>About Raazdar (boilerplate)</h2>
+<p>Raazdar is a private messenger from {{{{COMPANY}}}}, Ludhiana, that requires no phone number, email or name. Messages are end-to-end encrypted with hybrid post-quantum cryptography and sealed sender, so even Raazdar's own server cannot read them or see who sent them. It adds protections for people at risk, including a panic wipe, duress passcode, calculator disguise and decoy account, and is built to comply with India's Digital Personal Data Protection Act, 2023.</p>
 <h2>Logos</h2>
 <ul><li><a href="/icon.svg" download>App icon (SVG, vector)</a></li><li><a href="/icon-512.png" download>App icon (PNG, 512 × 512)</a></li><li><a href="/site/img/og.png" download>Social preview image (PNG, 1200 × 630)</a></li></ul>
 <h2>Colours</h2>
 <table><thead><tr><th>Name</th><th>Hex</th></tr></thead><tbody><tr><td>Graphite</td><td><code>#0A0A0B</code></td></tr><tr><td>Gold</td><td><code>#D6B36A</code></td></tr><tr><td>Light gold</td><td><code>#F3DC9B</code></td></tr><tr><td>Deep gold</td><td><code>#A7843C</code></td></tr></tbody></table>
-<h2>Please</h2><ul><li>Write it as “GhostChat” (one word, capital G and C).</li><li>Don't alter the logo or call GhostChat “untraceable”; it's designed for privacy, not for evading the law.</li></ul>
+<h2>Please</h2><ul><li>Write it as “Raazdar” (one word, capital R).</li><li>Don't alter the logo or call Raazdar “untraceable”; it's designed for privacy, not for evading the law.</li></ul>
 <h2>Media contact</h2><p><a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a></p>
 </div>
 '''
-write("press.html", page("/press", "Press kit | GhostChat", "GhostChat logos, colours and boilerplate for journalists.", press))
+write("press.html", page("/press", "Press kit | Raazdar", "Raazdar logos, colours and boilerplate for journalists.", press))
 
 # ------------------------------------------------------------------ 404
 nf = f'''<section class="final"><div class="wrap"><img src="/icon.svg" alt="" /><h2>This page vanished.</h2><p>Like a good disappearing message.</p><a class="btn gold" href="/">Back to home {ic("arrow")}</a></div></section>'''
-write("404.html", page("/404", "Not found | GhostChat", "Page not found.", nf))
+write("404.html", page("/404", "Not found | Raazdar", "Page not found.", nf))
 print("built", sorted(os.listdir(OUT)))
 
 # ================================================================== HINDI (हिन्दी)
@@ -649,27 +650,27 @@ FEATS_HI = [
  ("mic", "वॉइस, फ़ोटो और फ़ाइलें", "वॉइस नोट, दस्तावेज़, ग्रुप, जवाब और रिएक्शन, सब एंड-टू-एंड एन्क्रिप्टेड।"),
 ]
 FAQ_HI = [
- ("क्या सच में फ़ोन नंबर की ज़रूरत नहीं है?", "<p>हाँ। GhostChat कभी फ़ोन नंबर, ईमेल, नाम या संपर्क नहीं माँगता। साइन अप करते समय आपका फ़ोन एक रैंडम ID और एन्क्रिप्शन कुंजियाँ बनाता है। कोई भी, हम भी, केवल वही ID देख सकते हैं।</p>"),
- ("क्या GhostChat मेरे संदेश पढ़ सकता है?", "<p>नहीं। संदेश आपके फ़ोन पर एन्क्रिप्ट होते हैं और केवल पाने वाले के फ़ोन पर खुलते हैं। हमारा सर्वर केवल सीलबंद लिफ़ाफ़े रखता है जिन्हें वह खोल नहीं सकता, और डिलीवरी के बाद (या 7 दिन बाद) उन्हें मिटा देता है।</p>"),
+ ("क्या सच में फ़ोन नंबर की ज़रूरत नहीं है?", "<p>हाँ। Raazdar कभी फ़ोन नंबर, ईमेल, नाम या संपर्क नहीं माँगता। साइन अप करते समय आपका फ़ोन एक रैंडम ID और एन्क्रिप्शन कुंजियाँ बनाता है। कोई भी, हम भी, केवल वही ID देख सकते हैं।</p>"),
+ ("क्या Raazdar मेरे संदेश पढ़ सकता है?", "<p>नहीं। संदेश आपके फ़ोन पर एन्क्रिप्ट होते हैं और केवल पाने वाले के फ़ोन पर खुलते हैं। हमारा सर्वर केवल सीलबंद लिफ़ाफ़े रखता है जिन्हें वह खोल नहीं सकता, और डिलीवरी के बाद (या 7 दिन बाद) उन्हें मिटा देता है।</p>"),
  ("अगर मैं अपना पासकोड भूल जाऊँ तो?", "<p>कोई भी उसे वापस नहीं ला सकता, हम भी नहीं। इसलिए एक <b>एन्क्रिप्टेड बैकअप</b> (You → Encrypted backup) सुरक्षित जगह रखें।</p>"),
  ("क्या यह मुफ़्त है?", "<p>हाँ। कोई विज्ञापन नहीं, और हम कोई डेटा नहीं बेचते। हम संस्थाओं को निजी सर्वर और व्हिसलब्लोअर चैनल देकर कमाते हैं, आपसे नहीं।</p>"),
- ("नए फ़ोन पर GhostChat कैसे ले जाएँ?", "<p>You → <b>Move to a new device</b> खोलें। नए फ़ोन पर QR कोड स्कैन करें और पासकोड डालें। लिंक केवल एक बार और 10 मिनट तक काम करता है। फिर पुराने फ़ोन से मिटा दें।</p>"),
+ ("नए फ़ोन पर Raazdar कैसे ले जाएँ?", "<p>You → <b>Move to a new device</b> खोलें। नए फ़ोन पर QR कोड स्कैन करें और पासकोड डालें। लिंक केवल एक बार और 10 मिनट तक काम करता है। फिर पुराने फ़ोन से मिटा दें।</p>"),
  ("पैनिक बटन क्या करता है?", "<p>लॉक बटन को दो सेकंड दबाने (या ड्यूरेस पासकोड डालने) से आपकी कुंजियाँ, चैट और सेटिंग्स तुरंत मिट जाती हैं, और आपके संपर्कों के फ़ोन से भी आपकी बातचीत मिटाई जा सकती है। इसे वापस नहीं लाया जा सकता।</p>"),
  ("क्या भारत में इसका उपयोग कानूनी है?", "<p>हाँ। निजी, एन्क्रिप्टेड बातचीत कानूनी है। किसी गैरकानूनी काम के लिए इसका उपयोग हमारी <a href=\"/terms\">शर्तों</a> के ख़िलाफ़ है। हम डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम, 2023 और IT अधिनियम, 2000 का पालन करते हैं।</p>"),
- ("अपना अकाउंट कैसे मिटाएँ?", "<p>GhostChat → You → Privacy &amp; your data → <b>Withdraw consent &amp; erase account</b>। आपकी कुंजियाँ और चैट डिवाइस से मिट जाती हैं और आपकी ID हमारे सर्वर से हटा दी जाती है।</p>"),
+ ("अपना अकाउंट कैसे मिटाएँ?", "<p>Raazdar → You → Privacy &amp; your data → <b>Withdraw consent &amp; erase account</b>। आपकी कुंजियाँ और चैट डिवाइस से मिट जाती हैं और आपकी ID हमारे सर्वर से हटा दी जाती है।</p>"),
 ]
 home_hi = f'''
 <section class="hero"><div class="wrap"><div>
   <span class="eyebrow"><i></i>पोस्ट-क्वांटम · सील्ड सेंडर · बिना फ़ोन नंबर</span>
   <h1>खुलकर बात करें।<br><span class="gold-text">कोई निशान न छोड़ें।</span></h1>
-  <p class="lead">GhostChat एक निजी मैसेंजर है जिसे न फ़ोन नंबर चाहिए, न ईमेल, न नाम। हर संदेश एंड-टू-एंड एन्क्रिप्टेड है, और हमारा अपना सर्वर भी नहीं देख सकता कि उसे किसने भेजा।</p>
+  <p class="lead">Raazdar एक निजी मैसेंजर है जिसे न फ़ोन नंबर चाहिए, न ईमेल, न नाम। हर संदेश एंड-टू-एंड एन्क्रिप्टेड है, और हमारा अपना सर्वर भी नहीं देख सकता कि उसे किसने भेजा।</p>
   <div class="cta-row"><a class="btn gold" href="/signin" data-open>मुफ़्त शुरू करें {ic("arrow")}</a><a class="btn ghost" href="/download">ऐप डाउनलोड करें</a></div>
   <div class="trust"><span>{ic("check")}न फ़ोन, न ईमेल</span><span>{ic("check")}न विज्ञापन, न ट्रैकर</span><span>{ic("check")}iPhone, Android और कंप्यूटर</span></div>
 </div>
-<div class="phones"><div class="phone p1"><img src="/site/img/shot-chat.webp" alt="GhostChat बातचीत" /></div><div class="phone p2"><img src="/site/img/shot-list.webp" alt="GhostChat चैट सूची" /></div></div>
+<div class="phones"><div class="phone p1"><img src="/site/img/shot-chat.webp" alt="Raazdar बातचीत" /></div><div class="phone p2"><img src="/site/img/shot-list.webp" alt="Raazdar चैट सूची" /></div></div>
 </div></section>
 <section class="s"><div class="wrap">
-  <div class="s-head rv"><span class="eyebrow">अलग तरह से बना</span><h2>डिज़ाइन से निजी।<br>सिर्फ़ वादे से नहीं।</h2><p>ज़्यादातर ऐप आपसे अपने डेटा पर भरोसा करने को कहते हैं। GhostChat इस तरह बना है कि हमारे पास भरोसा करने लायक कुछ है ही नहीं।</p></div>
+  <div class="s-head rv"><span class="eyebrow">अलग तरह से बना</span><h2>डिज़ाइन से निजी।<br>सिर्फ़ वादे से नहीं।</h2><p>ज़्यादातर ऐप आपसे अपने डेटा पर भरोसा करने को कहते हैं। Raazdar इस तरह बना है कि हमारे पास भरोसा करने लायक कुछ है ही नहीं।</p></div>
   <div class="grid g3 big3">
     <div class="card rv"><div class="ico">{ic("id")}</div><h3>हम नहीं जानते आप कौन हैं</h3><p>न फ़ोन नंबर, न ईमेल, न नाम, न संपर्क, न लोकेशन।</p></div>
     <div class="card rv"><div class="ico">{ic("server")}</div><h3>सर्वर लगभग कुछ नहीं जानता</h3><p>वह न आपके संदेश पढ़ सकता है, न देख सकता है कि किसने भेजा। सब कुछ केवल मेमोरी में।</p></div>
@@ -685,10 +686,10 @@ home_hi = f'''
   {faq_html(FAQ_HI[:4])}
   <p class="center"><a class="btn ghost" href="/hi/faq">सभी सवाल {ic("arrow")}</a></p>
 </div></section>
-<section class="final"><div class="wrap"><img src="/icon.svg" alt="" /><h2>आपकी बातचीत आपकी है।<br><span class="gold-text">इसे ऐसा ही रखें।</span></h2><p>मुफ़्त। बिना फ़ोन नंबर। एक मिनट में तैयार।</p><div class="cta-row"><a class="btn gold" href="/signin" data-open>GhostChat खोलें {ic("arrow")}</a></div></div></section>
+<section class="final"><div class="wrap"><img src="/icon.svg" alt="" /><h2>आपकी बातचीत आपकी है।<br><span class="gold-text">इसे ऐसा ही रखें।</span></h2><p>मुफ़्त। बिना फ़ोन नंबर। एक मिनट में तैयार।</p><div class="cta-row"><a class="btn gold" href="/signin" data-open>Raazdar खोलें {ic("arrow")}</a></div></div></section>
 '''
-write("hi-index.html", page("/hi", "GhostChat: बिना फ़ोन नंबर का निजी मैसेंजर", "गुमनाम, एंड-टू-एंड एन्क्रिप्टेड मैसेजिंग। न फ़ोन नंबर, न ईमेल, न नाम।", home_hi, lang="hi"))
-write("hi-faq.html", page("/hi/faq", "सवाल-जवाब | GhostChat", "GhostChat के बारे में सवाल और जवाब।", f'''<section class="phead"><div class="wrap"><span class="eyebrow">सवाल-जवाब</span><h1>सवाल और जवाब</h1><p>जवाब नहीं मिला? <a href="/contact">हमसे संपर्क करें</a>।</p></div></section><section class="s"><div class="wrap">{faq_html(FAQ_HI)}</div></section>''', lang="hi"))
+write("hi-index.html", page("/hi", "Raazdar: बिना फ़ोन नंबर का निजी मैसेंजर", "गुमनाम, एंड-टू-एंड एन्क्रिप्टेड मैसेजिंग। न फ़ोन नंबर, न ईमेल, न नाम।", home_hi, lang="hi"))
+write("hi-faq.html", page("/hi/faq", "सवाल-जवाब | Raazdar", "Raazdar के बारे में सवाल और जवाब।", f'''<section class="phead"><div class="wrap"><span class="eyebrow">सवाल-जवाब</span><h1>सवाल और जवाब</h1><p>जवाब नहीं मिला? <a href="/contact">हमसे संपर्क करें</a>।</p></div></section><section class="s"><div class="wrap">{faq_html(FAQ_HI)}</div></section>''', lang="hi"))
 
 rows_hi = [
  ("गुमनाम ID और सार्वजनिक एन्क्रिप्शन कुंजियाँ", "आप तक संदेश पहुँचाने और संपर्कों को आपकी पुष्टि करने देने के लिए", "हमारा सर्वर (केवल मेमोरी में)", "जब तक आपका अकाउंट है"),
@@ -713,7 +714,7 @@ privacy_hi = f'''
 <li>आप कभी भी ऐप के अंदर से सहमति वापस ले सकते हैं और अपना अकाउंट मिटा सकते हैं।</li>
 <li>न विज्ञापन, न ट्रैकिंग, न डेटा की बिक्री या साझा करना।</li></ul></div>
 <h2>1. हम कौन हैं</h2>
-<p>GhostChat का संचालन <b>{{{{COMPANY}}}}</b>, {{{{ADDRESS}}}} द्वारा किया जाता है। DPDP अधिनियम के अंतर्गत हम आपके व्यक्तिगत डेटा के लिए <b>डेटा फ़िड्यूशियरी</b> हैं और आप <b>डेटा प्रिंसिपल</b> हैं।</p>
+<p>Raazdar का संचालन <b>{{{{COMPANY}}}}</b>, {{{{ADDRESS}}}} द्वारा किया जाता है। DPDP अधिनियम के अंतर्गत हम आपके व्यक्तिगत डेटा के लिए <b>डेटा फ़िड्यूशियरी</b> हैं और आप <b>डेटा प्रिंसिपल</b> हैं।</p>
 <h2>2. हम कौन-सा व्यक्तिगत डेटा संसाधित करते हैं और क्यों</h2>
 <table><thead><tr><th>डेटा</th><th>उद्देश्य</th><th>कहाँ रखा जाता है</th><th>कितने समय तक</th></tr></thead><tbody>{"".join(f"<tr><td>{a}</td><td>{b}</td><td>{c}</td><td>{d}</td></tr>" for a, b, c, d in rows_hi)}</tbody></table>
 <p><b>हम एकत्र नहीं करते:</b> नाम, फ़ोन नंबर, ईमेल पता (जब तक आप हमें न लिखें), संपर्क सूची, लोकेशन, डिवाइस पहचान, विज्ञापन ID, एनालिटिक्स या ब्राउज़िंग इतिहास।</p>
@@ -723,11 +724,11 @@ privacy_hi = f'''
 <ul><li><b>जानकारी का अधिकार</b> (धारा 11)</li><li><b>सुधार और मिटाने का अधिकार</b> (धारा 12)</li><li><b>शिकायत निवारण का अधिकार</b> (धारा 13)</li><li><b>नामांकन का अधिकार</b> (धारा 14): मृत्यु या अक्षमता की स्थिति में आपके अधिकारों का उपयोग करने के लिए किसी व्यक्ति को नामित करना</li><li>कभी भी, उतनी ही आसानी से <b>सहमति वापस लेने का अधिकार</b> जितनी आसानी से आपने दी थी</li></ul>
 <p>अधिकारों का उपयोग करने के लिए अपनी गुमनाम ID के साथ <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a> पर ईमेल करें। हम ऐप के अंदर से यह पुष्टि करने को कहेंगे कि ID आपकी है। हम <b>90 दिनों के भीतर</b> उत्तर देते हैं।</p>
 <h2>5. सहमति वापस लेना और डेटा मिटाना</h2>
-<p>GhostChat → <b>You</b> → <b>Privacy &amp; your data</b> → <b>Withdraw consent &amp; erase account</b>। इससे आपकी कुंजियाँ और चैट डिवाइस से तुरंत मिट जाती हैं, और आपकी ID और कुंजियाँ हमारे सर्वर से हटा दी जाती हैं।</p>
+<p>Raazdar → <b>You</b> → <b>Privacy &amp; your data</b> → <b>Withdraw consent &amp; erase account</b>। इससे आपकी कुंजियाँ और चैट डिवाइस से तुरंत मिट जाती हैं, और आपकी ID और कुंजियाँ हमारे सर्वर से हटा दी जाती हैं।</p>
 <h2>6. शिकायतें और डेटा संरक्षण बोर्ड</h2>
 <p>हमारे शिकायत अधिकारी <b>{{{{GRIEVANCE_NAME}}}}</b> से <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a> या {{{{ADDRESS}}}} पर संपर्क करें। हम 24 घंटे में प्राप्ति स्वीकार करते हैं और 15 दिनों में (IT नियम, 2021), और किसी भी स्थिति में 90 दिनों के भीतर (DPDP नियम, 2025) समाधान करते हैं। संतुष्ट न होने पर आप <b>भारतीय डेटा संरक्षण बोर्ड</b> में शिकायत कर सकते हैं।</p>
 <h2>7. बच्चे</h2>
-<p>GhostChat केवल <b>18 वर्ष या उससे अधिक</b> आयु के लोगों के लिए है। हम जानबूझकर बच्चों का डेटा संसाधित नहीं करते और किसी की ट्रैकिंग या लक्षित विज्ञापन नहीं करते।</p>
+<p>Raazdar केवल <b>18 वर्ष या उससे अधिक</b> आयु के लोगों के लिए है। हम जानबूझकर बच्चों का डेटा संसाधित नहीं करते और किसी की ट्रैकिंग या लक्षित विज्ञापन नहीं करते।</p>
 <h2>8. सुरक्षा और उल्लंघन</h2>
 <p>हम एंड-टू-एंड और पोस्ट-क्वांटम एन्क्रिप्शन, सील्ड सेंडर, केवल-मेमोरी सर्वर और नियमित सुरक्षा परीक्षण जैसे उचित सुरक्षा उपाय अपनाते हैं। डेटा उल्लंघन होने पर हम डेटा संरक्षण बोर्ड और प्रभावित उपयोगकर्ताओं (ऐप और इस वेबसाइट के माध्यम से) को सूचित करेंगे।</p>
 <h2>9. सेवा प्रदाता और डेटा का स्थान</h2>
@@ -737,5 +738,5 @@ privacy_hi = f'''
 <p>इस सूचना में बड़े बदलाव होने पर हम संस्करण बदलेंगे और ऐप में फिर से सहमति माँगेंगे। यह सूचना अंग्रेज़ी और हिन्दी में उपलब्ध है; संविधान की आठवीं अनुसूची की किसी अन्य भाषा में चाहिए तो हमें ईमेल करें। किसी अंतर की स्थिति में <a href="/privacy">अंग्रेज़ी संस्करण</a> मान्य होगा।</p>
 </div>
 '''
-write("hi-privacy.html", page("/hi/privacy", "गोपनीयता सूचना | GhostChat", "DPDP अधिनियम, 2023 के अंतर्गत GhostChat की गोपनीयता सूचना।", privacy_hi, lang="hi"))
+write("hi-privacy.html", page("/hi/privacy", "गोपनीयता सूचना | Raazdar", "DPDP अधिनियम, 2023 के अंतर्गत Raazdar की गोपनीयता सूचना।", privacy_hi, lang="hi"))
 print("hindi built")

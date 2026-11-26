@@ -52,7 +52,7 @@ class GhostBridge(private val a: MainActivity) {
         if (serverRe.matches(url)) prefs.edit().putString("server", url).apply()
     }
 
-    /** Calculator disguise: swaps the real home-screen icon and name between "GhostChat" and "Calculator". */
+    /** Calculator disguise: swaps the real home-screen icon and name between "Raazdar" and "Calculator". */
     @JavascriptInterface
     fun setDisguise(on: Boolean) {
         if (prefs.getBoolean("disguise", false) == on) return

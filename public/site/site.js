@@ -1,4 +1,4 @@
-// GhostChat website — small, dependency-free, no trackers, no cookies.
+// Raazdar website — small, dependency-free, no trackers, no cookies.
 document.documentElement.classList.add("js");
 (function () {
   // Old invite links (/?add=ID) and home-screen installs that still start at "/" go straight to the app.
@@ -66,7 +66,7 @@ document.addEventListener("DOMContentLoaded", function () {
   var w = document.getElementById("c-withdraw");
   if (w) w.onclick = function (e) {
     e.preventDefault();
-    if (hasAccount()) { alert("To withdraw consent, open GhostChat → You → Privacy & your data → Withdraw consent & erase account. This erases your account everywhere."); return; }
+    if (hasAccount()) { alert("To withdraw consent, open Raazdar → You → Privacy & your data → Withdraw consent & erase account. This erases your account everywhere."); return; }
     try { localStorage.removeItem("gc3_consent"); } catch (x) {}
     location.reload();
   };

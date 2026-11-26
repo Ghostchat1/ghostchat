@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit
  *
  * Messages handed to the mesh are ALREADY sealed by the app (post-quantum, sealed sender,
  * ratchet). Each phone keeps a small pool of sealed envelopes and swaps it with every nearby
- * GhostChat phone it meets. An envelope addressed to you is handed to the app; anything else
+ * Raazdar phone it meets. An envelope addressed to you is handed to the app; anything else
  * is carried along for others, so messages can hop across several phones.
  * Carriers learn only the recipient's anonymous ID — never the sender or the content.
  *
@@ -145,7 +145,7 @@ class Mesh(private val ctx: Context, private val deliver: (String, String, Strin
         try {
             val s = d.createInsecureRfcommSocketToServiceRecord(uuid)
             try { adapter?.cancelDiscovery() } catch (e: SecurityException) { }
-            s.connect()      // fails fast for phones without GhostChat
+            s.connect()      // fails fast for phones without Raazdar
             session(s)
         } catch (e: Exception) {
         } finally {

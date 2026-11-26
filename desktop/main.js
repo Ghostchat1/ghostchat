@@ -1,4 +1,4 @@
-// GhostChat desktop. A locked-down window onto https://quietline.chat/app.
+// Raazdar desktop. A locked-down window onto https://quietline.chat/app.
 // No Node.js in the page, no access to your files except through the normal save dialog,
 // screenshots and screen-recording blocked on Windows and macOS, nothing stored outside the app's own folder.
 const { app, BrowserWindow, session, shell, Menu } = require("electron");
@@ -12,7 +12,7 @@ if (!app.requestSingleInstanceLock()) app.quit();
 let win;
 function create() {
   win = new BrowserWindow({
-    width: 1180, height: 780, minWidth: 380, minHeight: 560, backgroundColor: "#0b0b0c", title: "GhostChat", autoHideMenuBar: true,
+    width: 1180, height: 780, minWidth: 380, minHeight: 560, backgroundColor: "#0b0b0c", title: "Raazdar", autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, spellcheck: false, preload: require("path").join(__dirname, "preload.js") },
   });
   win.setContentProtection(true); // blocks screenshots / screen recording of the window (Windows 10 2004+, macOS)
@@ -25,11 +25,11 @@ app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(
 app.whenReady().then(() => {
   Menu.setApplicationMenu(process.platform === "darwin" ? Menu.buildFromTemplate([{ role: "appMenu" }, { role: "editMenu" }, { role: "windowMenu" }]) : null);
   const s = session.defaultSession;
-  // camera / microphone / notifications only for GhostChat itself; everything else refused
+  // camera / microphone / notifications only for Raazdar itself; everything else refused
   const ok = new Set(["media", "notifications", "clipboard-sanitized-write", "fullscreen"]);
   s.setPermissionRequestHandler((wc, perm, cb, d) => cb(ok.has(perm) && sameSite(d.requestingUrl || wc.getURL())));
   s.setPermissionCheckHandler((wc, perm, origin) => ok.has(perm) && sameSite(origin));
-  s.on("will-download", (e, item) => item.setSaveDialogOptions({ title: "Save file from GhostChat" }));
+  s.on("will-download", (e, item) => item.setSaveDialogOptions({ title: "Save file from Raazdar" }));
   app.on("web-contents-created", (e, wc) => wc.on("will-navigate", (ev, url) => { if (!sameSite(url)) ev.preventDefault(); }));
   create();
   app.on("activate", () => { if (!BrowserWindow.getAllWindows().length) create(); });

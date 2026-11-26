@@ -1,4 +1,4 @@
-// GhostChat v4 client. All cryptography runs here, on the user's device.
+// Raazdar client. All cryptography runs here, on the user's device.
 //
 // Encryption is HYBRID: classic + post-quantum. To read a message an attacker must break BOTH.
 //   classic:       ECDH/ECDSA P-384, HKDF-SHA-384, AES-256-GCM   (NSA CNSA suite)
@@ -689,7 +689,7 @@ function setStatus(cid, mid, status, quiet) {
 }
 function notify() {
   if (document.hidden && "Notification" in window && Notification.permission === "granted") {
-    try { new Notification(LS.get("disguise") ? "Calculator" : "GhostChat", { body: "New activity", tag: "gc" }); } catch {}
+    try { new Notification(LS.get("disguise") ? "Calculator" : "Raazdar", { body: "New activity", tag: "gc" }); } catch {}
   }
 }
 function sweep() {
@@ -871,7 +871,7 @@ function renderYou() {
         <button id="you-copy">${IC.copy}Copy ID</button>
       </div>
     </div>
-    ${STORAGE_MODE !== "indexeddb" ? `<div class="notice">⚠️ This browser may erase GhostChat when it closes. Keep an encrypted backup.</div>` : ""}
+    ${STORAGE_MODE !== "indexeddb" ? `<div class="notice">⚠️ This browser may erase Raazdar when it closes. Keep an encrypted backup.</div>` : ""}
     <div class="card-h">Account</div>
     <div class="card">
       ${rowItem("save", "Encrypted backup", S.settings.backupAt ? "Last saved " + fmtTime(S.settings.backupAt) : "Not saved yet", 'data-act="backup"')}
@@ -891,7 +891,7 @@ function renderYou() {
       ${rowItem("info", "Security details", "Encryption, keys and connection", 'data-act="secinfo"')}
       ${rowItem("heart", "Invite a friend", "Share your private invite link", 'data-act="invite"')}
     </div>
-    <p class="ver">GhostChat 6.3 · no phone · no email · no trace</p>`;
+    <p class="ver">Raazdar 6.4 · no phone · no email · no trace</p>`;
   $("#you-name").onclick = renameSelf;
   $("#you-qr").onclick = myQrDialog;
   $("#you-share").onclick = shareInvite;
@@ -899,7 +899,7 @@ function renderYou() {
 }
 async function shareInvite() {
   const url = inviteLink();
-  if (navigator.share) { try { await navigator.share({ title: "GhostChat", text: "Message me privately on GhostChat:", url }); return; } catch (e) { if (e && e.name === "AbortError") return; } }
+  if (navigator.share) { try { await navigator.share({ title: "Raazdar", text: "Message me privately on Raazdar:", url }); return; } catch (e) { if (e && e.name === "AbortError") return; } }
   copy(url, "Invite link copied");
 }
 function myQrDialog() {
@@ -1254,20 +1254,20 @@ function stopVoice() { const p = $("#player"); if (!playing) return; p.pause(); 
 // ---------------- dialogs ----------------
 async function addContact(raw) {
   const m = String(raw || "").toUpperCase().match(ID_FIND);
-  if (!m) throw new Error("That doesn't look like a GhostChat ID");
+  if (!m) throw new Error("That doesn't look like a Raazdar ID");
   const id = m[0].replace(/-/g, "").match(/.{4}/g).join("-");
   if (id === S.me.id) throw new Error("That's your own ID");
   if (!S.contacts[id]) { S.contacts[id] = { id, ...(await fetchVerifiedKeys(id)), name: "", request: false, timer: 0, unread: 0, added: Date.now() }; persist(); }
   renderList(); openChat(id);
 }
 function newChatDialog() {
-  modal("New chat", `<p class="muted">Enter their GhostChat ID or paste their invite link.</p><input id="add-id" placeholder="XXXX-XXXX-XXXX-XXXX" autocapitalize="characters" /><p id="add-err" class="err"></p>`,
+  modal("New chat", `<p class="muted">Enter their Raazdar ID or paste their invite link.</p><input id="add-id" placeholder="XXXX-XXXX-XXXX-XXXX" autocapitalize="characters" /><p id="add-err" class="err"></p>`,
     [["Start chat", async () => { try { await addContact($("#add-id").value); } catch (e) { return err("#add-err", e.message); } }, "primary"], ["Cancel", () => {}]]);
   setTimeout(() => $("#add-id") && $("#add-id").focus(), 50);
 }
 const inviteLink = () => BASE() + "/app?add=" + S.me.id;
 function myIdDialog() {
-  modal("Your anonymous ID", `<div class="idbox">${S.me.id}</div><p class="muted small">Share this ID or your invite link. It isn't linked to your phone, email or name.</p>${STORAGE_MODE !== "indexeddb" ? `<p class="small warn">⚠️ This browser may erase GhostChat when it closes. Save a backup now: Menu → 💾 Encrypted backup.</p>` : ""}<p class="small">Nickname: <b>${esc(S.me.name || "(none)")}</b></p>`,
+  modal("Your anonymous ID", `<div class="idbox">${S.me.id}</div><p class="muted small">Share this ID or your invite link. It isn't linked to your phone, email or name.</p>${STORAGE_MODE !== "indexeddb" ? `<p class="small warn">⚠️ This browser may erase Raazdar when it closes. Save a backup now: Menu → 💾 Encrypted backup.</p>` : ""}<p class="small">Nickname: <b>${esc(S.me.name || "(none)")}</b></p>`,
     [["Copy ID", () => { copy(S.me.id); return true; }, "primary"], ["Copy invite link", () => { copy(inviteLink(), "Invite link copied"); return true; }], ["Close", () => {}]]);
 }
 function renameSelf() {
@@ -1297,7 +1297,7 @@ function restoreDialog() {
         let raw = $("#rk").value.trim();
         if (!raw && $("#rf").files[0]) raw = (await $("#rf").files[0].text()).trim();
         if (raw.includes("#move=")) { err("#re", "Fetching your account…"); raw = (await fetchMove(raw)) || raw; $("#rk").value = raw; }
-        if (!raw.startsWith("GHOST3:")) throw new Error("Not a GhostChat v4 backup");
+        if (!raw.startsWith("GHOST3:")) throw new Error("Not a Raazdar backup");
         if (NATIVE && !NATIVE.server()) { const sv = $("#ob-server").value.trim().replace(/\/+$/, ""); if (!/^(https:\/\/[a-z0-9.-]+(:\d+)?|http:\/\/[a-z2-7]{56}\.onion(:\d+)?|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/i.test(sv)) throw new Error("Enter the server address on the first screen"); NATIVE.setServer(sv); }
         err("#re", BUILTIN_CRYPTO ? "Unlocking… a backup made on a computer can take a few minutes on iPhone — keep this screen open" : "Unlocking…");
         const blob = fromB64Blob(atob(raw.slice(7)));
@@ -1333,7 +1333,7 @@ function wipeDialog() {
 function securityDialog() {
   const cur = S.spks[S.spks.length - 1];
   modal("Security", `
-    <div class="kv"><b>Key exchange</b><span>ECDH P-384 + ML-KEM-768 (hybrid)</span><b>Post-quantum</b><span>✓ NIST FIPS 203</span><b>Per-message keys</b><span>✓ Double Ratchet (self-healing)</span><b>Encryption</b><span>AES-256-GCM</span><b>Key derivation</b><span>HKDF-SHA-384</span><b>Signatures</b><span>ECDSA P-384</span><b>Device vault</b><span>PBKDF2-SHA-384 ×600k</span><b>Crypto engine</b><span>${BUILTIN_CRYPTO ? "GhostChat built-in (audited @noble)" : "Browser built-in"}</span><b>Prekey age</b><span>${Math.round((Date.now() - cur.created) / 3600e3)} h (rotates daily)</span><b>App code</b><span>${NATIVE ? "Bundled in the app ✓" : "Loaded from server"}</span><b>Screenshots</b><span>${NATIVE ? "Blocked ✓" : "Not blockable in a browser"}</span><b>Cover traffic</b><span>${S.settings.cover !== false ? "On ✓" : "Off"}</span><b>Connection</b><span>${location.hostname.endsWith(".onion") ? "Tor onion service ✓" : "⚠ Not via Tor"}</span></div>
+    <div class="kv"><b>Key exchange</b><span>ECDH P-384 + ML-KEM-768 (hybrid)</span><b>Post-quantum</b><span>✓ NIST FIPS 203</span><b>Per-message keys</b><span>✓ Double Ratchet (self-healing)</span><b>Encryption</b><span>AES-256-GCM</span><b>Key derivation</b><span>HKDF-SHA-384</span><b>Signatures</b><span>ECDSA P-384</span><b>Device vault</b><span>PBKDF2-SHA-384 ×600k</span><b>Crypto engine</b><span>${BUILTIN_CRYPTO ? "Raazdar built-in (audited @noble)" : "Browser built-in"}</span><b>Prekey age</b><span>${Math.round((Date.now() - cur.created) / 3600e3)} h (rotates daily)</span><b>App code</b><span>${NATIVE ? "Bundled in the app ✓" : "Loaded from server"}</span><b>Screenshots</b><span>${NATIVE ? "Blocked ✓" : "Not blockable in a browser"}</span><b>Cover traffic</b><span>${S.settings.cover !== false ? "On ✓" : "Off"}</span><b>Connection</b><span>${location.hostname.endsWith(".onion") ? "Tor onion service ✓" : "⚠ Not via Tor"}</span></div>
     <p class="small"><b>Sealed sender:</b> the server can't see who sent a message. <b>Padding:</b> it can't tell how long a message is. <b>Cover traffic:</b> it can't tell when you're really chatting.</p>
     <p class="muted small">No app can protect you if your phone itself is hacked, if someone sees your screen, or if the person you're messaging shares your messages.</p>`,
     [["Close", () => {}]]);
@@ -1343,8 +1343,8 @@ function securityDialog() {
 function meshDialog() {
   let st = {}; try { st = JSON.parse(NATIVE.meshStatus()); } catch {}
   modal("Offline Bluetooth mesh", `
-    <p class="small">When there's no internet, GhostChat passes your <b>already-encrypted</b> messages phone-to-phone over Bluetooth. Phones in between can carry messages for others but can't read them or see who sent them.</p>
-    <div class="kv"><b>Bluetooth</b><span>${st.bt ? "On ✓" : "Off"}</span><b>Nearby GhostChat phones met</b><span>${st.peers || 0}</span><b>Messages being carried</b><span>${st.pool || 0}</span></div>
+    <p class="small">When there's no internet, Raazdar passes your <b>already-encrypted</b> messages phone-to-phone over Bluetooth. Phones in between can carry messages for others but can't read them or see who sent them.</p>
+    <div class="kv"><b>Bluetooth</b><span>${st.bt ? "On ✓" : "Off"}</span><b>Nearby Raazdar phones met</b><span>${st.peers || 0}</span><b>Messages being carried</b><span>${st.pool || 0}</span></div>
     <p class="muted small">Works automatically with phones you've paired in Bluetooth settings. To reach unpaired phones, tap "Make me visible" (lasts 5 minutes).</p>`,
     [["Make me visible", () => { NATIVE.meshVisible(); return true; }, "primary"], ["Close", () => {}]]);
 }
@@ -1462,7 +1462,7 @@ function decoyDialog() {
 const CALC_ICON = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#333"/><rect x="12" y="10" width="40" height="14" rx="3" fill="#9fd"/><g fill="#ff9f0a"><circle cx="18" cy="36" r="5"/><circle cx="32" cy="36" r="5"/><circle cx="46" cy="36" r="5"/><circle cx="18" cy="50" r="5"/><circle cx="32" cy="50" r="5"/><circle cx="46" cy="50" r="5"/></g></svg>');
 function applyDisguise() {
   const on = !!LS.get("disguise");
-  document.title = on ? "Calculator" : "GhostChat";
+  document.title = on ? "Calculator" : "Raazdar";
   $("link[rel=icon]").href = on ? CALC_ICON : "/icon.svg";
   $("meta[name=theme-color]").content = on ? "#000000" : "#0b1117";
   if (NATIVE) try { NATIVE.setDisguise(on); } catch {} // swaps the real launcher icon + name to "Calculator"
@@ -1641,7 +1641,7 @@ function ringStart() {
 function ringStop() { clearInterval(ringT); ringT = null; try { navigator.vibrate && navigator.vibrate(0); } catch {} }
 async function startCall(video) {
   const c = conv(current); if (!c || c.gid || call) return;
-  if (!CALL_OK()) return toast(IS_ONION ? "Calls are off on the Tor address because they would reveal your IP. Use quietline.chat for calls" : "Calls aren't supported in this browser");
+  if (!CALL_OK()) return toast(IS_ONION ? "Calls are off on the Tor address because they would reveal your IP. Use the normal web address for calls" : "Calls aren't supported in this browser");
   if ((S.blocked || {})[c.id]) return toast("Unblock this contact to call");
   const cfg = await getTurn();
   if (cfg.error) return toast(cfg.error === "calls not set up" ? "Calls aren't switched on for this server yet" : "Couldn't reach the server");
@@ -1746,7 +1746,7 @@ function reportDialog(id) {
     ${theirs.length ? `<label class="opt"><input type="checkbox" id="rp-inc" /> Include their last ${theirs.length} message${theirs.length > 1 ? "s" : ""} as evidence</label>` : ""}
     <label class="opt"><input type="checkbox" id="rp-block" checked /> Also block this ID</label>`,
     [["Send report by email", () => {
-      const lines = [`Reported GhostChat ID: ${id}`, `Reason: ${$("#rp-why").value.trim() || "(not given)"}`];
+      const lines = [`Reported Raazdar ID: ${id}`, `Reason: ${$("#rp-why").value.trim() || "(not given)"}`];
       if ($("#rp-inc") && $("#rp-inc").checked) lines.push("", "Their messages (forwarded by me):", ...theirs.map((m) => `[${new Date(m.ts).toISOString()}] ${m.text}`));
       if ($("#rp-block").checked) { S.blocked = S.blocked || {}; S.blocked[id] = Date.now(); persist(); renderList(); }
       const a = document.createElement("a"); a.href = "mailto:privacy@quietline.chat?subject=" + encodeURIComponent("Abuse report: " + id) + "&body=" + encodeURIComponent(lines.join("\n").slice(0, 1800));
@@ -1811,15 +1811,15 @@ async function pushOff() {
 function enableNotifs() {
   if (!("Notification" in window) && !CAN_PUSH) return toast("Notifications aren't supported in this browser");
   const on = !!S.settings.push && Notification.permission === "granted";
-  const iosNote = IS_IOS && !STANDALONE ? `<p class="small warn">On iPhone, first add GhostChat to your Home Screen (Share → Add to Home Screen), then open it from there and turn this on.</p>` : "";
-  modal("Notifications", `<p class="small">Get told when a message arrives, even when GhostChat is closed.</p>
+  const iosNote = IS_IOS && !STANDALONE ? `<p class="small warn">On iPhone, first add Raazdar to your Home Screen (Share → Add to Home Screen), then open it from there and turn this on.</p>` : "";
+  modal("Notifications", `<p class="small">Get told when a message arrives, even when Raazdar is closed.</p>
     <div class="kv"><b>Shows</b><span>Only “New activity”. Never a name, ID or message text.</span><b>How</b><span>Our server sends an empty wake-up signal through Apple's, Google's or Mozilla's push service. They learn only that something arrived, not who sent it or what it says.</span></div>${iosNote}
     <p class="small muted">Status: ${on ? "<b>On</b>" : "Off"}</p>`,
     [[on ? "Turn off" : "Turn on", async () => {
       if (on) { await pushOff(); return toast("Notifications off"); }
       const p = await Notification.requestPermission();
       if (p !== "granted") return toast("Notifications are blocked. Allow them in your phone's settings");
-      if (!CAN_PUSH) return toast("On, while GhostChat is open");
+      if (!CAN_PUSH) return toast("On, while Raazdar is open");
       S.settings.push = true; persist(); await syncPush(); toast("On. Notifications never show names or text");
     }, "primary"], ["Close", () => {}]]);
 }
@@ -1916,7 +1916,7 @@ function consentRec() {
 function privacyDialog() {
   const c = S.me.consent || consentRec();
   modal("Privacy & your data", `
-    <p class="small">GhostChat never asks for your name, phone number or email. What exists about you:</p>
+    <p class="small">Raazdar never asks for your name, phone number or email. What exists about you:</p>
     <div class="kv"><b>On our server</b><span>Your anonymous ID and public keys; encrypted messages waiting to be delivered (max 7 days)</span>
     <b>On this device</b><span>Your chats and keys, locked with your passcode</span><b>Never stored</b><span>Message contents (we can't read them), contacts, location, IP logs</span></div>
     <p class="small">Consent: ${c ? `given ${new Date(c.ts).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })} (notice ${esc(c.v)})` : "recorded on this device"}.</p>
@@ -2019,7 +2019,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "GhostChat v6.3 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "Raazdar v6.4 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions

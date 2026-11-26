@@ -1,4 +1,4 @@
-# Builds the GhostChat desktop apps (Windows, macOS, Linux) and publishes them as a release.
+# Builds the Raazdar desktop apps (Windows, macOS, Linux) and publishes them as a release.
 # The apps are a locked-down window onto https://quietline.chat/app with screenshot blocking.
 # They are not code-signed yet, so Windows SmartScreen and macOS Gatekeeper will warn on first open.
 # Each platform publishes into the same release as soon as it is built (macOS machines are sometimes busy).
@@ -43,9 +43,9 @@ jobs:
         shell: bash
         run: |
           cat > notes.md <<'NOTES'
-          ### GhostChat for desktop
+          ### Raazdar for desktop
           - **Windows:** the Setup .exe installs it; the portable .exe runs without installing. If SmartScreen warns, choose *More info → Run anyway*.
-          - **Mac:** open the .dmg and drag GhostChat to Applications. The first time, right-click the app and choose *Open* (it isn't Apple-notarised yet).
+          - **Mac:** open the .dmg and drag Raazdar to Applications. The first time, right-click the app and choose *Open* (it isn't Apple-notarised yet).
           - **Linux:** the .AppImage runs anywhere (make it executable); the .deb installs on Ubuntu/Debian.
 
           Check your download against the SHA256SUMS file for your system.
@@ -53,7 +53,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: desktop-${{ github.run_number }}
-          name: GhostChat Desktop ${{ github.run_number }}
+          name: Raazdar Desktop ${{ github.run_number }}
           body_path: notes.md
           make_latest: false
           files: |

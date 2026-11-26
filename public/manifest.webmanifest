@@ -1,6 +1,6 @@
 {
-  "name": "GhostChat",
-  "short_name": "GhostChat",
+  "name": "Raazdar",
+  "short_name": "Raazdar",
   "description": "Anonymous end-to-end encrypted messaging. No phone number needed.",
   "start_url": "/app",
   "scope": "/",
