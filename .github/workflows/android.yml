@@ -67,7 +67,7 @@ jobs:
       - name: Refuse to publish if the certificate is not the official one
         if: steps.sign.outputs.ok == 'true'
         run: test "$CERT" = "7d9f644732769be571c2a06315168a844eca6434ca54777b2863cc51d11360cf"
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         if: steps.sign.outputs.ok == 'true'
         with:
           tag_name: apk-${{ github.run_number }}
