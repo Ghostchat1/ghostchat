@@ -36,7 +36,7 @@ Raazdar is a private messenger that never asks for your phone number, email or c
 • No ads, no trackers, no analytics.
 
 Raazdar is made by Hyperviz Labs, Ludhiana, India. Our code is public:
-github.com/Ghostchat1/ghostchat
+github.com/Ghostchat1/raazdar
 ```
 - **Graphics:** icon 512×512 (`public/icon-512.png`), feature graphic 1024×500, 2–8 phone screenshots
   (use the ones on raazdar.app/press, or take fresh ones on the phone).

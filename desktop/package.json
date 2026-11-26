@@ -4,7 +4,7 @@
   "version": "6.3.0",
   "description": "Raazdar desktop: anonymous end-to-end encrypted messenger",
   "author": "Hyperviz Labs <privacy@quietline.chat>",
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-or-later",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -77,6 +77,6 @@
     },
     "publish": []
   },
-  "repository": "https://github.com/Ghostchat1/ghostchat",
+  "repository": "https://github.com/Ghostchat1/raazdar",
   "homepage": "https://raazdar.app"
 }

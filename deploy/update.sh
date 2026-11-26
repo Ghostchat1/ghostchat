@@ -24,7 +24,7 @@ cat > /usr/local/bin/ghostchat-update <<'UPD'
 #!/usr/bin/env bash
 set -e
 cd /root && rm -rf ghostchat ghostchat.zip
-wget -q https://github.com/Ghostchat1/ghostchat/raw/main/ghostchat.zip && unzip -oq ghostchat.zip
+wget -q https://github.com/Ghostchat1/raazdar/raw/main/ghostchat.zip && unzip -oq ghostchat.zip
 bash /root/ghostchat/deploy/update.sh
 UPD
 chmod +x /usr/local/bin/ghostchat-update

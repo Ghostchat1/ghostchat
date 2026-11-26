@@ -329,11 +329,11 @@ download = f'''
     <a class="btn gold" href="/signin" data-open>Open in Safari {ic("arrow")}</a></div>
   <div class="card rv"><div class="ico">{ic("android")}</div><h3>Android</h3><p>Install the app directly. Its code is bundled inside, it blocks screenshots, and it can work over Bluetooth without internet.</p>
     <ol><li>Tap <b>Download APK</b> below.</li><li>Open the file. If asked, allow <b>Install unknown apps</b> for your browser.</li><li>Open Raazdar and create your ID.</li></ol>
-    <a class="btn gold" href="https://github.com/Ghostchat1/ghostchat/releases/latest/download/Raazdar.apk" rel="noopener">Download APK {ic("save")}</a>
+    <a class="btn gold" href="https://github.com/Ghostchat1/raazdar/releases/latest/download/Raazdar.apk" rel="noopener">Download APK {ic("save")}</a>
     <p class="small muted">Installed a test version before 27 Nov 2026? Uninstall it once (after saving a backup). Official releases are signed with our permanent key, so future updates install over each other.</p></div>
   <div class="card rv" id="desktop"><div class="ico">{ic("desktop")}</div><h3>Windows, Mac &amp; Linux</h3><p>The desktop app blocks screenshots of its window and only ever opens Raazdar. Or simply use it in any modern browser.</p>
     <ol><li>Open the <b>latest desktop release</b> and download the file for your computer: <b>Setup .exe</b> (Windows), <b>.dmg</b> (Mac), <b>.AppImage</b> or <b>.deb</b> (Linux).</li><li><b>Windows:</b> if SmartScreen warns, choose <i>More info → Run anyway</i>. <b>Mac:</b> the first time, right-click the app and choose <i>Open</i>.</li></ol>
-    <div class="cta-row"><a class="btn gold" href="https://github.com/Ghostchat1/ghostchat/releases?q=desktop" rel="noopener">Desktop downloads {ic("save")}</a> <a class="btn ghost" href="/signin" data-open>Use in browser {ic("arrow")}</a></div>
+    <div class="cta-row"><a class="btn gold" href="https://github.com/Ghostchat1/raazdar/releases?q=desktop" rel="noopener">Desktop downloads {ic("save")}</a> <a class="btn ghost" href="/signin" data-open>Use in browser {ic("arrow")}</a></div>
     <p class="small muted">The desktop apps aren't code-signed by Microsoft or Apple yet, which is why your computer warns. Check your file against the release's SHA256SUMS.txt.</p></div>
   <div class="card rv" id="tor"><div class="ico">{ic("onion")}</div><h3>Tor (maximum anonymity)</h3><p>Hide your IP address from everyone, including us. Use <b>Tor Browser</b> on a computer or <b>Onion Browser</b> on iPhone, and open:</p>
     <p><code>{{{{ONION}}}}</code></p><p class="small muted">Accounts on the Tor address and the normal address are separate.</p></div>
@@ -341,9 +341,9 @@ download = f'''
 <div class="card rv" id="verify"><div class="ico">{ic("shield")}</div><h3>Verify your Android download</h3>
 <p>Every official APK is signed with the same Raazdar key. Make sure your copy is genuine before you install it:</p>
 <ol><li><b>Signing certificate (SHA-256):</b><br><code>7D:9F:64:47:32:76:9B:E5:71:C2:A0:63:15:16:8A:84:4E:CA:64:34:CA:54:77:7B:28:63:CC:51:D1:13:60:CF</code></li>
-<li>Each release lists the file's SHA-256 checksum and includes a <code>Raazdar.apk.sha256</code> file. See <a href="https://github.com/Ghostchat1/ghostchat/releases/latest" rel="noopener">the latest release</a>.</li>
+<li>Each release lists the file's SHA-256 checksum and includes a <code>Raazdar.apk.sha256</code> file. See <a href="https://github.com/Ghostchat1/raazdar/releases/latest" rel="noopener">the latest release</a>.</li>
 <li>On a computer: <code>sha256sum Raazdar.apk</code> and <code>apksigner verify --print-certs Raazdar.apk</code> must match the values above.</li></ol>
-<p class="small muted">The source code is public at <a href="https://github.com/Ghostchat1/ghostchat" rel="noopener">github.com/Ghostchat1/ghostchat</a>. Releases are built automatically from that code by GitHub, not on anyone's laptop.</p></div>
+<p class="small muted">The source code is public at <a href="https://github.com/Ghostchat1/raazdar" rel="noopener">github.com/Ghostchat1/raazdar</a> under the AGPL-3.0 licence. Releases are built automatically from that code by GitHub, not on anyone's laptop.</p></div>
 </div></section>
 '''
 write("download.html", page("/download", "Download | Raazdar", "Install Raazdar on iPhone, Android or your computer, or use it over Tor.", download, "/download"))

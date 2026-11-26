@@ -164,3 +164,13 @@ HOST=0.0.0.0 npm start      # http://localhost:3000
 - `public/pq.js`: ML-KEM-768 from `@noble/post-quantum` (MIT, audited library), bundled
 - `deploy/setup-onion.sh`, `deploy/torrc`: VPS onion install
 - `Dockerfile`, `docker-compose.yml`, `deploy/tor/`: Docker onion install
+
+## Licence
+Raazdar's code is free software under the **GNU Affero General Public License v3.0 or later** (see `LICENSE`).
+You can read, audit and modify it. If you run a modified version as a service for others, you must
+publish your changes under the same licence.
+
+The **Raazdar name and logo are trademarks of Hyperviz Labs** and are not covered by the code licence.
+Forks must use a different name and logo.
+
+Copyright © 2026 Hyperviz Labs, Ludhiana, India.
