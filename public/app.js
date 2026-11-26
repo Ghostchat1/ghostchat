@@ -1281,13 +1281,13 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "GhostChat v5.5 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "GhostChat v5.6 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions
   if (!NATIVE && "serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
   applyDisguise(); noSpell();
-  if (NATIVE) { $("#ob-server-wrap").classList.remove("hidden"); $("#ob-server").value = NATIVE.server() || ""; }
+  if (NATIVE) { $("#ob-server").value = NATIVE.server() || ""; if (!NATIVE.server()) $("#ob-server-wrap").classList.remove("hidden"); }
   let has = false;
   try {
     // don't even create an (empty) database until there's something to store

@@ -6,13 +6,16 @@ import android.content.pm.PackageManager
 import android.webkit.JavascriptInterface
 
 /** The small set of native powers the web app may use (window.GhostNative in JavaScript). */
+/** Server used unless the person enters another one. */
+const val DEFAULT_SERVER = "https://quietline.chat"
+
 class GhostBridge(private val a: MainActivity) {
     private val prefs = a.getSharedPreferences("gc", Context.MODE_PRIVATE)
     // https anywhere; plain http ONLY for .onion, which Tor already encrypts (VAPT fix A2)
     private val serverRe = Regex("^(https://[A-Za-z0-9.-]+(:\\d+)?|http://[a-z2-7]{56}\\.onion(:\\d+)?)$")
 
     @JavascriptInterface
-    fun server(): String = prefs.getString("server", "") ?: ""
+    fun server(): String = prefs.getString("server", DEFAULT_SERVER) ?: DEFAULT_SERVER
 
     @JavascriptInterface
     fun setServer(url: String) {
