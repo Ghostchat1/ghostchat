@@ -1,9 +1,9 @@
 {
-  "COMPANY": "[Company legal name]",
-  "ADDRESS": "[Registered address, City, State, PIN]",
-  "GRIEVANCE_NAME": "[Grievance Officer name]",
+  "COMPANY": "Hyperviz Labs",
+  "ADDRESS": "2nd Floor, BXX-3369, Ferozepur Road, near Ansal Plaza, Gurdev Nagar, Ludhiana, Punjab 141001",
+  "GRIEVANCE_NAME": "Mohit Sharma",
   "EMAIL": "privacy@quietline.chat",
-  "JURISDICTION": "[City], India",
+  "JURISDICTION": "Ludhiana, Punjab, India",
   "ONION": "hpxbxra5neuo7ubu7iczlbtkhnq5po5zxwcs3lg5jike5lir5reii6qd.onion",
   "UPDATED": "26 November 2026",
   "NOTICE_V": "2026-11"
