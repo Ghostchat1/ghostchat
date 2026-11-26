@@ -122,3 +122,29 @@ A compromised third-party GitHub Action could change our builds. **Plan:** pin e
 - Next internal assessment: after the next major release. Independent audit: planned.
 
 *Hyperviz Labs, 2nd Floor, BXX-3369, Ferozepur Road, Ludhiana, Punjab 141001 · privacy@quietline.chat*
+
+## Engineering checklist review (added 27 November 2026)
+We also checked Raazdar against a widely shared list of about 110 engineering and security practices.
+
+| Area | Status | Notes |
+|---|---|---|
+| Rate limiting, input validation, server-side validation, error handling, HTTP status codes | Done | Per-socket and per-recipient limits, proof-of-work sign-up, upload allowances |
+| Authentication, authorization, session management, brute-force protection, account lockout | Done | Signature-based sign-in, no passwords on the server; 10 wrong passcodes wipe the phone |
+| XSS, CSRF, clickjacking, CSP, security headers, SSRF, open redirects, path traversal, command injection, mass assignment, IDOR | Done | Tested by the attack suites (C01, W01–W10, H-series, A01–A05) |
+| HTTPS/TLS, encryption in transit and at rest, hashing vs encryption, salting | Done | TLS plus end-to-end encryption; passcode vault AES-256-GCM with salted PBKDF2 |
+| Secrets management, environment variables, secret rotation, least privilege | Done | Secrets in root-only files and GitHub Secrets; prekeys rotate; service runs unprivileged |
+| File upload security | Done | Ciphertext only, size limits, signed-in token, served as raw bytes |
+| Idempotency, timeouts, exponential backoff, graceful shutdown | Done | Duplicate-safe message IDs; reconnect backoff with jitter (added); handover on restart |
+| Health checks, uptime monitoring, alerting | **Added** | `/healthz`, 30-minute uptime and certificate check that emails the owner on failure |
+| Automated testing, CI/CD, dependency vulnerabilities | **Added** | Security tests run on every change; weekly Dependabot checks; `npm audit` in CI |
+| Memory leaks | **Fixed** | One small cache (push timing) was never emptied |
+| Logging, structured logging, audit logs, tracing, error tracking | Not used, by design | Logs would record who uses Raazdar; the server keeps none |
+| Backups, disaster recovery | Partly | No user data on the server to back up. **To do:** keep an encrypted offline copy of the .onion key, or turn on DigitalOcean backups (disk only, holds no user data) |
+| Cost monitoring | Owner action | Set a DigitalOcean billing alert |
+| Two-factor authentication | Owner action | For GitHub, DigitalOcean, Hostinger and email (users have no passwords to protect) |
+| Load testing, scaling, load balancing, stateless services, read replicas | Planned | One server handles current use; the connection cap is tested (W08). Scaling plan when users grow |
+| Staging environment, feature flags, code review, branching, API docs, accessibility audit | Planned | Changes are tested on a local copy today; a small staging server and an accessibility review are next |
+| Databases (indexing, migrations, normalization, pooling, SQL injection, row-level security, soft deletes) | Not applicable | No database. Deletes are real deletes, on purpose |
+| Passwords, password reset, magic links, passkeys, SSO, API keys, cookies, token refresh | Not applicable | No accounts with passwords, no cookies, no third-party sign-in |
+| CDNs, API gateways, message brokers, webhooks | Not applicable | A CDN would see users' IP addresses; not used on purpose |
+| Data privacy | Done | DPDP Act notice, consent and erase; GDPR-style rights offered to everyone |

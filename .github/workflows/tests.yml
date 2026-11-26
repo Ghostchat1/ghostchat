@@ -1,0 +1,34 @@
+# Runs the security test suite against a fresh local server on every change to the server or app.
+name: Security tests
+on:
+  workflow_dispatch:
+  push:
+    paths: ["server.js", "public/**", "security/**", "package*.json", ".github/workflows/tests.yml"]
+permissions:
+  contents: read
+jobs:
+  server-attacks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          npm ci --omit=dev --no-audit --no-fund
+          pip install websocket-client cryptography
+      - name: Start server (RAM only)
+        run: |
+          PORT=3999 DATA_FILE=memory MAX_CONNS=300 node server.js &
+          sleep 2
+      - name: Run 32 server attacks
+        run: |
+          python security/attack_server.py 3999 | tee result.txt
+          if grep -q "\[FAIL\]" result.txt; then echo "::error::A security test failed"; exit 1; fi
+      - name: Dependency audit
+        run: npm audit --omit=dev --audit-level=high

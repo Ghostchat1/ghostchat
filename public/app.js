@@ -466,7 +466,7 @@ function connect() {
     else if (m.t === "deleted") { if (onDeleted) onDeleted(); }
     else if (m.t === "error" && m.error === "auth failed") register().then(() => inbox.close()).catch(() => {}); // RAM-only server restarted
   };
-  inbox.onclose = () => { ready = false; setConn(); if (S && !wiping) setTimeout(connect, retry); retry = Math.min(retry * 2, 8000); };
+  inbox.onclose = () => { ready = false; setConn(); if (S && !wiping) setTimeout(connect, retry + Math.random() * 1000); retry = Math.min(retry * 2, 8000); }; // jitter: thousands of phones don't reconnect at the same instant
 }
 function connectDrop() {
   drop = new WebSocket(wsUrl());
@@ -892,7 +892,7 @@ function renderYou() {
       ${rowItem("info", "Security details", "Encryption, keys and connection", 'data-act="secinfo"')}
       ${rowItem("heart", "Invite a friend", "Share your private invite link", 'data-act="invite"')}
     </div>
-    <p class="ver">Raazdar 6.6 · no phone · no email · no trace</p>`;
+    <p class="ver">Raazdar 6.7 · no phone · no email · no trace</p>`;
   $("#you-name").onclick = renameSelf;
   $("#you-qr").onclick = myQrDialog;
   $("#you-share").onclick = shareInvite;
@@ -2047,7 +2047,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "Raazdar v6.6 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "Raazdar v6.7 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions

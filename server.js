@@ -105,6 +105,7 @@ setInterval(() => {
     if (!db.queue[id].length) delete db.queue[id];
   }
   dropRate.clear();
+  for (const [k, t] of lastPush) if (now - t > 60000) lastPush.delete(k); // checklist: memory leak fix
   save();
 }, 10 * 60 * 1000);
 for (const q of Object.values(db.queue)) for (const m of q) queueBytes += m.env.length;
@@ -261,6 +262,10 @@ const server = http.createServer(async (req, res) => {
       if (!b || b.exp < Date.now()) return sendJson(res, 404, { error: "expired" });
       if (--b.left <= 0) { blobs.delete(id); blobBytes -= b.buf.length; }
       res.writeHead(200, { "Content-Type": "application/octet-stream", "Content-Length": b.buf.length }); return res.end(b.buf);
+    }
+    if (req.method === "GET" && url.pathname === "/healthz") { // uptime check: says only "ok", nothing about users
+      const okMem = !memTight();
+      return sendJson(res, okMem ? 200 : 503, { ok: okMem });
     }
     if (req.method === "GET" && url.pathname === "/api/vapid") return sendJson(res, 200, { key: vapid.pub });
     if (req.method === "GET" && url.pathname === "/.well-known/security.txt") { // RFC 9116: how to report a vulnerability

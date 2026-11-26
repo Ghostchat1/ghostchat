@@ -8,7 +8,7 @@
 [PASS] H07 Unexpected HTTP methods (TRACE/PUT/DELETE/PATCH) :: {'TRACE': 405, 'PUT': 405, 'DELETE': 405, 'PATCH': 405}
 [PASS] H08 Registration input validation (7 forged/malformed cases) :: all rejected with 400
 [PASS] H17 Signup without proof-of-work refused :: 400 b'{"error":"proof of work required","bits":18}'
-[PASS] H09 Valid registration; server derives same ID as client :: VVZJ-THVD-E73D-URTX
+[PASS] H09 Valid registration; server derives same ID as client :: XKPE-TGED-4DJG-CFCP
 [PASS] H10 Account takeover by re-registering victim's public key :: status 400; victim keys unchanged=True
 [PASS] H11 Key lookup injection (__proto__, traversal, huge, NUL) :: all 404/4xx, no crash
 [PASS] H12 CORS: arbitrary origin denied :: no ACAO header
@@ -21,7 +21,7 @@
 [PASS] W04 Drop validation (unknown recipient, bad mid, oversize) :: error/error/{'t': 'error', 'error': 'not delivered', 'mid': 'okmid12345'}
 [PASS] W05 Per-connection flood limit :: 120 sent in burst → 40 accepted
 [PASS] W06 Queue flushing by anonymous senders :: 120 queued for victim; legit message kept
-[PASS] W07 Mass registration (cost per account + global cap) :: without PoW: 0/50 accepted; with PoW: 20 accounts took 3.5s (0.18s each, ~20500/hour per CPU core); global cap MAX_USERS
+[PASS] W07 Mass registration (cost per account + global cap) :: without PoW: 0/50 accepted; with PoW: 20 accounts took 4.7s (0.24s each, ~15209/hour per CPU core); global cap MAX_USERS
 [PASS] W08 Connection exhaustion (global connection cap) :: 300 sockets accepted, then refused (Handshake status 503 Service Unavailable -+-+- {'c); cap set to 300 for this test, default 3000
 [PASS] W09 Malformed / prototype-pollution WS frames :: server alive
 [PASS] W10 delete_account only deletes the authenticated user :: victim removed by own request

@@ -610,6 +610,7 @@ write("transparency.html", page("/transparency", "Transparency report | Raazdar"
 
 # ------------------------------------------------------------------ CHANGELOG
 CHANGES = [
+ ("6.7", "27 Nov 2026", ["Automatic uptime and certificate checks", "Security tests run on every change; weekly dependency checks", "Smoother reconnects after a server restart"]),
  ("6.6", "27 Nov 2026", ["Fixes from our November 2026 internal security assessment (report on the Transparency page)", "Call relay locked to Raazdar calls only", "Large-file uploads need a signed-in account", "Desktop app on a supported Electron"]),
  ("6.5", "27 Nov 2026", ["Calls in the Android app use the earpiece, with a speaker button; the screen turns off at your ear"]),
  ("6.4", "27 Nov 2026", ["GhostChat is now Raazdar: the one who keeps your secrets", "New home at raazdar.app (quietline.chat keeps working)"]),
