@@ -40,6 +40,7 @@ function weakPass(p) {
   return "";
 }
 const MAX_PHOTO = 420 * 1024;
+const MAX_ENV = 1024 * 1024; // must match the server
 
 // ---------------- byte helpers ----------------
 const b64 = (buf) => { const a = buf instanceof Uint8Array ? buf : new Uint8Array(buf); let s = ""; for (let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode(...a.subarray(i, i + 0x8000)); return btoa(s); };
@@ -471,7 +472,12 @@ function connectDrop() {
 }
 let retryT = null;
 const dropSend = (o) => drop.send(JSON.stringify({ t: "drop", to: o.to, mid: o.mid, env: o.env }));
-function flushOutbox() { if (dropReady && S) S.outbox.forEach(dropSend); }
+function flushOutbox() {
+  if (!dropReady || !S) return;
+  // never let one oversized message block the queue (the server would drop the connection)
+  for (const o of S.outbox.filter((x) => x.env.length > MAX_ENV)) { S.outbox.splice(S.outbox.indexOf(o), 1); if (o.local) setStatus(o.conv || o.to, o.local, "failed"); persist(); }
+  S.outbox.forEach(dropSend);
+}
 function setConn() { const c = $("#conn"); const on = ready && dropReady; c.classList.toggle("off", !on); c.title = on ? "Connected" : "Connecting…"; }
 
 // Cover traffic: at random moments, send yourself a dummy message. It looks exactly like a
@@ -509,6 +515,7 @@ async function ensurePeer(id) {
 const others = (g) => g.members.filter((x) => x !== S.me.id);
 async function post(c, body, local, convId) {
   const o = { to: c.id, mid: rid(16), env: await seal(c, body), local, conv: convId || c.id };
+  if (o.env.length > MAX_ENV) throw new Error("Too large to send");
   S.outbox.push(o); persist();
   if (dropReady) dropSend(o);
   if (window.GhostNative && GhostNative.meshSend) try { GhostNative.meshSend(o.to, o.mid, o.env); } catch {} // offline Bluetooth path
@@ -1281,7 +1288,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "GhostChat v5.6 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "GhostChat v5.7 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions

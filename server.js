@@ -16,7 +16,7 @@ const PORT = +process.env.PORT || 3000;
 const HOST = process.env.HOST || "127.0.0.1";           // localhost only: reachable only through Tor
 const DATA_FILE = process.env.DATA_FILE || "memory";     // "memory" = RAM only, nothing on disk
 const PUBLIC_DIR = path.join(__dirname, "public");
-const MAX_ENV = 640 * 1024;                  // max size of one sealed envelope (base64; photos)
+const MAX_ENV = 1024 * 1024;                 // max size of one sealed envelope (base64; a full-size photo is ~700 KB)
 const MAX_QUEUE_BYTES = 25 * 1024 * 1024;    // max waiting data per user
 const MAX_QUEUE = 1000;                      // max waiting envelopes per user
 const QUEUE_TTL = 7 * 24 * 3600 * 1000;      // undelivered envelopes are destroyed after 7 days
