@@ -37,7 +37,7 @@ jobs:
           npx electron-builder --publish never
           cd dist
           shopt -s nullglob
-          for f in *.exe *.dmg *.AppImage *.deb; do shasum -a 256 "$f"; done > SHA256SUMS-${{ matrix.name }}.txt
+          for f in *.exe *.dmg *.AppImage *.deb; do if command -v sha256sum >/dev/null; then sha256sum "$f"; else shasum -a 256 "$f"; fi; done > SHA256SUMS-${{ matrix.name }}.txt
           cat SHA256SUMS-${{ matrix.name }}.txt
       - name: Release notes
         shell: bash
