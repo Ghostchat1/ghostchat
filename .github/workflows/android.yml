@@ -11,6 +11,9 @@ on:
   push:
     paths: ["public/**", "android/**", ".github/workflows/android.yml"]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -42,3 +45,12 @@ jobs:
         with:
           name: GhostChat-APK
           path: android/app/build/outputs/apk/release/*.apk
+      - name: Publish as a direct download (Releases)
+        run: cp android/app/build/outputs/apk/release/*.apk GhostChat.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: GhostChat Android ${{ github.run_number }}
+          body: "Download GhostChat.apk below and open it on your Android phone (allow \"install unknown apps\" when asked)."
+          files: GhostChat.apk
+          make_latest: true
