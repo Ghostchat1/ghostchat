@@ -1,5 +1,5 @@
 # Builds the Raazdar desktop apps (Windows, macOS, Linux) and publishes them as a release.
-# The apps are a locked-down window onto https://quietline.chat/app with screenshot blocking.
+# The apps are a locked-down window onto https://raazdar.app/app with screenshot blocking.
 # They are not code-signed yet, so Windows SmartScreen and macOS Gatekeeper will warn on first open.
 # Each platform publishes into the same release as soon as it is built (macOS machines are sometimes busy).
 name: Build desktop apps

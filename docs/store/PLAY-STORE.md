@@ -17,8 +17,8 @@ in the Android release on GitHub. That is the file you upload to Play.
 - **App name:** Raazdar – Private Messenger
 - **Short description (80):** Private messenger with no phone number. End-to-end encrypted chats and calls.
 - **Category:** Communication
-- **Contact email:** privacy@quietline.chat · **Website:** https://quietline.chat
-- **Privacy policy URL:** https://quietline.chat/privacy
+- **Contact email:** privacy@quietline.chat · **Website:** https://raazdar.app
+- **Privacy policy URL:** https://raazdar.app/privacy
 
 **Full description**
 ```
@@ -39,7 +39,7 @@ Raazdar is made by Hyperviz Labs, Ludhiana, India. Our code is public:
 github.com/Ghostchat1/ghostchat
 ```
 - **Graphics:** icon 512×512 (`public/icon-512.png`), feature graphic 1024×500, 2–8 phone screenshots
-  (use the ones on quietline.chat/press, or take fresh ones on the phone).
+  (use the ones on raazdar.app/press, or take fresh ones on the phone).
 
 ## Content rating (IARC questionnaire)
 - Category: *Communication / social*. Users can interact and exchange messages, photos and calls: **Yes**.
@@ -76,4 +76,4 @@ out (the in-app wipe still works). Ask Claude for the "Play build without self-u
 
 ## App access (for the reviewer)
 "No login needed. Open the app, choose a passcode, tap Create. To test chatting, open
-quietline.chat/app in a browser as a second user and add each other's ID."
+raazdar.app/app in a browser as a second user and add each other's ID."

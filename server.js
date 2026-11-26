@@ -247,7 +247,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/vapid") return sendJson(res, 200, { key: vapid.pub });
     if (req.method === "GET" && url.pathname === "/.well-known/security.txt") { // RFC 9116: how to report a vulnerability
       res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "max-age=86400" });
-      return res.end("Contact: mailto:privacy@quietline.chat\nExpires: 2027-11-30T00:00:00.000Z\nPreferred-Languages: en, hi\nPolicy: https://github.com/Ghostchat1/ghostchat/blob/main/SECURITY.md\nCanonical: https://quietline.chat/.well-known/security.txt\n");
+      return res.end("Contact: mailto:privacy@quietline.chat\nExpires: 2027-11-30T00:00:00.000Z\nPreferred-Languages: en, hi\nPolicy: https://github.com/Ghostchat1/ghostchat/blob/main/SECURITY.md\nCanonical: https://raazdar.app/.well-known/security.txt\n");
     }
     if (req.method === "POST" && url.pathname === "/api/move") {
       const { blob } = await readBody(req, MOVE_MAX + 1024);

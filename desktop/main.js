@@ -1,8 +1,8 @@
-// Raazdar desktop. A locked-down window onto https://quietline.chat/app.
+// Raazdar desktop. A locked-down window onto https://raazdar.app/app.
 // No Node.js in the page, no access to your files except through the normal save dialog,
 // screenshots and screen-recording blocked on Windows and macOS, nothing stored outside the app's own folder.
 const { app, BrowserWindow, session, shell, Menu } = require("electron");
-const HOST = "quietline.chat", HOME = `https://${HOST}/app`;
+const HOST = "raazdar.app", HOME = `https://${HOST}/app`;
 const sameSite = (u) => { try { const x = new URL(u); return x.protocol === "https:" && x.hostname === HOST; } catch { return false; } };
 
 app.commandLine.appendSwitch("force-webrtc-ip-handling-policy", "disable_non_proxied_udp"); // calls go via the relay only

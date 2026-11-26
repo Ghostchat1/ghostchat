@@ -59,7 +59,7 @@ jobs:
             echo "**Verify your download**"
             echo "- SHA-256 of Raazdar.apk: \`$SHA\`"
             echo "- Signing certificate SHA-256: \`$CERT\`"
-            echo "- Official certificate (also on quietline.chat/download): \`7d9f644732769be571c2a06315168a844eca6434ca54777b2863cc51d11360cf\`"
+            echo "- Official certificate (also on raazdar.app/download): \`7d9f644732769be571c2a06315168a844eca6434ca54777b2863cc51d11360cf\`"
             echo ""
             echo "_Raazdar-playstore.aab is the same app packaged for upload to Google Play. You don't need it on a phone._"
           } > notes.md

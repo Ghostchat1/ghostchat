@@ -7,7 +7,7 @@ will do the same with Capacitor, built on GitHub's Mac machines, so you never ne
 ## What you need to do first
 1. **Apple Developer Program, as an organisation** (Hyperviz Labs): https://developer.apple.com/programs/
    US$99/year. Needs a free D-U-N-S number for the company and a website with your company name
-   (quietline.chat/about has it).
+   (raazdar.app/about has it).
 2. In App Store Connect create the app: bundle ID `app.raazdar`, name "Raazdar – Private Messenger".
 3. Create an **App Store Connect API key** (Users and Access → Integrations → Keys, role *App Manager*)
    and add three repository secrets on GitHub: `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (the file's text).

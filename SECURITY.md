@@ -6,11 +6,11 @@ Email **privacy@quietline.chat** with the subject "Security". Please include ste
 - Please give us 90 days before publishing, or less once a fix has shipped.
 - Good-faith research that respects users' privacy (no access to other people's data, no denial of
   service, no social engineering) will not be pursued legally, and we will credit you if you wish.
-- Machine-readable contact: https://quietline.chat/.well-known/security.txt
+- Machine-readable contact: https://raazdar.app/.well-known/security.txt
 
 ## In scope
 The relay server (`server.js`), the web app (`public/`), the Android app (`android/`), the desktop app
-(`desktop/`), the call relay configuration (`deploy/setup-calls.sh`) and quietline.chat / the .onion address.
+(`desktop/`), the call relay configuration (`deploy/setup-calls.sh`) and raazdar.app / the .onion address.
 
 ## Testing so far
 - **Internal VAPT / OWASP testing** by the Raazdar team: automated attack suites in `security/`

@@ -14,7 +14,7 @@ import java.io.File
 
 /** The small set of native powers the web app may use (window.GhostNative in JavaScript). */
 /** Server used unless the person enters another one. */
-const val DEFAULT_SERVER = "https://quietline.chat"
+const val DEFAULT_SERVER = "https://raazdar.app"
 
 class GhostBridge(private val a: MainActivity) {
     private val prefs = a.getSharedPreferences("gc", Context.MODE_PRIVATE)
