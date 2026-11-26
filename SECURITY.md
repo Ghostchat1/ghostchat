@@ -13,8 +13,10 @@ The relay server (`server.js`), the web app (`public/`), the Android app (`andro
 (`desktop/`), the call relay configuration (`deploy/setup-calls.sh`) and raazdar.app / the .onion address.
 
 ## Testing so far
+- **Internal security assessment, November 2026** (commissioned and approved by Mohit Sharma, CEH, Hyperviz Labs):
+  `security/INTERNAL-ASSESSMENT-2026-11.md`. 0 critical, 1 high, 5 medium, 6 low; all fixed except 1 low.
 - **Internal VAPT / OWASP testing** by the Raazdar team: automated attack suites in `security/`
-  (server: 27 checks, client checks) with before/after results published in that folder.
+  (server: 32 checks, client: 11 checks) with before/after results published in that folder.
 - **Independent third-party audit:** not yet done. When it is, the full report will be published here.
 
 ## Design summary

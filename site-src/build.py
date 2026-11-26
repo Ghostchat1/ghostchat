@@ -290,7 +290,7 @@ security = f'''
  ("eye", "Traffic padding & cover noise", "Messages are padded to fixed sizes and your app sends random dummy traffic, so activity is hard to infer."),
  ("shield", "Signed, rotating prekeys", "Prekeys are signed by your identity key and rotate daily, so a server can't swap in its own keys unnoticed. Compare safety numbers to be sure."),
  ("onion", "Tor onion service", "Connect through Tor and no one, not your ISP and not us, learns your IP address."),
- ("code", "Tested & public", "Our code is public on GitHub and goes through regular internal security testing (OWASP and VAPT), with results published. An independent audit is planned."),
+ ("code", "Tested & public", "Our code is public on GitHub. Our November 2026 internal security assessment (OWASP and VAPT) is published in full on the Transparency page. An independent audit is planned."),
 ], "g3")}
 </div></section>
 <section class="s alt"><div class="wrap">
@@ -583,6 +583,7 @@ transparency = f'''
 <tr><td>Whether the ID exists, and its public encryption keys</td><td>Name, phone number, email, address</td></tr>
 <tr><td>The privacy-notice version it consented to, and when</td><td>Message contents, photos, files or voice notes</td></tr>
 <tr><td>Sealed envelopes still waiting for delivery (unreadable to us; deleted within 7 days)</td><td>Who sent any message (sealed sender)</td></tr>
+<tr><td>Encrypted large files waiting to be downloaded (unreadable to us; deleted within 7 days)</td><td>Call audio or video, or who called whom</td></tr>
 <tr><td>An anonymous push address, only if notifications are switched on</td><td>Contact lists, groups, IP address logs, location</td></tr>
 </tbody></table>
 <p>All of this lives in memory only and disappears when the server reboots.</p>
@@ -593,6 +594,11 @@ transparency = f'''
 <li>We provide only what exists and is specifically required.</li>
 <li>Where the law allows, we tell the affected user (inside the app) and publish the request here.</li>
 </ol>
+<h2>Security assessments</h2>
+<table><thead><tr><th>Date</th><th>Type</th><th>Result</th></tr></thead><tbody>
+<tr><td>November 2026</td><td>Internal security assessment (VAPT, OWASP ASVS L2 / MASVS), commissioned and approved by Mohit Sharma (CEH), Hyperviz Labs. Not an independent audit.</td><td>0 critical, 1 high, 5 medium, 6 low. All fixed except 1 low. <a href="https://github.com/Ghostchat1/raazdar/blob/main/security/INTERNAL-ASSESSMENT-2026-11.md" rel="noopener">Read the full report</a></td></tr>
+</tbody></table>
+<p>An independent audit by an outside firm is planned. Its report will be published here in full.</p>
 <h2>Report history</h2>
 <table><thead><tr><th>Period</th><th>Requests</th><th>Data provided</th></tr></thead><tbody>
 <tr><td>Launch to {{{{UPDATED}}}}</td><td>0</td><td>None</td></tr>
@@ -604,6 +610,7 @@ write("transparency.html", page("/transparency", "Transparency report | Raazdar"
 
 # ------------------------------------------------------------------ CHANGELOG
 CHANGES = [
+ ("6.6", "27 Nov 2026", ["Fixes from our November 2026 internal security assessment (report on the Transparency page)", "Call relay locked to Raazdar calls only", "Large-file uploads need a signed-in account", "Desktop app on a supported Electron"]),
  ("6.5", "27 Nov 2026", ["Calls in the Android app use the earpiece, with a speaker button; the screen turns off at your ear"]),
  ("6.4", "27 Nov 2026", ["GhostChat is now Raazdar: the one who keeps your secrets", "New home at raazdar.app (quietline.chat keeps working)"]),
  ("6.3", "27 Nov 2026", ["Encrypted voice and video calls, relayed so neither person sees the other's IP address", "Send videos and files up to 25 MB, encrypted before they leave your phone", "Block and report contacts", "Desktop apps for Windows, Mac and Linux, with screenshot blocking", "Google Play package built and signed with our permanent key"]),

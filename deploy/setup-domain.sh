@@ -28,6 +28,10 @@ fi
 cat > /etc/caddy/Caddyfile <<EOF
 {
 	admin off
+	# Audit 2026-11 M1: no logs at all, not even error logs (they can contain visitors' IP addresses)
+	log default {
+		output discard
+	}
 }
 $DOMAIN, www.$DOMAIN {
 	@www host www.$DOMAIN

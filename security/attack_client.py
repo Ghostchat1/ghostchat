@@ -20,7 +20,7 @@ FORGE = """async (a) => { // Eve hand-crafts a sealed envelope that CLAIMS to co
 }"""
 
 async def onboard(pg, n):
-    await pg.goto(URL); await pg.fill("#ob-name", n); await pg.fill("#ob-pass", P); await pg.fill("#ob-pass2", P); await pg.click("#ob-create")
+    await pg.goto(URL + "/app"); await pg.wait_for_selector("#onboard:not(.hidden)"); await pg.fill("#ob-name", n); await pg.fill("#ob-pass", P); await pg.fill("#ob-pass2", P); await pg.click("#ob-create")
     await pg.wait_for_selector(".idbox", timeout=20000); i = await pg.inner_text(".idbox"); await pg.click("#modal-actions button:has-text('Close')"); return i
 async def back(pg):
     if await pg.is_visible("#btn-back"): await pg.click("#btn-back")
@@ -33,7 +33,10 @@ async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path="/usr/bin/google-chrome", args=["--no-sandbox"])
         ctx = lambda: b.new_context(viewport={"width": 390, "height": 780}, bypass_csp=False)
-        pages = [await (await ctx()).new_page() for _ in range(3)]; alice, bob, eve = pages
+        CONSENT = "if(location.pathname==='/signin'){location.replace('/app?c=2026-11.'+Date.now()+(location.search?'&'+location.search.slice(1):'')+location.hash)}"
+        async def mkp():
+            c = await ctx(); await c.add_init_script(CONSENT); return await c.new_page()
+        pages = [await mkp() for _ in range(3)]; alice, bob, eve = pages
         violations = []
         for pg, n in zip(pages, ["alice", "bob", "eve"]):
             pg.on("console", lambda m, n=n: "Content Security Policy" in m.text and violations.append(n))
@@ -50,7 +53,7 @@ async def main():
         await bob.wait_for_timeout(3500); await back(bob)
         for k in range(await bob.locator(".chat-item").count()):
             await bob.locator(".chat-item").nth(k).click(); await bob.wait_for_timeout(400); await back(bob)
-        pwn = await bob.evaluate("!!window.__pwn"); n_img = await bob.evaluate("document.querySelectorAll('img[src=x], svg').length")
+        pwn = await bob.evaluate("!!window.__pwn"); n_img = await bob.evaluate("document.querySelectorAll('img[src=x], [onload], [onerror]').length")
         report("C01", "FAIL" if pwn or n_img else "PASS", "Stored XSS via message text / nickname / group name (5 payloads)", f"executed={pwn}, injected elements={n_img}")
 
         # C02 HTML/attribute injection through the group id
@@ -112,7 +115,7 @@ async def main():
         report("C12", "INFO", "What an attacker sees in browser storage without the passcode", f"localStorage keys {lsk}; IndexedDB: two equal-size encrypted slots")
 
         # C13 weak passcodes refused at signup
-        await eve.goto(URL + "/?x"); await eve.evaluate("indexedDB.deleteDatabase('gc'); localStorage.clear()"); await eve.reload()
+        await eve.goto(URL + "/app?x"); await eve.evaluate("indexedDB.deleteDatabase('gc'); localStorage.clear()"); await eve.reload()
         refused = []
         for weak in ["12345678", "aaaaaaaaaaaa", "password123", "abababababab"]:
             await eve.fill("#ob-pass", weak); await eve.fill("#ob-pass2", weak); await eve.click("#ob-create")

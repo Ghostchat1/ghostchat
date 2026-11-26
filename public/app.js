@@ -462,6 +462,7 @@ function connect() {
       syncPush();
     } else if (m.t === "msg") onEnvelope(m);
     else if (m.t === "turn") { const w = turnWait; turnWait = null; if (w) w(m); }
+    else if (m.t === "uptoken") { const w = upWait; upWait = null; if (w) w(m.token); }
     else if (m.t === "deleted") { if (onDeleted) onDeleted(); }
     else if (m.t === "error" && m.error === "auth failed") register().then(() => inbox.close()).catch(() => {}); // RAM-only server restarted
   };
@@ -891,7 +892,7 @@ function renderYou() {
       ${rowItem("info", "Security details", "Encryption, keys and connection", 'data-act="secinfo"')}
       ${rowItem("heart", "Invite a friend", "Share your private invite link", 'data-act="invite"')}
     </div>
-    <p class="ver">Raazdar 6.5 · no phone · no email · no trace</p>`;
+    <p class="ver">Raazdar 6.6 · no phone · no email · no trace</p>`;
   $("#you-name").onclick = renameSelf;
   $("#you-qr").onclick = myQrDialog;
   $("#you-share").onclick = shareInvite;
@@ -1153,13 +1154,23 @@ function fileDialog(file) {
     }, "primary"], ["Cancel", () => {}]]);
 }
 const hex = (u8) => Array.from(u8, (x) => x.toString(16).padStart(2, "0")).join("");
+// Uploads need a one-time token from our signed-in inbox socket (audit 2026-11 M2).
+let upWait = null;
+function uploadToken(kind) {
+  return new Promise((res, rej) => {
+    if (!inbox || !ready) return rej(new Error("You're offline. Try again when connected"));
+    upWait = res; inbox.send(JSON.stringify({ t: "uptoken", kind }));
+    setTimeout(() => { if (upWait === res) { upWait = null; rej(new Error("Couldn't reach the server")); } }, 8000);
+  });
+}
 async function uploadBig(bytes) {
   const k = rand(32), iv = rand(12), ck = await subtle.importKey("raw", k, { name: "AES-GCM" }, false, ["encrypt"]);
   const ct = await aesEnc(ck, iv, bytes, enc.encode("gc-media"));
   const h = hex(new Uint8Array(await subtle.digest("SHA-256", ct)));
-  const r = await fetch(BASE() + "/api/blob", { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: ct });
+  const r = await fetch(BASE() + "/api/blob", { method: "POST", headers: { "Content-Type": "application/octet-stream", "X-Upload-Token": await uploadToken("blob") }, body: ct });
   const j = await r.json().catch(() => ({}));
   if (r.status === 503) throw new Error("The server is busy, please try again later");
+  if (r.status === 429) throw new Error("You've reached today's limit for large files");
   if (!r.ok || !j.id) throw new Error("Upload failed");
   await mediaPut(j.id, ct);
   return { id: j.id, k: b64(k), iv: b64(iv), h };
@@ -1199,7 +1210,7 @@ async function saveFile(mid) {
 }
 function saveFileData(m) {
   const ext = String(m.name || "").split(".").pop().toLowerCase();
-  if (NATIVE && NATIVE.saveFile) { try { NATIVE.saveFile(m.name || "file", SAFE_TYPES[ext] || m.mime || "", m.data); return; } catch {} }
+  if (NATIVE && NATIVE.saveFile) { try { NATIVE.saveFile(m.name || "file", SAFE_TYPES[ext] || "application/octet-stream", m.data); return; } catch {} }
   // never hand the browser something it could run as a web page (html, svg…): unknown types download as raw bytes
   const url = URL.createObjectURL(new Blob([unb64(m.data)], { type: SAFE_TYPES[ext] || "application/octet-stream" }));
   const a = document.createElement("a"); a.href = url; a.download = m.name || "file"; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove();
@@ -1596,8 +1607,10 @@ function getTurn() {
     setTimeout(() => { if (turnWait === res) { turnWait = null; res({ error: "timeout" }); } }, 6000);
   });
 }
+// Audit 2026-11 L1: only ever call through the relay, so a misconfigured or tampered server can't make us reveal our IP.
+const relayOk = (cfg) => cfg.relay === true || /^(localhost|127\.0\.0\.1)$/.test(new URL(BASE()).hostname);
 async function newPC(cfg) {
-  const pc = new RTCPeerConnection({ iceServers: cfg.iceServers || [], iceTransportPolicy: cfg.relay ? "relay" : "all" });
+  const pc = new RTCPeerConnection({ iceServers: cfg.iceServers || [], iceTransportPolicy: cfg.relay === true ? "relay" : "all" });
   pc.ontrack = (e) => { const v = $("#call-remote"); if (v && v.srcObject !== e.streams[0]) v.srcObject = e.streams[0]; };
   pc.onconnectionstatechange = () => {
     if (!call || call.pc !== pc) return;
@@ -1645,6 +1658,7 @@ async function startCall(video) {
   if ((S.blocked || {})[c.id]) return toast("Unblock this contact to call");
   const cfg = await getTurn();
   if (cfg.error) return toast(cfg.error === "calls not set up" ? "Calls aren't switched on for this server yet" : "Couldn't reach the server");
+  if (!relayOk(cfg)) return toast("Calls are off: the server didn't offer the private relay");
   let stream; try { stream = await getMedia(video); } catch { return toast(video ? "Camera or microphone access was blocked" : "Microphone access was blocked"); }
   const id = rid(12);
   call = { id, peer: c.id, video, out: true, stream, t0: 0, speaker: !!video };
@@ -1681,7 +1695,7 @@ async function acceptCall() {
   if (!call || call.out) return;
   ringStop(); setCallStatus("Connecting…"); $("#call").classList.remove("ringing");
   const c = peer(call.peer), id = call.id, cfg = await getTurn();
-  if (cfg.error) return endCall("Couldn't connect");
+  if (cfg.error || !relayOk(cfg)) return endCall("Couldn't connect");
   try { call.stream = await getMedia(call.video); } catch { callSignal(c, { t: "decline", id }).catch(() => {}); return endCall(call.video ? "Camera or microphone access was blocked" : "Microphone access was blocked"); }
   call.speaker = !!call.video; applyAudioRoute();
   call.pc = await newPC(cfg); call.stream.getTracks().forEach((t) => call.pc.addTrack(t, call.stream));
@@ -1849,7 +1863,7 @@ function moveDialog() {
         const backup = "GHOST3:" + btoa(toB64Blob(await IDB.get(slot)));
         const k = rand(32), iv = rand(12), ck = await subtle.importKey("raw", k, { name: "AES-GCM" }, false, ["encrypt"]);
         const blob = b64(concat(iv, await aesEnc(ck, iv, enc.encode(backup), enc.encode("gc-move"))));
-        const r = await fetch(BASE() + "/api/move", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ blob }) });
+        const r = await fetch(BASE() + "/api/move", { method: "POST", headers: { "Content-Type": "application/json", "X-Upload-Token": await uploadToken("move") }, body: JSON.stringify({ blob }) });
         const j = await r.json().catch(() => ({})); if (!r.ok || !j.token) throw new Error("Couldn't reach the server");
         const link = BASE() + "/app#move=" + j.token + "." + toB64u(k);
         err("#mv-err", "");
@@ -2033,7 +2047,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "Raazdar v6.5 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "Raazdar v6.6 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions

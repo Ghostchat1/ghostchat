@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- .onion addresses use plain http: Tor itself encrypts end to end and authenticates the server -->
+<!-- Audit 2026-11 L4: plain http is allowed ONLY for .onion addresses (Tor itself encrypts and authenticates
+     those). Every other connection must use https. -->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="true" />
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">onion</domain>
+    </domain-config>
 </network-security-config>

@@ -7,7 +7,7 @@ SRC=/root/ghostchat; APP=/opt/ghostchat
 cp -r "$SRC/public" "$APP/"
 cp "$SRC/server.js" "$SRC/package.json" "$APP/"
 [ -f "$SRC/package-lock.json" ] && cp "$SRC/package-lock.json" "$APP/"
-(cd "$APP" && npm install --omit=dev --no-audit --no-fund --silent >/dev/null 2>&1 || true)
+(cd "$APP" && (npm ci --omit=dev --no-audit --no-fund --silent >/dev/null 2>&1 || npm install --omit=dev --no-audit --no-fund --silent >/dev/null 2>&1) || true)
 
 # Waiting messages survive updates/restarts by being handed over in /run/ghostchat (RAM, never disk).
 mkdir -p /etc/systemd/system/ghostchat.service.d

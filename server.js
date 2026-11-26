@@ -10,6 +10,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const https = require("https");
+const os = require("os");
 const { webcrypto, createHash } = crypto;
 const { WebSocketServer } = require("ws");
 const subtle = webcrypto.subtle;
@@ -81,11 +82,14 @@ async function verify(rawSignPub, sigB64, data) {
 }
 const concat = (...a) => { const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let i = 0; for (const x of a) { o.set(x, i); i += x.length; } return o; };
 const validId = (id) => typeof id === "string" && /^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(id);
+// Audit 2026-11 M3: signup gets harder as the server fills up, so mass account creation can't exhaust RAM.
+const powBits = () => POW_BITS + Math.min(3, Math.floor(Object.keys(db.users).length / 25000));
+const memTight = () => process.memoryUsage().rss > 0.7 * os.totalmem();
 const powOk = (sign, pow) => {
   if (typeof pow !== "string" || pow.length > 32) return false;
   const h = createHash("sha256").update("gc-pow:" + sign + ":" + pow).digest();
   let bits = 0; for (const b of h) { if (b === 0) { bits += 8; continue; } bits += Math.clz32(b) - 24; break; }
-  return bits >= POW_BITS;
+  return bits >= powBits();
 };
 let queueBytes = 0; // total bytes waiting in all queues
 const dropRate = new Map(); // recipient -> {t, n}
@@ -149,6 +153,18 @@ setInterval(() => { const now = Date.now(); for (const [k, v] of moves) if (v.ex
 const BLOB_MAX = +process.env.BLOB_MAX || 25 * 1024 * 1024, BLOB_TOTAL = +process.env.BLOB_TOTAL || 300 * 1024 * 1024, BLOB_TTL = 7 * 24 * 3600 * 1000;
 const blobs = new Map(); let blobBytes = 0;
 setInterval(() => { const now = Date.now(); for (const [k, v] of blobs) if (v.exp < now) { blobBytes -= v.buf.length; blobs.delete(k); } }, 10 * 60 * 1000);
+// Audit 2026-11 M2: uploads need a one-time token that only a signed-in ID can get (over its inbox socket),
+// with a daily allowance per ID, so nobody can fill the file store anonymously.
+const UP_DAILY = +process.env.UP_DAILY || 200 * 1024 * 1024, MOVES_DAILY = 6;
+const upTokens = new Map(), upUse = new Map(); // token -> {uid, kind, exp}; uid -> {day, bytes, moves}
+const today = () => Math.floor(Date.now() / 864e5);
+function useOf(uid) { let u = upUse.get(uid); if (!u || u.day !== today()) { u = { day: today(), bytes: 0, moves: 0 }; upUse.set(uid, u); } return u; }
+function takeToken(req, kind) {
+  const t = String(req.headers["x-upload-token"] || ""), v = upTokens.get(t);
+  if (!v || v.kind !== kind || v.exp < Date.now()) return null;
+  upTokens.delete(t); return v;
+}
+setInterval(() => { const now = Date.now(); for (const [k, v] of upTokens) if (v.exp < now) upTokens.delete(k); for (const [k, v] of upUse) if (v.day !== today()) upUse.delete(k); }, 10 * 60 * 1000);
 function readRaw(req, limit) {
   return new Promise((resolve, reject) => {
     const chunks = []; let size = 0;
@@ -205,7 +221,7 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname.startsWith("/api/") && req.headers.origin === "https://appassets.androidplatform.net") {
     res.setHeader("Access-Control-Allow-Origin", "https://appassets.androidplatform.net");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Upload-Token");
     res.setHeader("Access-Control-Max-Age", "600");
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     if (req.headers["access-control-request-private-network"]) res.setHeader("Access-Control-Allow-Private-Network", "true");
@@ -217,10 +233,10 @@ const server = http.createServer(async (req, res) => {
       const signRaw = unb64(sign), ecdhRaw = unb64(ecdh);
       if (signRaw.length !== RAW_LEN || ecdhRaw.length !== RAW_LEN) return sendJson(res, 400, { error: "bad request" });
       if (!(await verify(signRaw, sig, ecdhRaw)) || !(await spkOk(signRaw, spk))) return sendJson(res, 400, { error: "bad request" });
-      if (!powOk(sign, pow)) return sendJson(res, 400, { error: "proof of work required", bits: POW_BITS });
+      if (!powOk(sign, pow)) return sendJson(res, 400, { error: "proof of work required", bits: powBits() });
       const id = await idFromSignKey(signRaw);
       const u = db.users[id];
-      if (!u && Object.keys(db.users).length >= MAX_USERS) return sendJson(res, 503, { error: "server full" });
+      if (!u && (Object.keys(db.users).length >= MAX_USERS || memTight())) return sendJson(res, 503, { error: "server full" });
       // DPDP Act s.6(10): keep a record of which privacy-notice version this anonymous ID consented to, and when
       const rec = consent && typeof consent.v === "string" && /^[\w.-]{1,20}$/.test(consent.v) && Number.isFinite(+consent.ts) ? { v: consent.v, ts: +consent.ts } : undefined;
       if (!u) db.users[id] = { sign, ecdh, sig, spk: pubSpk(spk), ...(rec ? { consent: rec } : {}) };
@@ -229,13 +245,15 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { id });
     }
     if (req.method === "POST" && url.pathname === "/api/blob") {
+      const tok = takeToken(req, "blob"); if (!tok) return sendJson(res, 401, { error: "upload token required" });
       const len = +req.headers["content-length"] || 0;
       if (len > BLOB_MAX) { const e = new Error("big"); e.code = 413; throw e; }
+      const use = useOf(tok.uid); if (use.bytes + len > UP_DAILY) return sendJson(res, 429, { error: "daily limit" });
       if (blobBytes + len > BLOB_TOTAL) return sendJson(res, 503, { error: "busy" });
       const buf = await readRaw(req, BLOB_MAX);
       if (buf.length < 28 || blobBytes + buf.length > BLOB_TOTAL) return sendJson(res, 400, { error: "bad request" });
       const id = randomId().replace(/[+/=]/g, "").slice(0, 32);
-      blobs.set(id, { buf, exp: Date.now() + BLOB_TTL, left: 64 }); blobBytes += buf.length;
+      blobs.set(id, { buf, exp: Date.now() + BLOB_TTL, left: 64 }); blobBytes += buf.length; use.bytes += buf.length;
       return sendJson(res, 200, { id });
     }
     if (req.method === "GET" && url.pathname.startsWith("/api/blob/")) {
@@ -250,6 +268,8 @@ const server = http.createServer(async (req, res) => {
       return res.end("Contact: mailto:privacy@quietline.chat\nExpires: 2027-11-30T00:00:00.000Z\nPreferred-Languages: en, hi\nPolicy: https://github.com/Ghostchat1/raazdar/blob/main/SECURITY.md\nCanonical: https://raazdar.app/.well-known/security.txt\n");
     }
     if (req.method === "POST" && url.pathname === "/api/move") {
+      const tok = takeToken(req, "move"); if (!tok) return sendJson(res, 401, { error: "upload token required" });
+      const use = useOf(tok.uid); if (++use.moves > MOVES_DAILY) return sendJson(res, 429, { error: "daily limit" });
       const { blob } = await readBody(req, MOVE_MAX + 1024);
       if (typeof blob !== "string" || !blob.length || blob.length > MOVE_MAX || !/^[A-Za-z0-9+/=]+$/.test(blob)) return sendJson(res, 400, { error: "bad request" });
       if (moveBytes + blob.length > MOVE_TOTAL) return sendJson(res, 503, { error: "busy" });
@@ -331,6 +351,7 @@ wss.on("connection", (ws) => {
       const id = String(m.id || "").toUpperCase();
       const u = validId(id) && db.users[id];
       if (!u || !(await verify(unb64(u.sign), m.sig, new TextEncoder().encode("gc2-auth:" + ws.nonce)))) return ws.send(JSON.stringify({ t: "error", error: "auth failed" }));
+      if (ws.uid && ws.uid !== id && online.has(ws.uid)) { online.get(ws.uid).delete(ws); if (!online.get(ws.uid).size) online.delete(ws.uid); } // audit L2
       ws.uid = id;
       if (!online.has(id)) online.set(id, new Set());
       online.get(id).add(ws);
@@ -366,6 +387,11 @@ wss.on("connection", (ws) => {
       const q = db.queue[ws.uid];
       if (q) { const i = q.findIndex((x) => x.mid === m.mid); if (i >= 0) { queueBytes -= q[i].env.length; q.splice(i, 1); if (!q.length) delete db.queue[ws.uid]; save(); } }
       return;
+    }
+    if (m.t === "uptoken") { // one-time upload permission for a large file ("blob") or a device move ("move")
+      const kind = m.kind === "move" ? "move" : "blob", token = randomId().replace(/[+/=]/g, "").slice(0, 32);
+      upTokens.set(token, { uid: ws.uid, kind, exp: Date.now() + 10 * 60 * 1000 });
+      return ws.send(JSON.stringify({ t: "uptoken", kind, token }));
     }
     if (m.t === "turn") { // short-lived relay credentials for calls, only for signed-in IDs
       const secret = process.env.TURN_SECRET, host = process.env.TURN_HOST;

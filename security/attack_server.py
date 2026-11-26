@@ -205,5 +205,23 @@ report("W09", "PASS" if alive() else "FAIL", "Malformed / prototype-pollution WS
 vw, resp = ws_auth(victim); vw.send(json.dumps({"t": "delete_account"})); recv_all(vw, 0.5); vw.close()
 report("W10", "PASS" if req("GET", "/api/keys/" + victim.id)[0] == 404 and req("GET", "/api/keys/" + att.id)[0] in (200, 404) else "FAIL", "delete_account only deletes the authenticated user", "victim removed by own request")
 
+
+# ---------------- Internal assessment 2026-11: uploads, call relay credentials ----------------
+st = req("POST", "/api/blob", raw=os.urandom(64), headers={"Content-Type": "application/octet-stream"})[0]
+report("A01", "PASS" if st == 401 else "FAIL", "Large-file upload refused without a signed-in token", f"HTTP {st}")
+st = req("POST", "/api/move", {"blob": "QUJD"})[0]
+report("A02", "PASS" if st == 401 else "FAIL", "Device-move upload refused without a signed-in token", f"HTTP {st}")
+w, n = ws_open(); w.send(json.dumps({"t": "uptoken", "kind": "blob"})); w.send(json.dumps({"t": "turn"}))
+got = recv_all(w); w.close()
+report("A03", "PASS" if not any(m.get("t") in ("uptoken", "turn") for m in got) else "FAIL", "Anonymous socket gets no upload token or call-relay credentials", f"replies: {[m.get('t') for m in got]}")
+ua = User(); register(ua); w, r = ws_auth(ua); recv_all(w, 0.3)
+w.send(json.dumps({"t": "uptoken", "kind": "blob"})); tok = [m for m in recv_all(w) if m.get("t") == "uptoken"][0]["token"]
+h = {"Content-Type": "application/octet-stream", "X-Upload-Token": tok}
+s1 = req("POST", "/api/blob", raw=os.urandom(64), headers=h)[0]; s2 = req("POST", "/api/blob", raw=os.urandom(64), headers=h)[0]
+report("A04", "PASS" if s1 == 200 and s2 == 401 else "FAIL", "Upload token works once only", f"first {s1}, reuse {s2}")
+w.send(json.dumps({"t": "uptoken", "kind": "blob"})); tok = [m for m in recv_all(w) if m.get("t") == "uptoken"][0]["token"]
+s3 = req("POST", "/api/move", {"blob": "QUJD"}, headers={"X-Upload-Token": tok})[0]
+report("A05", "PASS" if s3 == 401 else "FAIL", "A file-upload token can't be used for a device move", f"HTTP {s3}")
+w.close()
 report("Z99", "PASS" if alive() else "FAIL", "Server survived the whole attack run", "")
 json.dump(results, open("/home/claude/vapt/server_results.json", "w"), indent=1)

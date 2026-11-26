@@ -5,8 +5,6 @@ const { app, BrowserWindow, session, shell, Menu } = require("electron");
 const HOST = "raazdar.app", HOME = `https://${HOST}/app`;
 const sameSite = (u) => { try { const x = new URL(u); return x.protocol === "https:" && x.hostname === HOST; } catch { return false; } };
 
-app.commandLine.appendSwitch("force-webrtc-ip-handling-policy", "disable_non_proxied_udp"); // calls go via the relay only
-app.commandLine.appendSwitch("webrtc-ip-handling-policy", "disable_non_proxied_udp");
 if (!app.requestSingleInstanceLock()) app.quit();
 
 let win;
@@ -15,6 +13,7 @@ function create() {
     width: 1180, height: 780, minWidth: 380, minHeight: 560, backgroundColor: "#0b0b0c", title: "Raazdar", autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, spellcheck: false, preload: require("path").join(__dirname, "preload.js") },
   });
+  win.webContents.setWebRTCIPHandlingPolicy("default_public_interface_only"); // never expose local network addresses (calls are relay-only anyway)
   win.setContentProtection(true); // blocks screenshots / screen recording of the window (Windows 10 2004+, macOS)
   win.loadURL(HOME);
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^(https|mailto):/i.test(url)) shell.openExternal(url); return { action: "deny" }; });
