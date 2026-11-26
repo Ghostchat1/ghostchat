@@ -4,6 +4,13 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
 import android.webkit.JavascriptInterface
+import android.content.ContentValues
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.util.Base64
+import android.widget.Toast
+import java.io.File
 
 /** The small set of native powers the web app may use (window.GhostNative in JavaScript). */
 /** Server used unless the person enters another one. */
@@ -16,6 +23,29 @@ class GhostBridge(private val a: MainActivity) {
 
     @JavascriptInterface
     fun server(): String = prefs.getString("server", DEFAULT_SERVER) ?: DEFAULT_SERVER
+
+    /** Saves a received (already decrypted) file to the phone's Downloads folder. */
+    @JavascriptInterface
+    fun saveFile(name: String, mime: String, b64: String) {
+        val safe = name.replace(Regex("[\\\\/:*?\"<>|\\u0000-\\u001f]"), "_").take(80).ifBlank { "file" }
+        try {
+            val bytes = Base64.decode(b64, Base64.DEFAULT)
+            if (Build.VERSION.SDK_INT >= 29) {
+                val v = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, safe)
+                    put(MediaStore.Downloads.MIME_TYPE, mime.ifBlank { "application/octet-stream" })
+                }
+                val uri = a.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v) ?: throw Exception("no uri")
+                a.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+            } else {
+                val dir = a.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: throw Exception("no dir")
+                File(dir, safe).writeBytes(bytes)
+            }
+            a.runOnUiThread { Toast.makeText(a, "Saved to Downloads: $safe", Toast.LENGTH_SHORT).show() }
+        } catch (e: Exception) {
+            a.runOnUiThread { Toast.makeText(a, "Couldn't save the file", Toast.LENGTH_SHORT).show() }
+        }
+    }
 
     @JavascriptInterface
     fun setServer(url: String) {

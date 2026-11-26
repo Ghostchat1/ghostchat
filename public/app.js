@@ -27,7 +27,7 @@ const CURVE = "P-384";
 const ECDSA = { name: "ECDSA", namedCurve: CURVE }, ECDH = { name: "ECDH", namedCurve: CURVE }, SIG = { name: "ECDSA", hash: "SHA-384" };
 const PBKDF2_ITER = 600000;
 const SPK_ROTATE = 24 * 3600e3, SPK_KEEP = 9 * 24 * 3600e3;
-const PAD_BUCKETS = [1024, 4096, 16384, 65536, 262144, 524288];
+const PAD_BUCKETS = [1024, 4096, 16384, 65536, 262144, 524288, 1048576, 2097152, 3145728, 4194304];
 const VAULT_BUCKET = 65536;
 const AUTO_LOCK = 3 * 60e3;
 const MAX_FAILS = 10;
@@ -40,7 +40,9 @@ function weakPass(p) {
   return "";
 }
 const MAX_PHOTO = 420 * 1024;
-const MAX_ENV = 1024 * 1024; // must match the server
+const MAX_ENV = 6 * 1024 * 1024; // must match the server
+const MAX_FILE = () => (STORAGE_MODE === "indexeddb" ? 2 * 1048576 : 400 * 1024); // small vault when the browser only allows localStorage
+const MAX_VOICE_S = 120;
 
 // ---------------- byte helpers ----------------
 const b64 = (buf) => { const a = buf instanceof Uint8Array ? buf : new Uint8Array(buf); let s = ""; for (let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode(...a.subarray(i, i + 0x8000)); return btoa(s); };
@@ -505,7 +507,7 @@ const conv = (id) => (isGroup(id) ? (S.groups || {})[id] : S.contacts[id]);
 const peer = (id) => S.contacts[id] || (S.hidden || {})[id];
 const displayName = (c) => (c.gid ? c.name || "Group" : c.customName || c.name || "Anonymous " + c.id.slice(0, 4));
 const memberName = (id) => (id === S.me.id ? "You" : peer(id) ? displayName(peer(id)) : "Anonymous " + id.slice(0, 4));
-const preview = (m) => (m.kind === "img" ? (m.once ? "📷 View-once photo" : "📷 Photo") : m.text);
+const preview = (m) => (m.deleted ? "Message deleted" : m.kind === "img" ? (m.once ? "📷 View-once photo" : "📷 Photo") : m.kind === "file" ? "📄 " + (m.name || "File") : m.kind === "voice" ? "🎤 Voice message (" + fmtDur(m.dur || 0) + ")" : m.text);
 async function ensurePeer(id) {
   if (id === S.me.id || peer(id)) return peer(id);
   S.hidden = S.hidden || {};
@@ -533,10 +535,21 @@ async function sendBody(id, local, body, msg) {
     else await post(c, body, local);
   } catch (e) { setStatus(id, local, "failed"); toast(e.message); }
 }
+function takeReply() { const r = replyTo; cancelReply(); return r ? { re: r } : {}; }
 async function sendText(text) {
   const c = conv(current); if (!c) return;
-  const ts = Date.now(), local = rid(12), timer = c.timer || 0;
-  await sendBody(current, local, { k: "text", mid: local, text, name: S.me.name, ts, timer }, { mid: local, me: true, text, ts, status: "sending", exp: timer ? ts + timer : 0 });
+  const ts = Date.now(), local = rid(12), timer = c.timer || 0, re = takeReply();
+  await sendBody(current, local, { k: "text", mid: local, text, name: S.me.name, ts, timer, ...re }, { mid: local, me: true, text, ts, status: "sending", exp: timer ? ts + timer : 0, ...re });
+}
+async function sendKind(id, kind, fields) { // files and voice messages
+  const c = conv(id); if (!c) return;
+  const ts = Date.now(), local = rid(12), timer = c.timer || 0, re = takeReply();
+  const { name: fname, ...rest } = fields; // "name" in the wire format is the sender's nickname
+  await sendBody(id, local, { k: kind, mid: local, ...rest, ...(fname ? { fname } : {}), name: S.me.name, ts, timer, ...re }, { mid: local, me: true, kind, ...fields, ts, status: "sending", exp: timer ? ts + timer : 0, ...re });
+}
+async function sendCtl(id, body) { // reactions & deletions: no bubble of their own
+  const c = conv(id); if (!c) return;
+  try { if (isGroup(id)) await fanout(c, { ...body, gid: id }); else await post(c, body); } catch (e) { toast(e.message); }
 }
 async function sendPhoto(id, photo, once) {
   const c = conv(id); if (!c) return;
@@ -623,13 +636,22 @@ async function onEnvelope(m, viaMesh) {
   if (isGroup(cid) && !target.members.includes(from)) return; // not a member: ignore
   const list = msgs(cid), mid = safeMid(body.mid);
   if (list.some((x) => x.mid === mid)) return;
+  if (k === "react" || k === "del") {
+    const ref = String(body.ref || ""), m = list.find((x) => x.mid === ref); if (!m) return;
+    if (k === "react") { const e = String(body.e || "").slice(0, 8); m.rx = m.rx || {}; if (e && !/[<>&"']/.test(e)) m.rx[from] = e; else delete m.rx[from]; }
+    else if (!m.me && m.from === from) { for (const f of ["text", "data", "name", "kind", "re", "rx", "once", "dur", "size", "mime"]) delete m[f]; m.deleted = true; }
+    persist(); renderList(); if (current === cid) renderMessages(true); return;
+  }
   const ts = Date.now(), timer = +body.timer || 0, exp = timer ? ts + timer : 0;
+  const re = body.re && typeof body.re === "object" ? { re: { mid: safeMid(body.re.mid), who: ID_RE.test(body.re.who) ? body.re.who : "", text: String(body.re.text || "").slice(0, 140) } } : {};
   let msg;
   if (k === "timer" && !isGroup(cid)) {
     target.timer = TIMERS.some((t) => t[0] === +body.timer) ? +body.timer : 0;
     list.push({ mid, sys: true, text: target.timer ? `${displayName(c)} turned on disappearing messages (${timerLabel(target.timer)})` : `${displayName(c)} turned off disappearing messages`, ts });
-  } else if (k === "text") msg = { mid, from, me: false, text: String(body.text || "").slice(0, 4000), ts, exp };
-  else if (k === "img" && typeof body.data === "string" && body.data.length < 700000) msg = { mid, from, me: false, kind: "img", data: body.data, once: !!body.once, w: +body.w || 0, h: +body.h || 0, ts, exp };
+  } else if (k === "text") msg = { mid, from, me: false, text: String(body.text || "").slice(0, 4000), ts, exp, ...re };
+  else if (k === "img" && typeof body.data === "string" && body.data.length < 700000) msg = { mid, from, me: false, kind: "img", data: body.data, once: !!body.once, w: +body.w || 0, h: +body.h || 0, ts, exp, ...re };
+  else if (k === "file" && typeof body.data === "string" && body.data.length < 2.9e6) msg = { mid, from, me: false, kind: "file", data: body.data, name: String(body.fname || "file").replace(/[\\/\u0000-\u001f]/g, "_").slice(0, 80), mime: String(body.mime || "").slice(0, 80), size: +body.size || 0, ts, exp, ...re };
+  else if (k === "voice" && typeof body.data === "string" && body.data.length < 1.6e6) msg = { mid, from, me: false, kind: "voice", data: body.data, mime: String(body.mime || "audio/mp4").slice(0, 60), dur: Math.min(600, +body.dur || 0), ts, exp, ...re };
   else return;
   if (msg) {
     list.push(msg); target.last = { text: (isGroup(cid) ? displayName(c) + ": " : "") + preview(msg), ts, me: false };
@@ -727,62 +749,266 @@ function fmtTime(ts) {
 }
 function show(id) { for (const s of ["onboard", "lock", "main", "calc"]) $("#" + s).classList.toggle("hidden", s !== id); }
 
+// ---- generated avatars: a unique, symmetric pattern derived from the ID (no photos, nothing to leak) ----
+const icCache = new Map();
+function identicon(key) {
+  if (icCache.has(key)) return icCache.get(key);
+  const h = sha256(enc.encode("gc-avatar:" + key)), b = h.flatMap((x) => [x >>> 24, (x >>> 16) & 255, (x >>> 8) & 255, x & 255]);
+  const hue = Math.round((b[0] / 256) * 360), hue2 = (hue + 25 + (b[1] % 40)) % 360;
+  const fg = `hsl(${hue},62%,70%)`, fg2 = `hsl(${hue2},70%,82%)`, bg = `hsl(${hue},28%,15%)`;
+  let cells = "";
+  for (let y = 0; y < 5; y++) for (let x = 0; x < 3; x++) {
+    const bit = (b[2 + y] >> x) & 1; if (!bit) continue;
+    const col = (b[8 + y * 3 + x] & 1) ? fg : fg2;
+    for (const xx of x === 2 ? [2] : [x, 4 - x]) cells += `<rect x="${1 + xx * 1.2}" y="${1 + y * 1.2}" width="1.05" height="1.05" rx=".28" fill="${col}"/>`;
+  }
+  const svg = `<svg viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg"><rect width="8" height="8" fill="${bg}"/>${cells}</svg>`;
+  icCache.set(key, svg); return svg;
+}
+const avatarHtml = (key, grp) => `<div class="avatar ${grp ? "group" : ""}">${identicon(key)}</div>`;
+const IC = { // small line icons
+  pin: '<svg viewBox="0 0 24 24"><path d="M9 3h6l-1 6 4 3v2H6v-2l4-3zM12 14v7"/></svg>',
+  chev: '<svg class="chev" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>',
+  star: '<svg viewBox="0 0 24 24"><path d="m12 3.5 2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8L3.5 9.7l5.9-.8z"/></svg>',
+  key: '<svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4.5"/><path d="m11.2 11.8 8.3-8.3M16 7l2.5 2.5M14 9l2 2"/></svg>',
+  save: '<svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 19h16"/></svg>',
+  user: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4.4 4-6.5 8-6.5s7.2 2.1 8 6.5"/></svg>',
+  edit: '<svg viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.8 2.8 0 0 0-4-4L4 16z"/></svg>',
+  bell: '<svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 21h4"/></svg>',
+  shield: '<svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/></svg>',
+  share: '<svg viewBox="0 0 24 24"><path d="M12 15V3M7.5 7.5 12 3l4.5 4.5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>',
+  qr: '<svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.2"/><rect x="14" y="3.5" width="6.5" height="6.5" rx="1.2"/><rect x="3.5" y="14" width="6.5" height="6.5" rx="1.2"/><path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18z"/></svg>',
+  copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
+  ghost: '<svg viewBox="0 0 24 24"><path d="M12 3a7 7 0 0 0-7 7v10l2.3-1.8L9.7 20l2.3-1.8 2.3 1.8 2.4-1.8L19 20V10a7 7 0 0 0-7-7z"/><circle cx="9.5" cy="10.5" r=".8"/><circle cx="14.5" cy="10.5" r=".8"/></svg>',
+  siren: '<svg viewBox="0 0 24 24"><path d="M7 18v-6a5 5 0 0 1 10 0v6M5 18h14v3H5zM12 3v2M4.5 6l1.4 1.4M19.5 6l-1.4 1.4"/></svg>',
+  lock: '<svg viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 10 0v3"/><rect x="4.5" y="10" width="15" height="11" rx="2.5"/></svg>',
+  fire: '<svg viewBox="0 0 24 24"><path d="M12 21c4 0 7-2.8 7-6.8 0-3.9-3-6.2-4.3-9.7-.6 2.4-2 3.6-3.4 4.4C10.6 6.6 9 5 9 3c-3.3 2.6-5 6.1-5 9.6C4 17.6 7.6 21 12 21z"/></svg>',
+  bt: '<svg viewBox="0 0 24 24"><path d="m7 7 10 10-5 4V3l5 4L7 17"/></svg>',
+  info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.1"/></svg>',
+  heart: '<svg viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 7.5 3c0 5.4-7.5 10-7.5 10z"/></svg>',
+  ok: '<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
+  dot: '<svg viewBox="0 0 24 24"><path d="M12 7v6M12 16.5v.1"/></svg>',
+  reply: '<svg viewBox="0 0 24 24"><path d="M10 6 4 12l6 6M4 12h10a6 6 0 0 1 6 6"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/></svg>',
+  photo: '<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="m4 17 5-4.5 4 3.5 3-2.5 4 3.5"/></svg>',
+  camera: '<svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8L10 4h4l1.7 2h1.8A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.5"/></svg>',
+  doc: '<svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',
+  play: '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24"><path d="M7 4.5h3.5v15H7zM13.5 4.5H17v15h-3.5z"/></svg>',
+  group: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5M16 4.8a3.5 3.5 0 0 1 0 6.4M18.2 14.8c1.9.8 3 2.5 3.3 5.2"/></svg>',
+  chat: '<svg viewBox="0 0 24 24"><path d="M4 18.5V7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H8.5z"/></svg>',
+  read: '<svg viewBox="0 0 24 24"><path d="m3 12.5 4.5 4.5L17 7.5M11.5 16l1 1L22 7.5"/></svg>',
+  timer: '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2M9.5 2.5h5"/></svg>',
+};
+const rowItem = (icon, label, sub, attrs = "", cls = "") =>
+  `<button class="row-item menu-item ${cls}" ${attrs}><span class="ri">${IC[icon] || ""}</span><span class="rt">${label}${sub ? `<span class="rs">${sub}</span>` : ""}</span>${cls.includes("danger") ? "" : IC.chev}</button>`;
+
+// ---- tabs ----
+let tab = "chats", listFilter = "all";
+function setTab(t) {
+  tab = t;
+  for (const v of ["chats", "security", "you"]) $("#view-" + v).classList.toggle("hidden", v !== t);
+  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
+  if (t === "you") renderYou(); else if (t === "security") renderSecurity(); else renderList();
+}
+const chatKey = (c) => c.gid || c.id;
 function renderList() {
   if (!S) return;
   const q = $("#search").value.trim().toLowerCase();
   const all = [...Object.values(S.contacts), ...Object.values(S.groups || {})];
-  const items = all.filter((c) => !q || displayName(c).toLowerCase().includes(q) || (c.id || "").toLowerCase().includes(q))
-    .sort((a, b) => (b.last?.ts || b.added || 0) - (a.last?.ts || a.added || 0));
+  const unreadChats = all.filter((c) => c.unread).length, unreadMsgs = all.reduce((n, c) => n + (c.unread || 0), 0);
+  $("#unread-n").textContent = unreadChats || "";
+  const tb = $("#tab-badge"); tb.textContent = unreadMsgs > 99 ? "99+" : unreadMsgs; tb.classList.toggle("hidden", !unreadMsgs);
+  $("#tab-av").innerHTML = identicon(S.me.id);
+  const items = all.filter((c) => (!q || displayName(c).toLowerCase().includes(q) || (c.id || "").toLowerCase().includes(q)) &&
+      (listFilter === "all" || (listFilter === "unread" && c.unread) || (listFilter === "groups" && c.gid) || (listFilter === "pinned" && c.pinned)))
+    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || (b.pinned || 0) - (a.pinned || 0) || (b.last?.ts || b.added || 0) - (a.last?.ts || a.added || 0));
   $("#empty-list").classList.toggle("hidden", all.length > 0);
-  $("#chat-list").innerHTML = items.map((c) => { const key = c.gid || c.id; return `
-    <div class="chat-item ${key === current ? "active" : ""}" data-id="${esc(key)}">
-      <div class="avatar ${colorClass(key)}">${c.gid ? "👥" : esc(initials(c))}</div>
+  const html = items.map((c) => { const key = chatKey(c); return `
+    <div class="chat-item ${key === current ? "active" : ""} ${c.unread ? "unread" : ""}" data-id="${esc(key)}">
+      ${avatarHtml(key, !!c.gid)}
       <div class="meta">
-        <div class="row"><span class="name">${esc(displayName(c))}${c.request ? '<span class="tag">new</span>' : ""}</span><span class="time">${c.last ? fmtTime(c.last.ts) : ""}</span></div>
-        <div class="row"><span class="last">${c.last ? (c.last.me ? "You: " : "") + esc(c.last.text) : '<span class="muted">' + (c.gid ? c.members.length + " members" : c.id) + "</span>"}</span>${c.unread ? `<span class="badge">${c.unread}</span>` : ""}</div>
+        <div class="row"><span class="name">${esc(displayName(c))}${c.request ? '<span class="tag">NEW</span>' : ""}</span><span class="time">${c.last ? fmtTime(c.last.ts) : ""}</span></div>
+        <div class="row"><span class="last">${c.last ? (c.last.me ? "You: " : "") + esc(c.last.text) : '<span class="muted">' + (c.gid ? c.members.length + " members" : esc(c.id)) + "</span>"}</span>
+          <span class="icons">${c.timer ? IC.timer : ""}${c.pinned ? IC.pin : ""}${c.unread ? `<span class="badge">${c.unread}</span>` : ""}</span></div>
       </div>
     </div>`; }).join("");
+  $("#chat-list").innerHTML = html || (all.length ? `<div class="list-empty">Nothing here${listFilter !== "all" ? " — try “All”" : ""}.</div>` : "");
 }
+function chatItemMenu(id) {
+  const c = conv(id); if (!c) return;
+  menu(displayName(c), "", [
+    [c.pinned ? "📌  Unpin chat" : "📌  Pin chat", () => { c.pinned = c.pinned ? 0 : Date.now(); persist(); renderList(); }],
+    [c.unread ? "✓  Mark as read" : "●  Mark as unread", () => { c.unread = c.unread ? 0 : 1; persist(); renderList(); }],
+    [c.gid ? "🚪  Leave group" : "🗑️  Delete chat", () => { current = id; c.gid ? leaveGroup(c) : deleteChat(); }, "danger"],
+  ]);
+}
+
+// ---- You ----
+function renderYou() {
+  if (!S) return;
+  $("#you-body").innerHTML = `
+    <div class="me-hero">
+      <div class="me-av">${identicon(S.me.id)}</div>
+      <button class="me-name" id="you-name">${esc(S.me.name || "Add a nickname")} ${IC.edit}</button>
+      <div class="me-id" id="you-id">${S.me.id}</div>
+      <div class="me-actions">
+        <button id="you-qr">${IC.qr}QR code</button>
+        <button id="you-share">${IC.share}Share link</button>
+        <button id="you-copy">${IC.copy}Copy ID</button>
+      </div>
+    </div>
+    ${STORAGE_MODE !== "indexeddb" ? `<div class="notice">⚠️ This browser may erase GhostChat when it closes. Keep an encrypted backup.</div>` : ""}
+    <div class="card-h">Account</div>
+    <div class="card">
+      ${rowItem("save", "Encrypted backup", S.settings.backupAt ? "Last saved " + fmtTime(S.settings.backupAt) : "Not saved yet", 'data-act="backup"')}
+      ${rowItem("key", "Change passcode", "", 'data-act="pass"')}
+      ${rowItem("user", "My ID & invite link", "", 'data-act="myid"')}
+    </div>
+    <div class="card-h">Messages</div>
+    <div class="card">
+      ${rowItem("star", "Starred messages", "", 'data-act="starred"')}
+      ${rowItem("bell", "Notifications", "Never show names or text", 'data-act="notif"')}
+      ${NATIVE ? rowItem("bt", "Offline Bluetooth mesh", "", 'data-act="mesh"') : ""}
+    </div>
+    <div class="card-h">About</div>
+    <div class="card">
+      ${rowItem("info", "Security details", "Encryption, keys and connection", 'data-act="secinfo"')}
+      ${rowItem("heart", "Invite a friend", "Share your private invite link", 'data-act="invite"')}
+    </div>
+    <p class="ver">GhostChat 6.0 · no phone · no email · no trace</p>`;
+  $("#you-name").onclick = renameSelf;
+  $("#you-qr").onclick = myQrDialog;
+  $("#you-share").onclick = shareInvite;
+  $("#you-copy").onclick = () => copy(S.me.id, "ID copied");
+}
+async function shareInvite() {
+  const url = inviteLink();
+  if (navigator.share) { try { await navigator.share({ title: "GhostChat", text: "Message me privately on GhostChat:", url }); return; } catch (e) { if (e && e.name === "AbortError") return; } }
+  copy(url, "Invite link copied");
+}
+function myQrDialog() {
+  modal("Scan to chat with me", `<div class="qr">${self.QR ? QR(inviteLink(), "#141210") : ""}</div><div class="idbox">${S.me.id}</div><p class="muted small" style="text-align:center">Anyone who scans this can message you. It contains only your anonymous ID.</p>`,
+    [["Share link", () => { shareInvite(); return true; }, "primary"], ["Copy ID", () => { copy(S.me.id); return true; }], ["Close", () => {}]]);
+}
+function starredDialog() {
+  const out = [];
+  for (const [cid, list] of Object.entries(S.msgs)) for (const m of list) if (m.star && !m.sys) out.push({ cid, m });
+  out.sort((a, b) => b.m.ts - a.m.ts);
+  modal("Starred messages", out.length ? out.map(({ cid, m }) => `<div class="starred-item" data-c="${esc(cid)}" data-m="${esc(m.mid)}"><b>${esc(conv(cid) ? displayName(conv(cid)) : "Chat")} · ${fmtTime(m.ts)}</b><div>${esc(preview(m))}</div></div>`).join("") : `<p class="muted">Long-press any message and choose <b>Star</b> to keep it here.</p>`, [["Close", () => {}]]);
+  document.querySelectorAll(".starred-item").forEach((el) => el.onclick = () => { closeModal(); setTab("chats"); openChat(el.dataset.c); jumpTo(el.dataset.m); });
+}
+
+// ---- Security center ----
+function renderSecurity() {
+  if (!S) return;
+  const checks = [
+    [true, "End-to-end encrypted", "Post-quantum, sealed sender, new key for every message"],
+    [true, "Locked vault", "Everything on this device is encrypted with your passcode"],
+    [!!S.settings.backupAt, "Encrypted backup saved", "So you can recover if this device is lost", "backup", "Back up"],
+    [!!LS.get("duress"), "Duress passcode", "A second passcode that silently erases everything", "panic", "Set up"],
+    [(+LS.get("autoerase") || 0) > 0, "Auto-erase", "Wipe the app if it isn't unlocked for a while", "panic", "Turn on"],
+    [S.settings.burnRemote !== false, "Remote erase", "Panic also erases your chats from contacts' phones", "panic", "Turn on"],
+    [IS_ONION, IS_ONION ? "Hidden connection (Tor)" : "Fast connection", IS_ONION ? "Your IP address is hidden from the server" : "Messages are encrypted, but the server can see your IP. Use the .onion address for full anonymity."],
+  ];
+  const ok = checks.filter((c) => c[0]).length, pct = Math.round((ok / checks.length) * 100), C = 2 * Math.PI * 30;
+  $("#sec-body").innerHTML = `
+    <div class="shield-card">
+      <div class="score"><svg viewBox="0 0 74 74"><circle cx="37" cy="37" r="30" stroke="#2a2a2f" stroke-width="7" fill="none"/><circle cx="37" cy="37" r="30" stroke="url(#sg)" stroke-width="7" fill="none" stroke-linecap="round" stroke-dasharray="${(C * pct) / 100} ${C}"/><defs><linearGradient id="sg"><stop offset="0" stop-color="#f3dc9b"/><stop offset="1" stop-color="#a7843c"/></linearGradient></defs></svg><b>${pct}</b></div>
+      <div><h3>${pct >= 85 ? "Fortress mode" : pct >= 60 ? "Well protected" : "Basic protection"}</h3><p>${ok} of ${checks.length} protections active. Finish the rest for maximum safety.</p></div>
+    </div>
+    <div class="card">${checks.map(([on, t, d, act, btn]) => `<div class="check ${on ? "ok" : "todo"}"><span class="ck">${on ? IC.ok : IC.dot}</span><span class="ct">${t}<small>${d}</small></span>${!on && act ? `<button data-act="${act}">${btn}</button>` : ""}</div>`).join("")}</div>
+    <div class="card-h">Protection</div>
+    <div class="card">
+      ${rowItem("siren", "Panic settings", "Duress passcode, auto-erase, wipe gestures", 'data-act="panic"')}
+      ${rowItem("ghost", "Stealth", "Calculator disguise, decoy account", 'data-act="stealth"')}
+      ${rowItem("shield", "Security details", "", 'data-act="secinfo"')}
+      ${rowItem("lock", "Lock now", "", 'data-act="lock"')}
+    </div>
+    <div class="card">${rowItem("fire", "Erase everything", "Instantly destroys this account and all chats", 'data-act="wipe"', "danger")}</div>`;
+}
+const ACTIONS = { backup: () => backupDialog(), pass: () => passDialog(), myid: () => myIdDialog(), starred: () => starredDialog(), notif: () => enableNotifs(), mesh: () => meshDialog(),
+  secinfo: () => securityDialog(), invite: () => shareInvite(), panic: () => panicSettings(), stealth: () => stealthDialog(), lock: () => lockNow(), wipe: () => wipeDialog() };
+for (const id of ["#you-body", "#sec-body"]) $(id).addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (b && ACTIONS[b.dataset.act]) ACTIONS[b.dataset.act](); });
+
 function headerFor(c) {
-  const key = c.gid || c.id;
-  const av = $("#chat-avatar"); av.className = "avatar " + colorClass(key); av.textContent = c.gid ? "👥" : initials(c);
+  const key = chatKey(c);
+  const av = $("#chat-avatar"); av.className = "avatar" + (c.gid ? " group" : ""); av.innerHTML = identicon(key);
   $("#chat-name").textContent = displayName(c);
   $("#chat-sub").textContent = (c.gid ? c.members.map(memberName).join(", ") : c.id) + (c.timer ? " · ⏱ " + timerLabel(c.timer) : "");
 }
 function openChat(id) {
+  if (current !== id) { cancelReply(); closeFind(); seen = new Set(); seenFor = null; }
   current = id; const c = conv(id); c.unread = 0; persist();
   $("#main").classList.add("in-chat"); $("#no-chat").classList.add("hidden"); $("#chat").classList.remove("hidden");
   renderMessages(); renderList();
   if (matchMedia("(min-width: 800px)").matches) $("#msg-input").focus();
 }
-function closeChat() { current = null; $("#main").classList.remove("in-chat"); $("#chat").classList.add("hidden"); $("#no-chat").classList.remove("hidden"); renderList(); }
+function closeChat() { current = null; cancelReply(); closeFind(); stopVoice(); $("#main").classList.remove("in-chat"); $("#chat").classList.add("hidden"); $("#no-chat").classList.remove("hidden"); renderList(); }
 const TICK = { sending: "🕓", sent: "✓", delivered: "✓✓", failed: "⚠" };
+const fmtSize = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
+const fmtDur = (s) => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
+function waveBars(m) { // stable pseudo-waveform from the audio bytes
+  const d = m.data || ""; let out = "";
+  for (let i = 0; i < 28; i++) { const c = d.charCodeAt(Math.floor((i + 1) * d.length / 30)) || 70; out += `<i style="height:${20 + ((c * 37 + i * 13) % 80)}%"></i>`; }
+  return out;
+}
 function bubbleBody(m) {
+  if (m.deleted) return `<span class="deleted">This message was deleted</span>`;
+  if (m.kind === "file") {
+    const ext = (String(m.name || "").split(".").pop() || "FILE").slice(0, 4).toUpperCase();
+    return `<button class="filecard" data-file="${esc(m.mid)}"><span class="fi">${esc(ext)}</span><span><span class="fn" style="display:block">${esc(m.name || "file")}</span><span class="fs">${fmtSize(m.size || 0)} · tap to save</span></span></button>`;
+  }
+  if (m.kind === "voice") return `<div class="voice" data-voice="${esc(m.mid)}"><button class="play" data-play="${esc(m.mid)}" aria-label="Play">${playing === m.mid ? IC.pause : IC.play}</button><div class="wave">${waveBars(m)}</div><span class="vd">${fmtDur(m.dur || 0)}</span></div>`;
   if (m.kind !== "img") return esc(m.text);
   if (m.data && !m.once) return `<img class="photo" src="${esc(photoUrl(m.mid, m.data))}" data-mid="${esc(m.mid)}" alt="Photo" />`;
   if (m.me) return `<span class="once">📷 View-once photo</span>`;
   if (m.data) return `<button class="once open" data-mid="${esc(m.mid)}">📷 View-once photo · tap to open</button>`;
   return `<span class="once muted">📷 Opened</span>`;
 }
-function renderMessages() {
+let findQ = "", seen = new Set(), seenFor = null;
+function renderMessages(keepScroll) {
   const c = S && conv(current); if (!c) return;
   headerFor(c);
-  const grp = !!c.gid;
-  let html = `<div class="sys">🔒 Hybrid post-quantum, sealed-sender encryption. The server can't read these messages or see who sent them.</div>`;
+  const grp = !!c.gid, box = $("#messages"), prev = box.scrollTop, atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  let html = `<div class="sys">🔒 Post-quantum, sealed-sender encryption. The server can't read these messages or see who sent them.</div>`;
   if (c.request) html += `<div class="sys">${grp ? "Someone you haven't added put you in this group." : "Someone you haven't added messaged you."} They only know your anonymous ID. Reply to accept, or ${grp ? "leave the group" : "delete the chat"}.</div>`;
   if (c.removed) html += `<div class="sys">You're no longer a member of this group.</div>`;
-  let lastDay = "";
+  let lastDay = "", hits = 0;
+  const q = findQ.toLowerCase();
   for (const m of msgs(current)) {
+    if (q && (m.sys || !String(m.kind === "file" ? m.name : m.text || "").toLowerCase().includes(q))) continue;
+    hits++;
     const day = new Date(m.ts).toDateString();
     if (day !== lastDay) { html += `<div class="day">${new Date(m.ts).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}</div>`; lastDay = day; }
     if (m.sys) { html += `<div class="sys">${esc(m.text)}</div>`; continue; }
-    const tick = m.me ? `<span class="tick ${m.status}">${TICK[m.status] || ""}</span>` : "";
+    const tick = m.me && !m.deleted ? `<span class="tick ${m.status}">${TICK[m.status] || ""}</span>` : "";
     const who = grp && !m.me && m.from ? `<span class="who ${colorClass(m.from)}t">${esc(memberName(m.from))}</span>` : "";
-    html += `<div class="msg ${m.me ? "me" : "them"} ${m.kind === "img" ? "img" : ""}">${who}${bubbleBody(m)}<span class="foot">${m.exp ? '<span class="timer-ico">⏱</span>' : ""}${new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${tick}</span></div>`;
+    const quote = m.re && !m.deleted ? `<span class="quote" data-jump="${esc(m.re.mid)}"><b>${esc(m.re.who === S.me.id ? "You" : memberName(m.re.who))}</b>${esc(m.re.text)}</span>` : "";
+    const fresh = seenFor === current && !seen.has(m.mid); seen.add(m.mid);
+    html += `<div class="msg ${m.me ? "me" : "them"} ${m.kind === "img" && !m.deleted ? "img" : ""} ${fresh ? "pop" : ""}" data-m="${esc(m.mid)}">${who}${quote}${bubbleBody(m)}<span class="foot">${m.star ? `<span class="star-ico">${IC.star}</span>` : ""}${m.exp ? "⏱" : ""}${new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${tick}</span></div>`;
+    const rx = Object.entries(m.rx || {});
+    if (rx.length) {
+      const counts = {}; for (const [, e] of rx) counts[e] = (counts[e] || 0) + 1;
+      html += `<div class="rx">${Object.entries(counts).map(([e, n]) => `<span class="${m.rx[S.me.id] === e ? "mine" : ""}">${esc(e)}${n > 1 ? " " + n : ""}</span>`).join("")}</div>`;
+    }
   }
-  const box = $("#messages"); box.innerHTML = html; box.scrollTop = box.scrollHeight;
+  seenFor = current;
+  if (q) $("#find-n").textContent = hits ? hits + " found" : "No matches";
+  box.innerHTML = html;
+  box.scrollTop = keepScroll && !atBottom ? prev : box.scrollHeight;
 }
-$("#messages").addEventListener("click", (e) => { const t = e.target.closest("[data-mid]"); if (t) viewPhoto(t.dataset.mid); });
+function jumpTo(mid) {
+  const el = document.querySelector(`.msg[data-m="${CSS.escape(mid)}"]`); if (!el) return toast("Message no longer available");
+  el.scrollIntoView({ block: "center", behavior: "smooth" }); el.classList.add("hl"); setTimeout(() => el.classList.remove("hl"), 1400);
+}
+$("#messages").addEventListener("click", (e) => {
+  if (longFired) return;
+  const j = e.target.closest("[data-jump]"); if (j) return jumpTo(j.dataset.jump);
+  const p = e.target.closest("[data-play]"); if (p) return toggleVoice(p.dataset.play);
+  const f = e.target.closest("[data-file]"); if (f) return saveFile(f.dataset.file);
+  const t = e.target.closest("[data-mid]"); if (t) viewPhoto(t.dataset.mid);
+});
 
 function noSpell(root = document) {
   root.querySelectorAll("input, textarea").forEach((e) => { e.spellcheck = false; e.setAttribute("autocorrect", "off"); e.setAttribute("autocapitalize", e.id === "add-id" || e.id === "gids" ? "characters" : "off"); if (e.type !== "password") e.setAttribute("autocomplete", "off"); });
@@ -818,6 +1044,142 @@ const TIMERS = [[0, "Off"], [30e3, "30 seconds"], [300e3, "5 minutes"], [3600e3,
 const timerLabel = (ms) => (TIMERS.find((t) => t[0] === ms) || [0, Math.round(ms / 60000) + " min"])[1];
 const err = (id, t) => { const e = $(id); if (e) e.textContent = t; return true; };
 
+
+// ---------------- message actions: long-press / right-click ----------------
+let longFired = false;
+function onLongPress(root, selector, cb) {
+  let t = null, sx = 0, sy = 0;
+  root.addEventListener("pointerdown", (e) => {
+    const el = e.target.closest(selector); if (!el || e.button > 0) return;
+    longFired = false; sx = e.clientX; sy = e.clientY;
+    clearTimeout(t); t = setTimeout(() => { longFired = true; if (navigator.vibrate) navigator.vibrate(12); cb(el); }, 430);
+  });
+  const cancel = () => clearTimeout(t);
+  root.addEventListener("pointerup", () => { cancel(); setTimeout(() => (longFired = false), 50); });
+  root.addEventListener("pointercancel", cancel);
+  root.addEventListener("pointermove", (e) => { if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 10) cancel(); });
+  root.addEventListener("contextmenu", (e) => { const el = e.target.closest(selector); if (el) { e.preventDefault(); cb(el); } });
+}
+const REACTS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+function msgMenu(mid) {
+  const id = current, m = msgs(id).find((x) => x.mid === mid); if (!m || m.sys) return;
+  const mine = (m.rx || {})[S.me.id];
+  const items = [];
+  if (!m.deleted) items.push(["↩️  Reply", () => startReply(m)]);
+  if (!m.deleted && m.text) items.push(["📋  Copy text", () => copy(m.text, "Copied")]);
+  if (!m.deleted && m.kind === "file") items.push(["⬇️  Save file", () => saveFile(m.mid)]);
+  if (!m.deleted) items.push([m.star ? "☆  Unstar" : "⭐  Star", () => { m.star = !m.star; persist(); renderMessages(true); }]);
+  items.push(["🗑️  Delete for me", () => { removeMsg(id, mid); }, "danger"]);
+  if (m.me && !m.deleted) items.push(["🔥  Delete for everyone", () => deleteForAll(id, m), "danger"]);
+  menu("", `${m.deleted ? "" : `<div class="emoji-row">${REACTS.map((e) => `<button data-e="${e}" class="${mine === e ? "on" : ""}">${e}</button>`).join("")}</div>`}<div class="preview-msg">${esc(preview(m))}</div>`, items);
+  document.querySelectorAll(".emoji-row button").forEach((b) => b.onclick = () => { closeModal(); react(id, m, b.dataset.e); });
+}
+function react(id, m, e) {
+  m.rx = m.rx || {};
+  const next = m.rx[S.me.id] === e ? "" : e;
+  if (next) m.rx[S.me.id] = next; else delete m.rx[S.me.id];
+  persist(); renderMessages(true);
+  sendCtl(id, { k: "react", mid: rid(), ref: m.mid, e: next, name: S.me.name });
+}
+function removeMsg(id, mid) {
+  S.msgs[id] = msgs(id).filter((x) => x.mid !== mid);
+  const c = conv(id), l = [...S.msgs[id]].reverse().find((x) => !x.sys); if (c) c.last = l ? { text: preview(l), ts: l.ts, me: l.me } : null;
+  persist(); renderMessages(true); renderList();
+}
+function deleteForAll(id, m) {
+  for (const f of ["text", "data", "name", "kind", "re", "rx", "once", "dur", "size", "mime"]) delete m[f];
+  m.deleted = true; persist(); renderMessages(true); renderList();
+  sendCtl(id, { k: "del", mid: rid(), ref: m.mid, name: S.me.name });
+}
+let replyTo = null;
+function startReply(m) {
+  replyTo = { mid: m.mid, who: m.me ? S.me.id : m.from || current, text: preview(m).slice(0, 140) };
+  $("#rb-who").textContent = replyTo.who === S.me.id ? "Replying to yourself" : "Replying to " + memberName(replyTo.who);
+  $("#rb-text").textContent = replyTo.text; $("#reply-bar").classList.remove("hidden"); $("#msg-input").focus();
+}
+function cancelReply() { replyTo = null; $("#reply-bar").classList.add("hidden"); }
+
+// ---------------- in-chat search ----------------
+function openFind() { $("#find-bar").classList.remove("hidden"); $("#find-input").value = ""; $("#find-n").textContent = ""; $("#find-input").focus(); }
+function closeFind() { findQ = ""; $("#find-bar").classList.add("hidden"); if (current) renderMessages(); }
+
+// ---------------- attach: photo, camera, file ----------------
+function attachSheet() {
+  modal("", `<div class="attach-grid">
+      <button data-a="photo"><span class="ai">${IC.photo}</span>Photo</button>
+      <button data-a="camera"><span class="ai">${IC.camera}</span>Camera</button>
+      <button data-a="file"><span class="ai">${IC.doc}</span>Document</button>
+    </div><p class="muted small" style="text-align:center;margin-top:10px">Photos are cleaned of location and camera data. Files up to ${fmtSize(MAX_FILE())}.</p>`, [["Cancel", () => {}]]);
+  document.querySelectorAll(".attach-grid button").forEach((b) => b.onclick = () => {
+    closeModal(); const f = $("#file");
+    if (b.dataset.a === "file") return $("#file-doc").click();
+    if (b.dataset.a === "camera") f.setAttribute("capture", "environment"); else f.removeAttribute("capture");
+    f.click();
+  });
+}
+function fileDialog(file) {
+  const id = current; if (!conv(id)) return;
+  if (file.size > MAX_FILE()) return toast(`Too large — the limit is ${fmtSize(MAX_FILE())}`);
+  const name = String(file.name || "file").replace(/[\\/\u0000-\u001f]/g, "_").slice(0, 80);
+  modal("Send file", `<div class="filecard" style="width:100%"><span class="fi">${esc((name.split(".").pop() || "FILE").slice(0, 4).toUpperCase())}</span><span><span class="fn" style="display:block">${esc(name)}</span><span class="fs">${fmtSize(file.size)}</span></span></div><p class="muted small mt">Encrypted end to end. Only the people in this chat can open it.</p>`,
+    [["Send", async () => { const data = b64(new Uint8Array(await file.arrayBuffer())); await sendKind(id, "file", { data, name, mime: String(file.type || "").slice(0, 80), size: file.size }); }, "primary"], ["Cancel", () => {}]]);
+}
+const SAFE_TYPES = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", txt: "text/plain" };
+function saveFile(mid) {
+  const m = msgs(current).find((x) => x.mid === mid); if (!m || !m.data) return;
+  const ext = String(m.name || "").split(".").pop().toLowerCase();
+  if (NATIVE && NATIVE.saveFile) { try { NATIVE.saveFile(m.name || "file", SAFE_TYPES[ext] || m.mime || "", m.data); return; } catch {} }
+  // never hand the browser something it could run as a web page (html, svg…): unknown types download as raw bytes
+  const url = URL.createObjectURL(new Blob([unb64(m.data)], { type: SAFE_TYPES[ext] || "application/octet-stream" }));
+  const a = document.createElement("a"); a.href = url; a.download = m.name || "file"; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+// ---------------- voice messages ----------------
+const CAN_RECORD = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder && window.isSecureContext);
+let rec = null, recChunks = [], recStart = 0, recTimer = null, recStream = null, recSend = false;
+async function startRecording() {
+  if (rec) return;
+  try { recStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+  catch { return toast("Microphone access was blocked"); }
+  const type = ["audio/mp4", "audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/webm"].find((t) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || "";
+  rec = new MediaRecorder(recStream, type ? { mimeType: type, audioBitsPerSecond: 32000 } : undefined);
+  recChunks = []; recSend = false; recStart = Date.now();
+  rec.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
+  rec.onstop = async () => {
+    const dur = (Date.now() - recStart) / 1000, mime = rec.mimeType || type || "audio/mp4", id = current, send = recSend;
+    recStream.getTracks().forEach((t) => t.stop()); rec = null; clearInterval(recTimer);
+    $("#rec-bar").classList.add("hidden"); $("#composer").classList.remove("hidden");
+    if (!send || dur < 0.6) return;
+    const buf = new Uint8Array(await new Blob(recChunks, { type: mime }).arrayBuffer());
+    if (buf.length * 1.34 > 1.55e6) return toast("Voice message too long");
+    await sendKind(id, "voice", { data: b64(buf), mime: mime.split(";")[0], dur: Math.round(dur) });
+  };
+  rec.start(250);
+  $("#composer").classList.add("hidden"); $("#rec-bar").classList.remove("hidden"); $("#rec-time").textContent = "0:00";
+  recTimer = setInterval(() => { const s = (Date.now() - recStart) / 1000; $("#rec-time").textContent = fmtDur(s); if (s >= MAX_VOICE_S) stopRecording(true); }, 250);
+}
+function stopRecording(send) { if (!rec) return; recSend = send; try { rec.stop(); } catch {} }
+let playing = null;
+const audioUrls = new Map();
+function toggleVoice(mid) {
+  const p = $("#player");
+  if (playing === mid) { stopVoice(); return; }
+  stopVoice();
+  const m = msgs(current).find((x) => x.mid === mid); if (!m || !m.data) return;
+  if (!audioUrls.has(mid)) audioUrls.set(mid, URL.createObjectURL(new Blob([unb64(m.data)], { type: m.mime || "audio/mp4" })));
+  p.src = audioUrls.get(mid); playing = mid;
+  p.play().catch(() => { toast("This device can't play that recording"); stopVoice(); });
+  p.ontimeupdate = () => {
+    const el = document.querySelector(`[data-voice="${CSS.escape(mid)}"]`); if (!el || !p.duration) return;
+    const bars = el.querySelectorAll(".wave i"), n = Math.round((p.currentTime / (isFinite(p.duration) ? p.duration : m.dur || 1)) * bars.length);
+    bars.forEach((b, i) => b.classList.toggle("p", i < n)); el.querySelector(".vd").textContent = fmtDur(p.currentTime);
+  };
+  p.onended = () => stopVoice();
+  renderMessages(true);
+}
+function stopVoice() { const p = $("#player"); if (!playing) return; p.pause(); p.removeAttribute("src"); playing = null; if (current) renderMessages(true); }
+
 // ---------------- dialogs ----------------
 async function addContact(raw) {
   const m = String(raw || "").toUpperCase().match(ID_FIND);
@@ -842,6 +1204,7 @@ function renameSelf() {
     [["Save", () => { S.me.name = $("#nick").value.trim(); persist(); toast("Saved"); }, "primary"], ["Cancel", () => {}]]);
   $("#nick").value = S.me.name || "";
 }
+function markBackup() { S.settings.backupAt = Date.now(); persist(); if (tab !== "chats") setTab(tab); }
 async function backupDialog() {
   await flush();
   const key = "GHOST3:" + btoa(toB64Blob(await IDB.get(slot)));
@@ -850,8 +1213,8 @@ async function backupDialog() {
     <p class="muted small">Tor Browser erases site data when it closes. Keep this backup somewhere safe to restore your account next time.</p>
     <p class="small warn">Tap “Copy backup”, then paste it into Notes. If copying doesn't work: tap the box below, Select All, Copy.</p>
     <textarea class="keybox" id="bk" rows="6" readonly></textarea>`,
-    [["Copy backup", () => { copy(key, "Backup copied — paste it into Notes"); return true; }, "primary"],
-     ...(BUILTIN_CRYPTO ? [] : [["Download as file", () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([key], { type: "text/plain" })); a.download = "backup.txt"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); return true; }]]),
+    [["Copy backup", () => { copy(key, "Backup copied — paste it into Notes"); markBackup(); return true; }, "primary"],
+     ...(BUILTIN_CRYPTO ? [] : [["Download as file", () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([key], { type: "text/plain" })); a.download = "backup.txt"; a.click(); markBackup(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); return true; }]]),
      ["Done", () => {}]]);
   const bk = $("#bk"); bk.value = key; bk.onfocus = bk.onclick = () => { bk.select(); bk.setSelectionRange(0, key.length); };
 }
@@ -1140,6 +1503,7 @@ function chatMenu() {
   const c = conv(current); if (!c) return;
   if (c.gid) return groupMenu(c);
   menu(displayName(c), `<p class="muted small mono">${c.id}</p>`, [
+    [c.pinned ? "📌  Unpin chat" : "📌  Pin chat", () => { c.pinned = c.pinned ? 0 : Date.now(); persist(); renderList(); toast(c.pinned ? "Pinned" : "Unpinned"); }],
     ["⏱  Disappearing messages", timerDialog], ["🛡️  Verify safety number", safetyDialog],
     ["✏️  Rename contact", renameContact], ["🗑️  Delete chat", deleteChat, "danger"],
   ]);
@@ -1273,22 +1637,38 @@ async function start() {
 }
 
 // ---------------- wiring ----------------
-$("#btn-menu").onclick = mainMenu; $("#btn-chat-menu").onclick = chatMenu; $("#btn-lock").onclick = lockNow;
+document.querySelectorAll(".tab").forEach((b) => b.onclick = () => setTab(b.dataset.tab));
+$("#chips").onclick = (e) => { const c = e.target.closest(".chip"); if (!c) return; listFilter = c.dataset.f; document.querySelectorAll(".chip").forEach((x) => x.classList.toggle("on", x === c)); renderList(); };
+$("#btn-chat-menu").onclick = chatMenu; $("#chat-head").onclick = chatMenu; $("#btn-lock").onclick = lockNow;
 holdToWipe($("#btn-lock")); holdToWipe($("#lock-logo")); holdToWipe($("#calc-clear"));
-$("#fab").onclick = () => menu("Start", "", [["💬  New chat", newChatDialog], ["👥  New group", newGroupDialog]]); $("#btn-share-empty").onclick = myIdDialog; $("#btn-back").onclick = closeChat;
+$("#fab").onclick = () => menu("Start", "", [["💬  New chat", newChatDialog], ["👥  New group", newGroupDialog], ["🔳  Show my QR code", myQrDialog]]);
+$("#btn-qr").onclick = myQrDialog; $("#btn-new-group").onclick = newGroupDialog;
+$("#btn-share-empty").onclick = myQrDialog; $("#btn-back").onclick = closeChat;
+$("#btn-plus").onclick = attachSheet;
 $("#btn-attach").onclick = () => $("#file").click();
 $("#file").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) photoDialog(f); };
+$("#file-doc").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) (f.type.startsWith("image/") && /\.(jpe?g|png|heic|webp)$/i.test(f.name) ? photoDialog(f) : fileDialog(f)); };
 $("#search").oninput = renderList;
-$("#chat-list").onclick = (e) => { const it = e.target.closest(".chat-item"); if (it) openChat(it.dataset.id); };
+$("#chat-list").onclick = (e) => { if (longFired) return; const it = e.target.closest(".chat-item"); if (it) openChat(it.dataset.id); };
+onLongPress($("#chat-list"), ".chat-item", (el) => chatItemMenu(el.dataset.id));
+onLongPress($("#messages"), ".msg", (el) => msgMenu(el.dataset.m));
+$("#messages").addEventListener("dblclick", (e) => { const el = e.target.closest(".msg"); if (el) { const m = msgs(current).find((x) => x.mid === el.dataset.m); if (m && !m.deleted) react(current, m, "❤️"); } });
+$("#btn-find").onclick = openFind; $("#find-close").onclick = closeFind;
+$("#find-input").oninput = (e) => { findQ = e.target.value.trim(); renderMessages(); };
+$("#rb-close").onclick = cancelReply;
+if (!CAN_RECORD) $("#composer").classList.add("no-mic");
+$("#btn-mic").onclick = () => { if (conv(current)?.removed) return toast("You're no longer in this group"); startRecording(); };
+$("#rec-cancel").onclick = () => stopRecording(false); $("#rec-send").onclick = () => stopRecording(true);
 const input = $("#msg-input");
-input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 140) + "px"; });
+const syncComposer = () => $("#composer").classList.toggle("has-text", !!input.value.trim());
+input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 140) + "px"; syncComposer(); });
 input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && matchMedia("(min-width: 800px)").matches) { e.preventDefault(); $("#composer").requestSubmit(); } });
-$("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.trim(); if (!t) return; if (conv(current)?.removed) return toast("You're no longer in this group"); input.value = ""; input.style.height = "auto"; sendText(t); input.focus(); };
+$("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.trim(); if (!t) return; if (conv(current)?.removed) return toast("You're no longer in this group"); input.value = ""; input.style.height = "auto"; syncComposer(); sendText(t); input.focus(); };
 
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "GhostChat v5.7 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "GhostChat v6.0 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions

@@ -15,6 +15,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.content.Context
 import android.webkit.CookieManager
+import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -38,6 +39,7 @@ class MainActivity : Activity() {
     lateinit var web: WebView
     lateinit var mesh: Mesh
     private var fileCallback: ValueCallback<Array<Uri>>? = null
+    private var pendingMic: PermissionRequest? = null
     private var pendingMeshId: String? = null
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -73,6 +75,18 @@ class MainActivity : Activity() {
                 request.url.host != HOST
         }
         web.webChromeClient = object : WebChromeClient() {
+            // voice messages: the microphone only, and only after Android's own permission prompt
+            override fun onPermissionRequest(request: PermissionRequest) {
+                runOnUiThread {
+                    if (request.origin.host != HOST || !request.resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) { request.deny(); return@runOnUiThread }
+                    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        request.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
+                    } else {
+                        pendingMic = request
+                        requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_MIC)
+                    }
+                }
+            }
             override fun onShowFileChooser(view: WebView, cb: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
                 fileCallback?.onReceiveValue(null)
                 fileCallback = cb
@@ -102,6 +116,7 @@ class MainActivity : Activity() {
             "js" -> "text/javascript"
             "css" -> "text/css"
             "svg" -> "image/svg+xml"
+            "png" -> "image/png"
             "json", "webmanifest" -> "application/json"
             else -> "application/octet-stream"
         }
@@ -137,6 +152,12 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_MIC) {
+            val ok = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+            pendingMic?.let { if (ok) it.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) else it.deny() }
+            pendingMic = null
+            return
+        }
         if (requestCode == REQ_BT && grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
             pendingMeshId?.let { mesh.start(it) }
         }
@@ -192,7 +213,8 @@ class MainActivity : Activity() {
         const val REQ_FILE = 1
         const val REQ_BT = 2
         const val REQ_VISIBLE = 3
-        const val CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; " +
+        const val REQ_MIC = 4
+        const val CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src blob:; " +
             "connect-src 'self' http: https: ws: wss:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
         fun q(s: String): String = JSONObject.quote(s)
     }

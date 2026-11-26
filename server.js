@@ -16,7 +16,7 @@ const PORT = +process.env.PORT || 3000;
 const HOST = process.env.HOST || "127.0.0.1";           // localhost only: reachable only through Tor
 const DATA_FILE = process.env.DATA_FILE || "memory";     // "memory" = RAM only, nothing on disk
 const PUBLIC_DIR = path.join(__dirname, "public");
-const MAX_ENV = 1024 * 1024;                 // max size of one sealed envelope (base64; a full-size photo is ~700 KB)
+const MAX_ENV = 6 * 1024 * 1024;             // max size of one sealed envelope (base64): photos ~0.7 MB, files up to 2 MB become ~3.6 MB
 const MAX_QUEUE_BYTES = 25 * 1024 * 1024;    // max waiting data per user
 const MAX_QUEUE = 1000;                      // max waiting envelopes per user
 const QUEUE_TTL = 7 * 24 * 3600 * 1000;      // undelivered envelopes are destroyed after 7 days
@@ -90,7 +90,7 @@ setInterval(() => {
 for (const q of Object.values(db.queue)) for (const m of q) queueBytes += m.env.length;
 
 // ---------- HTTP ----------
-const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json" };
+const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".png": "image/png" };
 function headers(res, host) {
   const h = /^[a-z0-9.-]+(:\d+)?$/i.test(host || "") ? host : "";
   res.setHeader("Referrer-Policy", "no-referrer");
@@ -98,8 +98,8 @@ function headers(res, host) {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
-  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()");
-  res.setHeader("Content-Security-Policy", `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'${h ? ` ws://${h} wss://${h}` : ""}; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`);
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(self), geolocation=(), interest-cohort=()");
+  res.setHeader("Content-Security-Policy", `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src blob:; connect-src 'self'${h ? ` ws://${h} wss://${h}` : ""}; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`);
   res.setHeader("Cache-Control", "no-store");
   res.removeHeader("X-Powered-By");
 }

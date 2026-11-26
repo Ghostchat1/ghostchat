@@ -155,7 +155,7 @@ report("W03", "PASS" if r.get("error") == "auth failed" else "FAIL", "Replay of 
 w, n = ws_open()
 w.send(json.dumps({"t": "drop", "to": "AAAA-BBBB-CCCC-DDDD", "mid": "m" * 10, "env": "x"})); r1 = json.loads(w.recv())
 w.send(json.dumps({"t": "drop", "to": victim.id, "mid": "<script>", "env": "x"})); r2 = json.loads(w.recv())
-w.send(json.dumps({"t": "drop", "to": victim.id, "mid": "okmid12345", "env": "x" * (700 * 1024)}))
+w.send(json.dumps({"t": "drop", "to": victim.id, "mid": "okmid12345", "env": "x" * (6 * 1024 * 1024 + 1)}))
 try: r3 = json.loads(w.recv())
 except Exception as e: r3 = {"closed": str(e)[:40]}
 report("W04", "PASS" if r1.get("t") == "error" and r2.get("t") == "error" and r3.get("t") != "queued" else "FAIL", "Drop validation (unknown recipient, bad mid, oversize)", f"{r1.get('t')}/{r2.get('t')}/{r3}")
