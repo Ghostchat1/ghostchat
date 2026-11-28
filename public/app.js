@@ -1267,6 +1267,7 @@ function msgMenu(mid) {
   if (m.me && !m.deleted && m.text && !m.kind && Date.now() - m.ts < EDIT_MS && !(c && c.ann && c.admin !== S.me.id)) items.push(["✏️  Edit", () => startEdit(m)]);
   items.push(["🗑️  Delete", () => deleteSheet([m]), "danger"]);
   items.push(["⋯  More…", () => menu("", `<div class="preview-msg">${esc(preview(m))}</div>`, [
+    ["‹  Back", () => msgMenu(mid), "back"],
     ...(!m.deleted ? [[c && c.pinMsg === m.mid ? "📌  Unpin" : "📌  Pin", () => pinMsg(id, m)]] : []),
     ["ℹ️  Info", () => msgInfo(m)],
     ...(!m.deleted ? [[m.star ? "☆  Unstar" : "⭐  Star", () => { m.star = !m.star; persist(); renderMessages(true); }]] : []),

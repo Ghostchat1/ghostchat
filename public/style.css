@@ -456,3 +456,4 @@ textarea.keybox { width: 100%; resize: none; -webkit-user-select: text; user-sel
 .pin-bar svg { width: 18px; height: 18px; color: var(--gold); flex: none; }
 .pin-bar span { display: flex; flex-direction: column; font-size: 13.5px; color: var(--muted); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pin-bar b { color: var(--gold2); font-size: 12.5px; }
+.menu-item.back { color: var(--gold2); font-weight: 600; }
