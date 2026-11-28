@@ -19,7 +19,7 @@ async function refresh() {
     $("#stats").innerHTML = [
       stat(s.users, "registered IDs (RAM)"), stat(s.online, "online now"), stat(s.onlinePlus, "Plus online"), stat(s.onlineWork, "Work online"),
       stat(sum(s.issued), "codes made"), stat(s.used, "codes used"), stat(s.filesMB + " MB", `files waiting (${s.files})`), stat(s.queueMB + " MB", "messages waiting"),
-      stat(`${s.ramMB} / ${s.ramTotalMB} MB`, "server memory"), stat(s.load, "CPU load"), stat(dur(s.uptime), "up for"), stat(s.calls ? "on" : "off", "calls relay"),
+      stat(`${s.ramMB} MB · ${s.freeMB} free`, `of ${s.ramTotalMB} MB${s.tight ? " ⚠️ LOW" : ""}`), stat(`${s.sockets} / ${s.caps.sockets}`, "connections (2 per phone)"), stat(`${s.users} / ${s.caps.users}`, "ID capacity"), stat(s.load, "CPU load"), stat(dur(s.uptime), "up for"), stat(s.calls ? "on" : "off", "calls relay"),
     ].join("") + `<div class="stat" style="grid-column:1/-1"><span>Redeemed by plan: ${esc(red)} · ${esc(s.version)}</span></div>`;
     if (document.activeElement !== $("#notice")) $("#notice").value = s.notice || "";
     return true;

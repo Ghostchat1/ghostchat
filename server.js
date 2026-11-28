@@ -28,9 +28,13 @@ const RAW_LEN = 97;                          // uncompressed P-384 public key
 const KEM_LEN = 1184;                        // ML-KEM-768 public key (post-quantum)
 // --- abuse limits (VAPT fixes W06–W08) ---
 const POW_BITS = +process.env.POW_BITS || 18;                      // signup proof-of-work (~0.3–3 s per account)
-const MAX_USERS = +process.env.MAX_USERS || 100000;                // global account cap (RAM safety)
-const MAX_CONNS = +process.env.MAX_CONNS || 3000;                  // global socket cap
-const GLOBAL_QUEUE_BYTES = +process.env.GLOBAL_QUEUE_BYTES || 512 * 1024 * 1024;
+// Stress test 2026-11-28 (1 vCPU / 1 GB replica): ~4 KB RAM per online socket here, ~8 KB per registered ID,
+// but the TLS proxy in front (Caddy) needs ~80 KB per socket and every online phone keeps 2 sockets.
+// So the safety caps scale with the machine's RAM instead of being fixed (override with env vars).
+const RAM_MB = Math.round(os.totalmem() / 1048576);
+const MAX_USERS = +process.env.MAX_USERS || Math.max(5000, RAM_MB * 30);              // 1 GB → ~30k IDs
+const MAX_CONNS = +process.env.MAX_CONNS || Math.max(1000, RAM_MB * 4);               // 1 GB → ~4k sockets ≈ 2k phones online
+const GLOBAL_QUEUE_BYTES = +process.env.GLOBAL_QUEUE_BYTES || Math.min(512, Math.round(RAM_MB * 0.15)) * 1024 * 1024;
 const DROPS_PER_MIN = +process.env.DROPS_PER_MIN || 120;           // per recipient
 const IDLE_MS = 15 * 60 * 1000;                                    // close silent sockets
 
@@ -84,7 +88,14 @@ const concat = (...a) => { const o = new Uint8Array(a.reduce((n, x) => n + x.len
 const validId = (id) => typeof id === "string" && /^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(id);
 // Audit 2026-11 M3: signup gets harder as the server fills up, so mass account creation can't exhaust RAM.
 const powBits = () => POW_BITS + Math.min(3, Math.floor(Object.keys(db.users).length / 25000));
-const memTight = () => process.memoryUsage().rss > 0.7 * os.totalmem();
+// "tight" = this process is big, OR the whole machine is low on free memory (Caddy, Tor and coturn share it)
+function memAvailable() { try { return +fs.readFileSync("/proc/meminfo", "utf8").match(/MemAvailable:\s+(\d+)/)[1] * 1024; } catch { return os.freemem(); } }
+let memCache = { t: 0, v: false };
+const memTight = () => {
+  const now = Date.now(); if (now - memCache.t < 1000) return memCache.v;
+  memCache = { t: now, v: process.memoryUsage().rss > 0.7 * os.totalmem() || memAvailable() < Math.max(96 * 1048576, 0.1 * os.totalmem()) };
+  return memCache.v;
+};
 const powOk = (sign, pow) => {
   if (typeof pow !== "string" || pow.length > 32) return false;
   const h = createHash("sha256").update("gc-pow:" + sign + ":" + pow).digest();
@@ -151,7 +162,7 @@ setInterval(() => { const now = Date.now(); for (const [k, v] of moves) if (v.ex
 // Files over ~1 MB are encrypted on the sender's phone with a one-off key, uploaded here as ciphertext,
 // and the key travels inside the end-to-end encrypted message. We store only unreadable bytes, in RAM,
 // for at most 7 days or until downloaded by every member (max 64 downloads).
-const BLOB_MAX = +process.env.BLOB_MAX || 65 * 1024 * 1024, BLOB_TOTAL = +process.env.BLOB_TOTAL || 300 * 1024 * 1024, BLOB_TTL = 7 * 24 * 3600 * 1000;
+const BLOB_MAX = +process.env.BLOB_MAX || 65 * 1024 * 1024, BLOB_TOTAL = +process.env.BLOB_TOTAL || Math.min(300, Math.round(RAM_MB * 0.2)) * 1024 * 1024, BLOB_TTL = 7 * 24 * 3600 * 1000;
 const blobs = new Map(); let blobBytes = 0;
 setInterval(() => { const now = Date.now(); for (const [k, v] of blobs) if (v.exp < now) { blobBytes -= v.buf.length; blobs.delete(k); } }, 10 * 60 * 1000);
 // Audit 2026-11 M2: uploads need a one-time token that only a signed-in ID can get (over its inbox socket),
@@ -345,7 +356,7 @@ const server = http.createServer(async (req, res) => {
       const len = +req.headers["content-length"] || 0, lim = limitsOf(tok.tier), max = Math.min(BLOB_MAX, lim.blob + 64);
       if (len > max) { const e = new Error("big"); e.code = 413; throw e; }
       const use = useOf(tok.uid); if (use.bytes + len > lim.daily) return sendJson(res, 429, { error: "daily limit" });
-      if (blobBytes + len > BLOB_TOTAL) return sendJson(res, 503, { error: "busy" });
+      if (blobBytes + len > BLOB_TOTAL || memTight()) return sendJson(res, 503, { error: "busy" });
       const buf = await readRaw(req, max);
       if (buf.length < 28 || blobBytes + buf.length > BLOB_TOTAL) return sendJson(res, 400, { error: "bad request" });
       const id = randomId().replace(/[+/=]/g, "").slice(0, 32);
@@ -386,6 +397,7 @@ const server = http.createServer(async (req, res) => {
           ramMB: Math.round(process.memoryUsage().rss / 1048576), ramTotalMB: Math.round(os.totalmem() / 1048576), load: os.loadavg()[0].toFixed(2),
           issued: plans.issued, redeemed: plans.redeemed, used: plans.spentSet.size, revoked: plans.revokedSet.size, notice: plans.notice || "",
           limits: LIMITS, calls: !!(process.env.TURN_SECRET && process.env.TURN_HOST),
+          caps: { users: MAX_USERS, sockets: MAX_CONNS, queueMB: Math.round(GLOBAL_QUEUE_BYTES / 1048576), filesMB: Math.round(BLOB_TOTAL / 1048576) }, freeMB: Math.round(memAvailable() / 1048576), tight: memTight(),
         });
       }
       if (op === "vouchers") {
@@ -478,7 +490,7 @@ const server = http.createServer(async (req, res) => {
 // The app sends through a drop socket, so the server cannot link a message to its sender.
 const wss = new WebSocketServer({
   server, path: "/ws", maxPayload: MAX_ENV + 4096,
-  verifyClient: (_info, done) => done(wss.clients.size < MAX_CONNS, 503, "busy"), // refuse at the handshake (VAPT fix W08)
+  verifyClient: (_info, done) => done(wss.clients.size < MAX_CONNS && !(wss.clients.size > 200 && memTight()), 503, "busy"), // refuse at the handshake (VAPT fix W08)
 });
 const online = new Map();
 const deliver = (id, obj) => { const s = JSON.stringify(obj); for (const ws of online.get(id) || []) if (ws.readyState === 1) ws.send(s); };
@@ -520,7 +532,7 @@ wss.on("connection", (ws) => {
         // ("busy"); the sender's app keeps the message and retries later.
         const r = dropRate.get(to) || { t: now, n: 0 }; if (now - r.t > 60000) { r.t = now; r.n = 0; }
         const qBytes = q.reduce((n, x) => n + x.env.length, 0);
-        if (++r.n > DROPS_PER_MIN || q.length >= MAX_QUEUE || qBytes + m.env.length > MAX_QUEUE_BYTES || queueBytes + m.env.length > GLOBAL_QUEUE_BYTES) {
+        if (++r.n > DROPS_PER_MIN || (!online.has(to) && memTight()) || q.length >= MAX_QUEUE || qBytes + m.env.length > MAX_QUEUE_BYTES || queueBytes + m.env.length > GLOBAL_QUEUE_BYTES) {
           dropRate.set(to, r); return ws.send(JSON.stringify({ t: "error", error: "busy", mid: m.mid }));
         }
         dropRate.set(to, r);
