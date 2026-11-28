@@ -1,15 +1,20 @@
-# Weekly checks for security updates in everything Raazdar depends on.
+# Weekly checks for updates in everything Raazdar depends on. Only minor and patch updates are proposed
+# automatically; big (major) upgrades can break the build and are done by hand after testing.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: "/"
     schedule: { interval: weekly }
+    ignore: [{ dependency-name: "*", update-types: ["version-update:semver-major"] }]
   - package-ecosystem: npm
     directory: "/desktop"
     schedule: { interval: weekly }
+    ignore: [{ dependency-name: "*", update-types: ["version-update:semver-major"] }]
   - package-ecosystem: gradle
     directory: "/android"
     schedule: { interval: weekly }
+    ignore: [{ dependency-name: "*", update-types: ["version-update:semver-major"] }]
   - package-ecosystem: github-actions
     directory: "/"
     schedule: { interval: weekly }
+    ignore: [{ dependency-name: "*", update-types: ["version-update:semver-major"] }]

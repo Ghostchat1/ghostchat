@@ -46,7 +46,7 @@ else ok "Node.js $(node -v) (supported LTS)"; fi
 apt-get install -y -qq unattended-upgrades >/dev/null 2>&1 && dpkg-reconfigure -f noninteractive unattended-upgrades >/dev/null 2>&1 && ok "Automatic security updates on"
 
 # report-only checks (changing these could lock you out, so they are left to you)
-if grep -qiE '^\s*PasswordAuthentication\s+yes' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null; then
+if sshd -T 2>/dev/null | grep -qi '^passwordauthentication yes'; then
   warn "SSH still accepts passwords. Use SSH keys only (see the security report)."
 else ok "SSH: password login is not enabled"; fi
 sleep 2; systemctl is-active --quiet ghostchat && ok "Raazdar is running" || warn "Raazdar isn't running: journalctl -u ghostchat -n 20"
