@@ -655,17 +655,23 @@ async function onEnvelope(m, viaMesh) {
   }
   const ts = Date.now(), timer = +body.timer || 0, exp = timer ? ts + timer : 0;
   const re = body.re && typeof body.re === "object" ? { re: { mid: safeMid(body.re.mid), who: ID_RE.test(body.re.who) ? body.re.who : "", text: String(body.re.text || "").slice(0, 140) } } : {};
-  let msg;
+  let msg, cleanImg = null;
+  if (k === "img" && typeof body.data === "string" && body.data.length < 700000) { // Safe Media: rebuild every photo from its pixels
+    cleanImg = await cleanImage(body.data);
+    if (list.some((x) => x.mid === mid)) return;
+    if (!cleanImg) { list.push({ mid, sys: true, text: `🛡️ Raazdar blocked a damaged or fake photo from ${displayName(c)}. It wasn't a real image.`, ts }); persist(); if (current === cid) renderMessages(); return; }
+  }
   if (k === "timer" && !isGroup(cid)) {
     target.timer = TIMERS.some((t) => t[0] === +body.timer) ? +body.timer : 0;
     list.push({ mid, sys: true, text: target.timer ? `${displayName(c)} turned on disappearing messages (${timerLabel(target.timer)})` : `${displayName(c)} turned off disappearing messages`, ts });
   } else if (k === "text") msg = { mid, from, me: false, text: String(body.text || "").slice(0, 4000), ts, exp, ...re };
-  else if (k === "img" && typeof body.data === "string" && body.data.length < 700000) msg = { mid, from, me: false, kind: "img", data: body.data, once: !!body.once, w: +body.w || 0, h: +body.h || 0, ts, exp, ...re };
+  else if (k === "img" && typeof body.data === "string" && body.data.length < 700000) msg = { mid, from, me: false, kind: "img", data: cleanImg, once: !!body.once, w: +body.w || 0, h: +body.h || 0, ts, exp, ...re };
   else if (k === "file" && body.blob && typeof body.blob === "object" && /^[A-Za-z0-9]{16,40}$/.test(body.blob.id) && unb64(String(body.blob.k || "")).length === 32 && unb64(String(body.blob.iv || "")).length === 12 && /^[0-9a-f]{64}$/.test(body.blob.h))
     msg = { mid, from, me: false, kind: "file", blob: { id: body.blob.id, k: body.blob.k, iv: body.blob.iv, h: body.blob.h }, name: String(body.fname || "file").replace(/[\\/\u0000-\u001f]/g, "_").slice(0, 80), mime: String(body.mime || "").slice(0, 80), size: Math.min(+body.size || 0, BIG_MAX), ts, exp, ...re };
-  else if (k === "file" && typeof body.data === "string" && body.data.length < 2.9e6) msg = { mid, from, me: false, kind: "file", data: body.data, name: String(body.fname || "file").replace(/[\\/\u0000-\u001f]/g, "_").slice(0, 80), mime: String(body.mime || "").slice(0, 80), size: +body.size || 0, ts, exp, ...re };
+  else if (k === "file" && typeof body.data === "string" && body.data.length < 2.9e6) { msg = { mid, from, me: false, kind: "file", data: body.data, name: String(body.fname || "file").replace(/[\\/\u0000-\u001f]/g, "_").slice(0, 80), mime: String(body.mime || "").slice(0, 80), size: +body.size || 0, ts, exp, ...re }; msg.verdict = fileVerdict(unb64(body.data), msg.name); }
   else if (k === "voice" && typeof body.data === "string" && body.data.length < 1.6e6) msg = { mid, from, me: false, kind: "voice", data: body.data, mime: String(body.mime || "audio/mp4").slice(0, 60), dur: Math.min(600, +body.dur || 0), ts, exp, ...re };
   else return;
+  if (msg && msg.kind === "file" && msg.blob && !msg.verdict) { const v = fileVerdict(null, msg.name); if (v.level !== "ok") msg.verdict = v; } // name check now, full check after download
   if (msg) {
     list.push(msg); target.last = { text: (isGroup(cid) ? displayName(c) + ": " : "") + preview(msg), ts, me: false };
     if (current !== cid || document.hidden) { target.unread = (target.unread || 0) + 1; notify(); }
@@ -892,7 +898,7 @@ function renderYou() {
       ${rowItem("info", "Security details", "Encryption, keys and connection", 'data-act="secinfo"')}
       ${rowItem("heart", "Invite a friend", "Share your private invite link", 'data-act="invite"')}
     </div>
-    <p class="ver">Raazdar 6.7 · no phone · no email · no trace</p>`;
+    <p class="ver">Raazdar 6.8 · no phone · no email · no trace</p>`;
   $("#you-name").onclick = renameSelf;
   $("#you-qr").onclick = myQrDialog;
   $("#you-share").onclick = shareInvite;
@@ -970,15 +976,91 @@ function waveBars(m) { // stable pseudo-waveform from the audio bytes
   for (let i = 0; i < 28; i++) { const c = d.charCodeAt(Math.floor((i + 1) * d.length / 30)) || 70; out += `<i class="h${(c * 37 + i * 13) % 9}"></i>`; }
   return out;
 }
+// ---------------- Safe Media shield ----------------
+// Scam apps arrive as "Wedding Invitation.apk", "Bank KYC.pdf.apk" or files whose name lies about what they are.
+// Everything here runs on the phone after decryption: the server never sees the files.
+const BIDI = /[‪-‮⁦-⁩‎‏؜]/g;
+const DANGER_EXT = /\.(apk|apks|xapk|apkm|aab|exe|msi|msix|scr|com|pif|bat|cmd|ps1|vbs|vbe|js|jse|wsf|wsh|hta|jar|lnk|dll|cpl|reg|sh|run|bin|dmg|pkg|ipa|iso|img|appx)$/i;
+const MACRO_EXT = /\.(docm|xlsm|pptm|dotm|xltm|xlam|ppsm)$/i;
+const EXT_TYPES = { jpg: ["jpeg"], jpeg: ["jpeg"], png: ["png"], gif: ["gif"], webp: ["webp"], heic: ["mp4"], pdf: ["pdf"], mp4: ["mp4"], mov: ["mp4"], m4a: ["mp4"], m4v: ["mp4"], "3gp": ["mp4"], webm: ["webm"], mp3: ["mp3", "unknown"], docx: ["docx", "zip"], xlsx: ["xlsx", "zip"], pptx: ["pptx", "zip"], zip: ["zip", "docx", "xlsx", "pptx"], doc: ["office-legacy"], xls: ["office-legacy"], ppt: ["office-legacy"], txt: ["unknown"], csv: ["unknown"], rar: ["rar"], "7z": ["7z"] };
+const APPISH = { "android-app": "an Android app (APK)", "android-code": "Android app code", "windows-app": "a Windows program", "linux-app": "a Linux program", "mac-app": "a Mac program", "java-app": "a Java program", script: "a script", webpage: "a web page" };
+const latin1 = (b, n) => new TextDecoder("latin1").decode(b.subarray(0, Math.min(b.length, n || 4e6)));
+function sniff(b) { // what the file really is, from its first bytes, whatever its name says
+  const at = (o, sig) => b.length >= o + sig.length && sig.every((x, i) => b[o + i] === x);
+  if (at(0, [0x4d, 0x5a])) return "windows-app";
+  if (at(0, [0x7f, 0x45, 0x4c, 0x46])) return "linux-app";
+  if (at(0, [0xcf, 0xfa, 0xed, 0xfe]) || at(0, [0xce, 0xfa, 0xed, 0xfe]) || at(0, [0xfe, 0xed, 0xfa, 0xcf])) return "mac-app";
+  if (at(0, [0x64, 0x65, 0x78, 0x0a])) return "android-code";
+  if (at(0, [0x50, 0x4b, 0x03, 0x04]) || at(0, [0x50, 0x4b, 0x05, 0x06])) {
+    const t = latin1(b);
+    if (/AndroidManifest\.xml|classes\d*\.dex/.test(t)) return "android-app";
+    if (/vbaProject\.bin/.test(t)) return "office-macro";
+    if (/META-INF\/MANIFEST\.MF/.test(t) && /\.class/.test(t)) return "java-app";
+    if (/\[Content_Types\]\.xml/.test(t)) return /word\//.test(t) ? "docx" : /xl\//.test(t) ? "xlsx" : /ppt\//.test(t) ? "pptx" : "zip";
+    return "zip";
+  }
+  if (at(0, [0xd0, 0xcf, 0x11, 0xe0])) return "office-legacy";
+  if (at(0, [0x25, 0x50, 0x44, 0x46])) return "pdf";
+  if (at(0, [0xff, 0xd8, 0xff])) return "jpeg";
+  if (at(0, [0x89, 0x50, 0x4e, 0x47])) return "png";
+  if (at(0, [0x47, 0x49, 0x46, 0x38])) return "gif";
+  if (at(0, [0x52, 0x49, 0x46, 0x46]) && at(8, [0x57, 0x45, 0x42, 0x50])) return "webp";
+  if (at(4, [0x66, 0x74, 0x79, 0x70])) return "mp4";
+  if (at(0, [0x1a, 0x45, 0xdf, 0xa3])) return "webm";
+  if (at(0, [0x49, 0x44, 0x33]) || at(0, [0xff, 0xfb])) return "mp3";
+  if (at(0, [0x52, 0x61, 0x72, 0x21])) return "rar";
+  if (at(0, [0x37, 0x7a, 0xbc, 0xaf])) return "7z";
+  const head = latin1(b, 1024).replace(/^﻿/, "").trimStart().toLowerCase();
+  if (head.startsWith("#!") || head.startsWith("@echo") || /^(set |dim |function |var |const |powershell)/.test(head)) return "script";
+  if (/^<(\?xml[^>]*>\s*<)?(!doctype html|html|script|svg|iframe|head|body)/.test(head)) return "webpage";
+  return "unknown";
+}
+function fileVerdict(bytes, name) {
+  const n = String(name || ""), ext = (n.split(".").pop() || "").toLowerCase(), real = bytes ? sniff(bytes) : "unknown";
+  if (BIDI.test(n)) { BIDI.lastIndex = 0; return { level: "danger", block: true, why: "The file name uses hidden characters to fake its type. This is a known trick." }; }
+  const lies = EXT_TYPES[ext] && real !== "unknown" && !EXT_TYPES[ext].includes(real);
+  if (APPISH[real]) return lies ? { level: "danger", block: true, why: `Disguised file: it's named like a .${ext} but it's really ${APPISH[real]}. This is how scam "invitation" apps work.` }
+    : { level: "danger", why: `This is ${APPISH[real]}. Apps sent in chats (invitations, bank or KYC "updates", job offers) are how phones get hacked. Don't install it.` };
+  if (DANGER_EXT.test(n)) return { level: "danger", why: "This kind of file can install or run programs on your device. Don't open it unless you asked for it." };
+  if (real === "office-macro" || MACRO_EXT.test(n)) return { level: "danger", why: "This document contains macros (hidden programs). If you open it, never click \"Enable content\"." };
+  if (lies) return { level: "danger", block: true, why: `The file is named .${ext} but its contents are something else (${real}). It's disguised.` };
+  if (real === "pdf" && /\/JavaScript|\/JS\s*[(<]|\/Launch|\/EmbeddedFile|\/RichMedia/.test(latin1(bytes))) return { level: "warn", why: "This PDF contains scripts or attached files. Open it only if you trust the sender." };
+  if (/^(zip|rar|7z)$/.test(real)) return { level: "warn", why: "Compressed folder. Check what's inside before opening anything, and never install apps from it." };
+  if (real === "office-legacy") return { level: "warn", why: "Older Office file. If it asks you to enable macros or editing, don't." };
+  return { level: "ok", why: "" };
+}
+async function cleanImage(data) { // decode the pixels and draw a brand-new JPEG: anything hidden in or after the image is thrown away
+  try {
+    const bytes = unb64(data), real = sniff(bytes);
+    if (!/^(jpeg|png|webp|gif)$/.test(real)) return null;
+    const blob = new Blob([bytes], { type: "image/" + real }), url = URL.createObjectURL(blob);
+    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = url; });
+    URL.revokeObjectURL(url);
+    const w = img.naturalWidth, h = img.naturalHeight; if (!w || !h || w * h > 40e6) return null;
+    const sc = Math.min(1, 2048 / Math.max(w, h)), cv = document.createElement("canvas");
+    cv.width = Math.max(1, Math.round(w * sc)); cv.height = Math.max(1, Math.round(h * sc));
+    const ctx = cv.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height); ctx.drawImage(img, 0, 0, cv.width, cv.height);
+    const out = await new Promise((r) => cv.toBlob(r, "image/jpeg", 0.86));
+    return out ? b64(new Uint8Array(await out.arrayBuffer())) : null;
+  } catch { return null; }
+}
+const RISKY_LINK = /(https?:\/\/|www\.|\b[a-z0-9-]+\.(apk|xyz|top|click|link|info|ru|cn|tk|ml|ga|cf|gq|zip|mov)\b|bit\.ly|tinyurl|t\.co\/|is\.gd|cutt\.ly|rb\.gy|xn--)/i;
+function shieldLine(m) {
+  const v = m.verdict; if (!v || v.level === "ok") return "";
+  return `<div class="mshield s-${v.level}">${v.level === "danger" ? "⛔" : "⚠️"} ${esc(v.why)}</div>`;
+}
 function bubbleBody(m) {
   if (m.deleted) return `<span class="deleted">This message was deleted</span>`;
   if (m.kind === "file") {
     const ext = (String(m.name || "").split(".").pop() || "FILE").slice(0, 4).toUpperCase();
-    if (m.blob && m.got && /^video\//.test(m.mime || "")) return `<video class="video" data-vid="${esc(m.mid)}" controls playsinline preload="metadata"></video><button class="filecard slim" data-file="${esc(m.mid)}"><span class="fn">${esc(m.name || "video")}</span><span class="fs">${fmtSize(m.size || 0)} · save</span></button>`;
-    return `<button class="filecard" data-file="${esc(m.mid)}"><span class="fi">${esc(ext)}</span><span><span class="fn">${esc(m.name || "file")}</span><span class="fs">${fmtSize(m.size || 0)} · ${m.blob && !m.got ? "tap to download" : "tap to save"}</span></span></button>`;
+    if (m.blob && m.got && /^video\//.test(m.mime || "") && (m.me || (m.verdict && m.verdict.level === "ok"))) return `<video class="video" data-vid="${esc(m.mid)}" controls playsinline preload="metadata"></video><button class="filecard slim" data-file="${esc(m.mid)}"><span class="fn">${esc(m.name || "video")}</span><span class="fs">${fmtSize(m.size || 0)} · save</span></button>`;
+    const lvl = m.verdict ? m.verdict.level : "", from = !m.me && conv(current) && conv(current).request;
+    const act = m.verdict && m.verdict.block ? "blocked" : from ? "accept the chat to open" : m.blob && !m.got ? "tap to download and check" : "tap to save";
+    return `<button class="filecard ${lvl ? "f-" + lvl : ""}" data-file="${esc(m.mid)}"><span class="fi">${esc(ext)}</span><span><span class="fn">${esc((m.name || "file").replace(BIDI, "�"))}</span><span class="fs">${fmtSize(m.size || 0)} · ${act}</span></span></button>${shieldLine(m)}`;
   }
   if (m.kind === "voice") return `<div class="voice" data-voice="${esc(m.mid)}"><button class="play" data-play="${esc(m.mid)}" aria-label="Play">${playing === m.mid ? IC.pause : IC.play}</button><div class="wave">${waveBars(m)}</div><span class="vd">${fmtDur(m.dur || 0)}</span></div>`;
-  if (m.kind !== "img") return esc(m.text);
+  if (m.kind !== "img") return esc(m.text) + (!m.me && conv(current) && conv(current).request && RISKY_LINK.test(m.text || "") ? `<div class="mshield s-warn">⚠️ This message from someone you haven't added contains a link. Scammers use fake invitations, prizes and bank alerts. Don't open it or share codes.</div>` : "");
+  if (!m.me && !m.revealed && conv(current) && conv(current).request && m.data && !m.once) return `<button class="once open" data-reveal="${esc(m.mid)}">🛡️ Photo from someone you haven't added · tap to view</button>`;
   if (m.data && !m.once) return `<img class="photo" src="${esc(photoUrl(m.mid, m.data))}" data-mid="${esc(m.mid)}" alt="Photo" />`;
   if (m.me) return `<span class="once">📷 View-once photo</span>`;
   if (m.data) return `<button class="once open" data-mid="${esc(m.mid)}">📷 View-once photo · tap to open</button>`;
@@ -990,7 +1072,7 @@ function renderMessages(keepScroll) {
   headerFor(c);
   const grp = !!c.gid, box = $("#messages"), prev = box.scrollTop, atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
   let html = `<div class="sys">🔒 Post-quantum, sealed-sender encryption. The server can't read these messages or see who sent them.</div>`;
-  if (c.request) html += `<div class="sys">${grp ? "Someone you haven't added put you in this group." : "Someone you haven't added messaged you."} They only know your anonymous ID. Reply to accept, or ${grp ? "leave the group" : "delete the chat"}.</div>`;
+  if (c.request) html += `<div class="sys request-box">🛡️ ${grp ? "Someone you haven't added put you in this group." : "Someone you haven't added messaged you."} They only know your anonymous ID. Until you accept, their photos are hidden and their files stay locked.<br><b>Be careful:</b> fake wedding invitations, bank/KYC alerts, prizes and job offers are common scams. Never install an app sent in a chat.<span class="req-actions"><button class="btn primary small" data-req="accept">Accept</button><button class="btn ghost small" data-req="block">${grp ? "Leave" : "Block"}</button></span></div>`;
   if (c.removed) html += `<div class="sys">You're no longer a member of this group.</div>`;
   if (!grp && (S.blocked || {})[c.id]) html += `<div class="sys">You blocked this contact. Unblock from the ⋮ menu to receive their messages.</div>`;
   let lastDay = "", hits = 0;
@@ -1026,6 +1108,8 @@ $("#messages").addEventListener("click", (e) => {
   if (longFired) return;
   const j = e.target.closest("[data-jump]"); if (j) return jumpTo(j.dataset.jump);
   const p = e.target.closest("[data-play]"); if (p) return toggleVoice(p.dataset.play);
+  const rv = e.target.closest("[data-reveal]"); if (rv) { const m = msgs(current).find((x) => x.mid === rv.dataset.reveal); if (m) { m.revealed = true; renderMessages(true); } return; }
+  const rq = e.target.closest("[data-req]"); if (rq) { const c = conv(current); if (!c) return; if (rq.dataset.req === "accept") { c.request = false; persist(); renderList(); renderMessages(true); toast("Accepted"); } else if (c.gid) leaveGroup(c); else toggleBlock(c.id); return; }
   const f = e.target.closest("[data-file]"); if (f) return saveFile(f.dataset.file);
   const t = e.target.closest("[data-mid]"); if (t) viewPhoto(t.dataset.mid);
 });
@@ -1199,14 +1283,26 @@ async function hydrateVideos() {
 }
 const SAFE_TYPES = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", txt: "text/plain" };
 async function saveFile(mid) {
-  const m = msgs(current).find((x) => x.mid === mid); if (!m || (!m.data && !m.blob)) return;
+  const m = msgs(current).find((x) => x.mid === mid), c = conv(current); if (!m || (!m.data && !m.blob)) return;
+  if (!m.me && c && c.request) return toast("Accept this chat first. Files from people you haven't added stay locked");
+  if (m.verdict && m.verdict.block) return shieldDialog(m, true);
   if (m.blob) {
     const wasGot = m.got;
-    try { toast(wasGot ? "Decrypting…" : "Downloading and decrypting…"); m.data = b64(await bigBytes(m)); } catch (e) { return toast(e.message); }
-    if (!wasGot) { delete m.data; return renderMessages(true); }
+    try { toast(wasGot ? "Decrypting…" : "Downloading, decrypting and checking…"); const bytes = await bigBytes(m); if (!m.verdict || !wasGot) { m.verdict = m.me ? { level: "ok" } : fileVerdict(bytes, m.name); persist(); } m.data = b64(bytes); } catch (e) { return toast(e.message); }
+    if (!wasGot) { delete m.data; renderMessages(true); if (m.verdict.level !== "ok") shieldDialog(m, m.verdict.block); return; }
+    if (m.verdict.level === "danger") { delete m.data; return shieldDialog(m, m.verdict.block); }
     try { return saveFileData(m); } finally { delete m.data; }
   }
+  if (m.verdict && m.verdict.level === "danger") return shieldDialog(m, false);
   return saveFileData(m);
+}
+function shieldDialog(m, blocked) {
+  const v = m.verdict || {};
+  if (blocked) return modal("🛡️ File blocked", `<p>${esc(v.why)}</p><p class="small muted">Raazdar won't open or save this file. If you know the sender, ask them what it is. You can block and report them from the ⋮ menu.</p>`, [["OK", () => {}, "primary"]]);
+  modal("⛔ Dangerous file", `<p>${esc(v.why)}</p><p class="small muted">Only save it if you asked this person for exactly this file and you trust them.</p>`, [
+    ["Don't save", () => {}, "primary"],
+    ["Save anyway", async () => { try { if (m.blob) { m.data = b64(await bigBytes(m)); try { saveFileData(m); } finally { delete m.data; } } else saveFileData(m); } catch (e) { toast(e.message); } }, "danger"],
+  ]);
 }
 function saveFileData(m) {
   const ext = String(m.name || "").split(".").pop().toLowerCase();
@@ -2047,7 +2143,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "Raazdar v6.7 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "Raazdar v6.8 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions

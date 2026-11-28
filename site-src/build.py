@@ -105,6 +105,7 @@ FEATS = [
  ("siren", "Panic button", "Hold the lock for two seconds, or type a duress passcode, and every trace is gone. Your contacts' copies too."),
  ("ghost", "Disguise & decoy", "Make it look like a working calculator, or open a harmless decoy account under pressure."),
  ("mic", "Calls, voice, photos & files", "Encrypted voice and video calls, voice notes, files up to 25&nbsp;MB, groups, replies and reactions. Photos are stripped of location data."),
+ ("shield", "Safe Media shield", "Fake invitation apps and disguised files are caught and blocked. Photos are rebuilt so nothing can hide inside them."),
 ]
 def feat_cards(items, cls="g4"):
     return f'<div class="grid {cls}">' + "".join(f'<div class="card rv"><div class="ico">{ic(i)}</div><h3>{t}</h3><p>{d}</p></div>' for i, t, d in items) + "</div>"
@@ -143,6 +144,7 @@ FAQ = [
  ("How do I move Raazdar to a new phone?", "<p>Open You → <b>Move to a new device</b>. Scan the QR code (or open the link) on the new phone and enter your passcode. The link works once and expires in 10 minutes. Then erase the old phone.</p>"),
  ("Will I get notifications when the app is closed?", "<p>Yes, if you turn them on (You → Notifications). They only ever say “New activity”, never a name or message. On iPhone, add Raazdar to your Home Screen first.</p>"),
  ("Are calls encrypted? Can the other person see my IP address?", "<p>Calls are end-to-end encrypted. The call is set up inside your encrypted chat, so nobody can slip into the middle, and the audio and video are encrypted between the two phones. Every call goes through our relay, so neither of you learns the other's IP address. The relay can't hear or see the call and keeps no logs. Calls are switched off on the Tor address, because a call can't travel over Tor without revealing your IP.</p>"),
+ ("Can someone hack my phone by sending me a photo, video or invitation?", "<p>Photos and videos can't run programs by themselves. Scams like fake wedding invitations work by sending an <b>app</b> (an .apk file) dressed up as a card or PDF, or a link. Raazdar's Safe Media shield checks what every file really is, not what its name says. Disguised apps are blocked, other apps get a clear warning, and every photo is rebuilt from its pixels so nothing can hide inside it. From people you haven't added, photos stay hidden, files stay locked and links are flagged until you accept the chat. All of this happens on your phone; our server never sees your files.</p>"),
  ("How big a file can I send?", "<p>Up to 25&nbsp;MB, including videos. Files over 1&nbsp;MB are encrypted on your phone and parked on our server, which can't open them, until your contact downloads them. They are deleted after 7 days.</p>"),
  ("Is there a desktop app?", "<p>Yes, for Windows, Mac and Linux. It blocks screenshots of its window and only ever opens Raazdar. You can also simply use Raazdar in any modern browser.</p>"),
  ("Has Raazdar been independently audited?", "<p>Not yet. Our code is public and goes through regular internal security testing (OWASP and VAPT), and we publish the results. An independent audit by an outside firm is planned, and we will publish its report in full.</p>"),
@@ -610,6 +612,7 @@ write("transparency.html", page("/transparency", "Transparency report | Raazdar"
 
 # ------------------------------------------------------------------ CHANGELOG
 CHANGES = [
+ ("6.8", "28 Nov 2026", ["Safe Media shield: disguised apps (like fake wedding invitations) are detected and blocked", "Every received photo is rebuilt from its pixels, so nothing can hide inside it", "Messages from people you haven't added: photos hidden, files locked and links flagged until you accept"]),
  ("6.7", "27 Nov 2026", ["Automatic uptime and certificate checks", "Security tests run on every change; weekly dependency checks", "Smoother reconnects after a server restart"]),
  ("6.6", "27 Nov 2026", ["Fixes from our November 2026 internal security assessment (report on the Transparency page)", "Call relay locked to Raazdar calls only", "Large-file uploads need a signed-in account", "Desktop app on a supported Electron"]),
  ("6.5", "27 Nov 2026", ["Calls in the Android app use the earpiece, with a speaker button; the screen turns off at your ear"]),

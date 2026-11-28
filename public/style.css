@@ -356,3 +356,14 @@ textarea.keybox { width: 100%; resize: none; -webkit-user-select: text; user-sel
 .cb svg { width: 28px; height: 28px; }
 .cb.off, .cb.on { background: #f3efe7; color: #111; }
 .cb.accept { background: #2fbf71; } .cb.decline { background: #e5484d; } .cb.decline svg { transform: rotate(135deg); }
+
+/* Safe Media shield */
+.mshield { font-size: 12.5px; line-height: 1.4; margin-top: 6px; padding: 7px 10px; border-radius: 10px; max-width: 300px; }
+.mshield.s-danger { background: rgba(255, 107, 107, .12); border: 1px solid rgba(255, 107, 107, .45); color: #ffb4b4; }
+.mshield.s-warn { background: rgba(214, 179, 106, .10); border: 1px solid rgba(214, 179, 106, .35); color: var(--gold2); }
+.filecard.f-danger { box-shadow: inset 0 0 0 1.5px rgba(255, 107, 107, .7); }
+.filecard.f-danger .fi { background: var(--danger); color: #1a0b0b; }
+.filecard.f-warn { box-shadow: inset 0 0 0 1.5px rgba(214, 179, 106, .6); color: inherit; }
+.request-box { text-align: left; line-height: 1.5; max-width: 92%; }
+.req-actions { display: flex; gap: 8px; margin-top: 8px; }
+.btn.small { padding: 7px 14px; font-size: 13px; min-height: 0; }
