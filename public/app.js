@@ -938,7 +938,7 @@ function scamCard() {
     rows.push(d.a11y.length ? `<div class="check todo"><span class="ck">${IC.dot}</span><span class="ct">Apps that can read and tap your screen: ${d.a11y.map(esc).join(", ")}<small>Banking malware abuses this "Accessibility" permission. If you don't recognise an app, turn it off in Settings → Accessibility, or uninstall it.</small></span></div>`
       : `<div class="check ok"><span class="ck">${IC.ok}</span><span class="ct">No apps reading your screen<small>No accessibility services are switched on</small></span></div>`);
     rows.push(d.recordingSupported ? `<div class="check ${d.recording ? "todo" : "ok"}"><span class="ck">${d.recording ? IC.dot : IC.ok}</span><span class="ct">${d.recording ? "Your screen is being recorded or shared right now" : "Screen-share alarm is on"}<small>Raazdar warns you the moment anyone records or shares your screen</small></span></div>` : "");
-  } else rows.push(`<div class="check ok"><span class="ck">${IC.ok}</span><span class="ct">Scam checks<small>Install the Raazdar Android app to also check for remote-control apps, screen-reading apps and screen sharing</small></span></div>`);
+  } else rows.push(`<div class="check ok"><span class="ck">${IC.ok}</span><span class="ct">${IS_IOS ? "iPhone screen-share tip" : "Scam checks"}<small>${IS_IOS ? "If a red bar or recording dot appears at the top of your iPhone screen, your screen is being recorded or shared. Raazdar hides its content, but stop sharing if a stranger asked you to. Never install apps or \"profiles\" sent in a chat." : "The Raazdar Android app also checks for remote-control apps, screen-reading apps and screen sharing."}</small></span></div>`);
   return `<div class="card-h">Scam protection</div><div class="card">${rows.join("")}
     <div class="check ok"><span class="ck">${IC.ok}</span><span class="ct">Safe Media shield<small>Disguised apps blocked, photos rebuilt, strangers' files locked until you accept</small></span></div></div>`;
 }
@@ -953,11 +953,11 @@ function renderSecurity() {
     [S.settings.burnRemote !== false, "Remote erase", "Panic also erases your chats from contacts' phones", "panic", "Turn on"],
     [IS_ONION, IS_ONION ? "Hidden connection (Tor)" : "Fast connection", IS_ONION ? "Your IP address is hidden from the server" : "Messages are encrypted, but the server can see your IP. Use the .onion address for full anonymity."],
   ];
-  const ok = checks.filter((c) => c[0]).length, pct = Math.round((ok / checks.length) * 100), C = 2 * Math.PI * 30;
+  const scored = checks.slice(0, 6), ok = scored.filter((c) => c[0]).length, pct = Math.round((ok / scored.length) * 100), C = 2 * Math.PI * 30; // the connection type is shown, not scored
   $("#sec-body").innerHTML = `
     <div class="shield-card">
       <div class="score"><svg viewBox="0 0 74 74"><circle cx="37" cy="37" r="30" stroke="#2a2a2f" stroke-width="7" fill="none"/><circle cx="37" cy="37" r="30" stroke="url(#sg)" stroke-width="7" fill="none" stroke-linecap="round" stroke-dasharray="${(C * pct) / 100} ${C}"/><defs><linearGradient id="sg"><stop offset="0" stop-color="#f3dc9b"/><stop offset="1" stop-color="#a7843c"/></linearGradient></defs></svg><b>${pct}</b></div>
-      <div><h3>${pct >= 85 ? "Fortress mode" : pct >= 60 ? "Well protected" : "Basic protection"}</h3><p>${ok} of ${checks.length} protections active. Finish the rest for maximum safety.</p></div>
+      <div><h3>${pct >= 85 ? "Fortress mode" : pct >= 60 ? "Well protected" : "Basic protection"}</h3><p>${ok} of ${scored.length} protections active. Finish the rest for maximum safety.</p></div>
     </div>
     <div class="card">${checks.map(([on, t, d, act, btn]) => `<div class="check ${on ? "ok" : "todo"}"><span class="ck">${on ? IC.ok : IC.dot}</span><span class="ct">${t}<small>${d}</small></span>${!on && act ? `<button data-act="${act}">${btn}</button>` : ""}</div>`).join("")}</div>
     ${scamCard()}
@@ -1878,7 +1878,8 @@ function endCall(text, missed) {
   try { k.pc && k.pc.close(); } catch {}
   applyAudioRoute();
   const kind = k.video ? "Video call" : "Voice call";
-  const line = k.t0 ? `📞 ${kind} · ${fmtDur((Date.now() - k.t0) / 1000)}` : missed ? `📞 Missed ${kind.toLowerCase()}` : k.out ? `📞 ${kind} · ${text}` : `📞 ${kind} · declined`;
+  const ico = k.video ? "🎥" : "📞";
+  const line = k.t0 ? `${ico} ${kind} · ${fmtDur((Date.now() - k.t0) / 1000)}` : missed ? `${ico} Missed ${kind.toLowerCase()}` : k.out ? `${ico} ${kind} · ${text}` : `${ico} ${kind} · declined`;
   if (S && conv(k.peer)) { sysMsg(k.peer, line); const c = conv(k.peer); c.last = { text: line, ts: Date.now(), me: k.out }; if (missed) c.unread = (c.unread || 0) + 1; persist(); renderList(); if (current === k.peer) renderMessages(); }
   setCallStatus(text); $("#call").classList.remove("ringing", "live");
   const ce = document.querySelector("#call .call-e2e"); if (ce) ce.innerHTML = ce.dataset.orig || ce.innerHTML;

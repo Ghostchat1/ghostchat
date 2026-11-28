@@ -375,3 +375,7 @@ textarea.keybox { width: 100%; resize: none; -webkit-user-select: text; user-sel
 .call-e2e small { display: block; font-size: 12px; opacity: .8; max-width: 280px; margin: 0 auto; }
 .rec-warn { position: fixed; left: 10px; right: 10px; top: calc(10px + var(--safe-t, 0px)); z-index: 300; background: #3a1416; border: 1px solid #ff6b6b; color: #ffd0d0; border-radius: 14px; padding: 12px 40px 12px 14px; font-size: 13.5px; line-height: 1.45; box-shadow: 0 12px 30px rgba(0,0,0,.5); }
 .rec-warn button { position: absolute; top: 8px; right: 8px; background: none; border: 0; color: #ffd0d0; font-size: 16px; }
+
+/* iPhone/Android: tab headers always leave room for the lock button, and stay put while the page scrolls */
+.view > .topbar { position: sticky; top: 0; z-index: 4; min-height: calc(54px + var(--safe-t)); background: linear-gradient(to bottom, var(--bg) 72%, transparent); }
+#list-pane::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: calc(52px + var(--safe-b)); background: linear-gradient(to bottom, transparent, var(--bg) 70%); pointer-events: none; z-index: 4; }
