@@ -181,10 +181,25 @@
   <div id="call" class="call hidden">
     <video id="call-remote" autoplay playsinline></video>
     <video id="call-local" autoplay playsinline muted></video>
-    <div class="call-top"><div class="call-av" id="call-av"></div><div class="call-name" id="call-name"></div><div class="call-status" id="call-status"></div><div class="call-e2e">🔒 End-to-end encrypted · relayed, IP hidden</div></div>
-    <div class="call-btns" id="call-btns-in"><button class="cb decline" id="cb-decline" aria-label="Decline"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></button><button class="cb accept" id="cb-accept" aria-label="Accept"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></button></div>
-    <div class="call-btns hidden" id="call-btns-live"><button class="cb" id="cb-mute" aria-label="Mute"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button><button class="cb" id="cb-cam" aria-label="Camera"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="m16 10 5-3v10l-5-3"/></svg></button><button class="cb" id="cb-flip" aria-label="Switch camera"><svg viewBox="0 0 24 24"><path d="M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2M20 4v4h-4M4 20v-4h4"/></svg></button><button class="cb" id="cb-spk" aria-label="Speaker"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button><button class="cb decline" id="cb-end" aria-label="End call"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></button></div>
+    <div class="call-head">
+      <button class="cround" id="cb-min" aria-label="Minimise call"><svg viewBox="0 0 24 24"><path d="M10 4v6H4M14 20v-6h6M4 4l6 6M20 20l-6-6"/></svg></button>
+      <div class="call-title"><div class="call-name" id="call-name"></div><div class="call-status" id="call-status"></div></div>
+      <div class="call-side"><button class="cround" id="cb-chat" aria-label="Open chat"><svg viewBox="0 0 24 24"><path d="M4 18.5V7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H8.5z"/></svg></button><button class="cround" id="cb-flip" aria-label="Switch camera"><svg viewBox="0 0 24 24"><path d="M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2M20 4v4h-4M4 20v-4h4"/></svg></button></div>
+    </div>
+    <div class="call-mid"><div class="call-av" id="call-av"></div><div class="call-e2e">🔒 End-to-end encrypted · relayed, IP hidden</div></div>
+    <div class="call-btns" id="call-btns-in">
+      <label class="cbl"><button class="cb decline" id="cb-decline" aria-label="Decline"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></button><span>Decline</span></label>
+      <label class="cbl"><button class="cb accept" id="cb-accept" aria-label="Accept"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></button><span>Accept</span></label>
+    </div>
+    <div class="call-panel hidden" id="call-btns-live">
+      <label class="cbl"><button class="cb" id="cb-spk" aria-label="Speaker"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button><span>Speaker</span></label>
+      <label class="cbl"><button class="cb" id="cb-cam" aria-label="Camera"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="m16 10 5-3v10l-5-3"/></svg></button><span>Camera</span></label>
+      <label class="cbl"><button class="cb" id="cb-mute" aria-label="Mute"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button><span>Mute</span></label>
+      <label class="cbl"><button class="cb" id="cb-code" aria-label="Call code"><svg viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 10 0v3"/><rect x="4.5" y="10" width="15" height="11" rx="2.5"/></svg></button><span>Code</span></label>
+      <label class="cbl"><button class="cb decline" id="cb-end" aria-label="End call"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></button><span>End</span></label>
+    </div>
   </div>
+  <button id="call-pill" class="call-pill hidden"><span class="cp-dot"></span><span id="cp-text">Tap to return to call</span></button>
   <div id="toast" class="toast hidden"></div>
   <div id="viewer" class="viewer hidden"><img id="viewer-img" alt="" /><p>Tap to close</p></div>
   <audio id="player" class="hidden"></audio>

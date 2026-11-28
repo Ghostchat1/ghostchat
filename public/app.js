@@ -925,7 +925,7 @@ function renderYou() {
       ${rowItem("info", "Help and feedback", "FAQ, contact, what's new", 'data-act="help"')}
       ${rowItem("heart", "Invite a friend", "Share your private invite link", 'data-act="invite"')}
     </div>
-    <p class="ver">Raazdar 7.3 · no phone · no email · no trace</p>`;
+    <p class="ver">Raazdar 7.4 · no phone · no email · no trace</p>`;
   $("#you-name").onclick = renameSelf;
   $("#you-qr").onclick = myQrDialog;
   $("#you-share").onclick = shareInvite;
@@ -1934,9 +1934,9 @@ function showCall(status, incoming) {
   const el = $("#call"), c = peer(call.peer);
   $("#call-av").innerHTML = identicon(call.peer); $("#call-name").textContent = c ? displayName(c) : "Anonymous";
   setCallStatus(status);
-  el.classList.toggle("cvid", call.video); el.classList.toggle("ringing", !!incoming); el.classList.remove("hidden", "live");
+  el.classList.toggle("cvid", call.video); el.classList.toggle("ringing", !!incoming); el.classList.remove("hidden", "live"); $("#call-pill").classList.add("hidden");
   $("#call-btns-in").classList.toggle("hidden", !incoming); $("#call-btns-live").classList.toggle("hidden", !!incoming);
-  $("#cb-cam").classList.toggle("hidden", !call.video); $("#cb-flip").classList.toggle("hidden", !call.video);
+  $("#cb-flip").classList.toggle("hidden", !call.video);
   if (call.stream) $("#call-local").srcObject = call.stream;
 }
 let ringT = null, ringCtx = null;
@@ -2048,7 +2048,7 @@ function onCallConnected() {
   callCode().then((code) => { const e = document.querySelector("#call .call-e2e"); if (e && code && call) { e.innerHTML = `🔒 Call code <b class="callcode">${code}</b><small>Read the pictures to each other. Same on both screens = no one in the middle.</small>`; } });
   clearTimeout(call.timeout); call.t0 = Date.now(); $("#call").classList.add("live"); ringBackStop();
   applyAudioRoute(); setTimeout(applyAudioRoute, 800);
-  call.tick = setInterval(() => setCallStatus(fmtDur((Date.now() - call.t0) / 1000)), 1000); setCallStatus("0:00");
+  call.tick = setInterval(() => { setCallStatus(fmtDur((Date.now() - call.t0) / 1000)); if (!$("#call-pill").classList.contains("hidden")) syncPill(); }, 1000); setCallStatus("0:00");
 }
 function hangUp() {
   if (!call) return;
@@ -2077,6 +2077,7 @@ function endCall(text, missed) {
   setCallStatus(text); $("#call").classList.remove("ringing", "live");
   const ce = document.querySelector("#call .call-e2e"); if (ce) ce.innerHTML = ce.dataset.orig || ce.innerHTML;
   $("#call-btns-in").classList.add("hidden"); $("#call-btns-live").classList.add("hidden");
+  $("#call-pill").classList.add("hidden");
   setTimeout(() => { if (!call) { $("#call").classList.add("hidden"); $("#call-remote").srcObject = null; $("#call-local").srcObject = null; } }, 1300);
 }
 // Earpiece vs loudspeaker. Voice calls start on the earpiece and video calls on the speaker, like a normal phone.
@@ -2104,7 +2105,13 @@ function applyAudioRoute() {
   const b = $("#cb-spk"); if (b) { b.classList.toggle("hidden", !CAN_ROUTE && !webOuts); b.classList.toggle("on", !!(call && call.speaker)); }
   if (call) webRoute();
 }
-function toggleSpeaker() { if (!call) return; call.speaker = !call.speaker; applyAudioRoute(); }
+function toggleSpeaker() {
+  if (!call) return;
+  if (!CAN_ROUTE && !webOuts) return toast(IS_IOS ? "On iPhone, switch speaker / earpiece / AirPods from Control Centre (the audio icon)" : "This browser doesn't let apps switch the speaker");
+  call.speaker = !call.speaker; applyAudioRoute();
+}
+function minimiseCall() { if (!call) return; $("#call").classList.add("hidden"); $("#call-pill").classList.remove("hidden"); syncPill(); }
+function syncPill() { const t = $("#cp-text"); if (!t || !call) return; const c = peer(call.peer); t.textContent = `${c ? displayName(c) : "Call"} · ${$("#call-status").textContent} · tap to return`; }
 function toggleTrack(kind, btn) {
   if (!call || !call.stream) return;
   const tr = call.stream.getTracks().filter((t) => t.kind === kind); const on = !tr.every((t) => !t.enabled);
@@ -2868,6 +2875,10 @@ $("#messages").addEventListener("dblclick", (e) => { const el = e.target.closest
 $("#btn-find").onclick = openFind;
 $("#btn-call").onclick = () => startCall(false); $("#btn-vcall").onclick = () => startCall(true);
 $("#cb-accept").onclick = acceptCall; $("#cb-decline").onclick = hangUp; $("#cb-end").onclick = hangUp;
+$("#cb-min").onclick = () => minimiseCall();
+$("#cb-chat").onclick = () => { if (!call) return; const id = call.peer; minimiseCall(); setTab("chats"); if (conv(id)) openChat(id); };
+$("#call-pill").onclick = () => { $("#call").classList.remove("hidden"); $("#call-pill").classList.add("hidden"); };
+$("#cb-code").onclick = () => { const e = document.querySelector("#call .call-e2e"); if (e) { e.classList.toggle("has-code"); toast(call && call.t0 ? "Compare the pictures out loud with the other person" : "The code appears when the call connects"); } };
 $("#cb-mute").onclick = (e) => toggleTrack("audio", e.currentTarget); $("#cb-cam").onclick = (e) => toggleTrack("video", e.currentTarget); $("#cb-flip").onclick = flipCamera; $("#cb-spk").onclick = toggleSpeaker; $("#find-close").onclick = closeFind;
 $("#find-input").oninput = (e) => { findQ = e.target.value.trim(); renderMessages(); };
 $("#rb-close").onclick = cancelReply;
@@ -2883,7 +2894,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "Raazdar v7.3 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "Raazdar v7.4 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions
