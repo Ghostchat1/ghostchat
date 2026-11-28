@@ -517,7 +517,9 @@ const conv = (id) => (isGroup(id) ? (S.groups || {})[id] : S.contacts[id]);
 const peer = (id) => S.contacts[id] || (S.hidden || {})[id];
 const displayName = (c) => (c.gid ? c.name || "Group" : c.customName || c.name || "Anonymous " + c.id.slice(0, 4));
 const memberName = (id) => (id === S.me.id ? "You" : peer(id) ? displayName(peer(id)) : "Anonymous " + id.slice(0, 4));
-const preview = (m) => (m.deleted ? "Message deleted" : m.kind === "img" ? (m.once ? "📷 View-once photo" : "📷 Photo") : m.kind === "file" ? "📄 " + (m.name || "File") : m.kind === "voice" ? "🎤 Voice message (" + fmtDur(m.dur || 0) + ")" : m.text);
+const callTitle = (m) => (m.cst === "missed" ? "Missed " + (m.video ? "video" : "voice") + " call" : m.video ? "Video call" : "Voice call");
+const callSub = (m) => ({ ok: fmtCallDur(m.dur || 0), noanswer: "No answer", declined: "Declined", busy: "Busy", cancelled: "Cancelled", missed: "Tap to call back" }[m.cst] || "");
+const preview = (m) => (m.deleted ? "Message deleted" : m.kind === "call" ? (m.video ? "🎥 " : "📞 ") + callTitle(m) : m.kind === "img" ? (m.once ? "📷 View-once photo" : "📷 Photo") : m.kind === "file" ? "📄 " + (m.name || "File") : m.kind === "voice" ? "🎤 Voice message (" + fmtDur(m.dur || 0) + ")" : m.text);
 async function ensurePeer(id) {
   if (id === S.me.id || peer(id)) return peer(id);
   S.hidden = S.hidden || {};
@@ -682,7 +684,7 @@ async function onEnvelope(m, viaMesh) {
     if (current !== cid || document.hidden) { target.unread = (target.unread || 0) + 1; notify(); }
     post(c, { k: "rcpt", mids: [mid], ...(isGroup(cid) ? { gid: cid } : {}) }, null, cid).catch(() => {});
   }
-  persist(); renderList(); if (current === cid) renderMessages();
+  persist(); renderList(); if (current === cid) renderMessages(true);
 }
 function markDelivered(cid, mid, by) {
   const m = S && msgs(cid).find((x) => x.mid === mid); if (!m || !m.me) return;
@@ -909,7 +911,7 @@ function renderYou() {
       ${rowItem("info", "Security details", "Encryption, keys and connection", 'data-act="secinfo"')}
       ${rowItem("heart", "Invite a friend", "Share your private invite link", 'data-act="invite"')}
     </div>
-    <p class="ver">Raazdar 7.0 · no phone · no email · no trace</p>`;
+    <p class="ver">Raazdar 7.1 · no phone · no email · no trace</p>`;
   $("#you-name").onclick = renameSelf;
   $("#you-qr").onclick = myQrDialog;
   $("#you-share").onclick = shareInvite;
@@ -998,9 +1000,12 @@ function headerFor(c) {
 }
 function openChat(id) {
   if (current !== id) { cancelReply(); closeFind(); seen = new Set(); seenFor = null; }
-  current = id; const c = conv(id); c.unread = 0; persist();
+  const c = conv(id);
+  if (current !== id) { const real = msgs(id).filter((m) => !m.sys && !m.me); unreadN = Math.min(c.unread || 0, real.length); unreadMark = unreadN ? real[real.length - unreadN].mid : null; }
+  current = id; c.unread = 0; persist();
   $("#main").classList.add("in-chat"); $("#no-chat").classList.add("hidden"); $("#chat").classList.remove("hidden");
   renderMessages(); renderList();
+  const ud = $("#unread-div"); if (ud) ud.scrollIntoView({ block: "start" });
   if (matchMedia("(min-width: 800px)").matches) $("#msg-input").focus();
 }
 function closeChat() { current = null; cancelReply(); closeFind(); stopVoice(); $("#main").classList.remove("in-chat"); $("#chat").classList.add("hidden"); $("#no-chat").classList.remove("hidden"); renderList(); }
@@ -1085,8 +1090,11 @@ function shieldLine(m) {
   const v = m.verdict; if (!v || v.level === "ok") return "";
   return `<div class="mshield s-${v.level}">${v.level === "danger" ? "⛔" : "⚠️"} ${esc(v.why)}</div>`;
 }
+const IC_CALLV = '<svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="13" height="12" rx="3"/><path d="m15.5 10.5 5-3v9l-5-3"/></svg>';
+const IC_CALLP = '<svg viewBox="0 0 24 24"><path d="M5 4h3.5l1.8 4.4-2.3 1.4a11 11 0 0 0 6.2 6.2l1.4-2.3L20 15.5V19a1.5 1.5 0 0 1-1.6 1.5A16.5 16.5 0 0 1 3.5 5.6 1.5 1.5 0 0 1 5 4z"/></svg>';
 function bubbleBody(m) {
   if (m.deleted) return `<span class="deleted">This message was deleted</span>`;
+  if (m.kind === "call") return `<button class="callrow ${m.cst === "missed" ? "miss" : ""}" data-callback="${m.video ? "video" : "voice"}"><span class="cico">${m.video ? IC_CALLV : IC_CALLP}<i>${m.me ? "↗" : "↙"}</i></span><span class="ctx"><b>${callTitle(m)}</b><span>${callSub(m)}</span></span></button>`;
   if (m.kind === "file") {
     const ext = (String(m.name || "").split(".").pop() || "FILE").slice(0, 4).toUpperCase();
     if (m.blob && m.got && /^video\//.test(m.mime || "") && (m.me || (m.verdict && m.verdict.level === "ok"))) return `<video class="video" data-vid="${esc(m.mid)}" controls playsinline preload="metadata"></video><button class="filecard slim" data-file="${esc(m.mid)}"><span class="fn">${esc(m.name || "video")}</span><span class="fs">${fmtSize(m.size || 0)} · save</span></button>`;
@@ -1102,7 +1110,14 @@ function bubbleBody(m) {
   if (m.data) return `<button class="once open" data-mid="${esc(m.mid)}">📷 View-once photo · tap to open</button>`;
   return `<span class="once muted">📷 Opened</span>`;
 }
-let findQ = "", seen = new Set(), seenFor = null;
+let findQ = "", seen = new Set(), seenFor = null, unreadMark = null, unreadN = 0;
+function dayLabel(ts) { // Today · Yesterday · Wednesday · 21 Nov 2026
+  const d = new Date(ts), t = new Date(); t.setHours(0, 0, 0, 0); const d0 = new Date(d); d0.setHours(0, 0, 0, 0);
+  const diff = Math.round((t - d0) / 864e5);
+  if (diff === 0) return "Today"; if (diff === 1) return "Yesterday";
+  if (diff > 1 && diff < 7) return d.toLocaleDateString([], { weekday: "long" });
+  return d.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+}
 function renderMessages(keepScroll) {
   const c = S && conv(current); if (!c) return;
   headerFor(c);
@@ -1121,7 +1136,8 @@ function renderMessages(keepScroll) {
     if (q && (m.sys || !String(m.kind === "file" ? m.name : m.text || "").toLowerCase().includes(q))) continue;
     hits++;
     const day = new Date(m.ts).toDateString();
-    if (day !== lastDay) { html += `<div class="day">${new Date(m.ts).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}</div>`; lastDay = day; }
+    if (day !== lastDay) { html += `<div class="day">${dayLabel(m.ts)}</div>`; lastDay = day; }
+    if (m.mid === unreadMark && unreadN) html += `<div class="unread-div" id="unread-div">${unreadN} unread message${unreadN > 1 ? "s" : ""}</div>`;
     if (m.sys) { html += `<div class="sys">${esc(m.text)}</div>`; continue; }
     const tick = m.me && !m.deleted ? `<span class="tick ${m.status}">${TICK[m.status] || ""}</span>` : "";
     const who = grp && !m.me && m.from ? `<span class="who ${colorClass(m.from)}t">${esc(memberName(m.from))}</span>` : "";
@@ -1139,6 +1155,15 @@ function renderMessages(keepScroll) {
   box.innerHTML = html;
   if (box.querySelector("video[data-vid]")) hydrateVideos();
   box.scrollTop = keepScroll && !atBottom ? prev : box.scrollHeight;
+  if (keepScroll && !atBottom) { const n = msgs(current).length; if (n > lastCount && lastCount) newBelow += n - lastCount; } else newBelow = 0;
+  lastCount = msgs(current).length; syncJump();
+}
+let newBelow = 0, lastCount = 0;
+function syncJump() {
+  const box = $("#messages"), b = $("#jump-down"); if (!b) return;
+  const far = box.scrollHeight - box.scrollTop - box.clientHeight > 300;
+  b.classList.toggle("hidden", !far); if (!far) newBelow = 0;
+  b.querySelector("span").textContent = newBelow ? newBelow : ""; b.classList.toggle("has-n", !!newBelow);
 }
 function jumpTo(mid) {
   const el = document.querySelector(`.msg[data-m="${CSS.escape(mid)}"]`); if (!el) return toast("Message no longer available");
@@ -1148,6 +1173,7 @@ $("#messages").addEventListener("click", (e) => {
   if (longFired) return;
   const j = e.target.closest("[data-jump]"); if (j) return jumpTo(j.dataset.jump);
   const p = e.target.closest("[data-play]"); if (p) return toggleVoice(p.dataset.play);
+  const cb = e.target.closest("[data-callback]"); if (cb) { const c = conv(current); if (c && !c.gid) { if (!CALL_OK()) return toast(IS_ONION ? "Calls need the normal address, not Tor" : "Calls aren't supported in this browser"); startCall(cb.dataset.callback === "video"); } return; }
   const rv = e.target.closest("[data-reveal]"); if (rv) { const m = msgs(current).find((x) => x.mid === rv.dataset.reveal); if (m) { m.revealed = true; renderMessages(true); } return; }
   const rq = e.target.closest("[data-req]"); if (rq) { const c = conv(current); if (!c) return; if (rq.dataset.req === "accept") { c.request = false; persist(); renderList(); renderMessages(true); toast("Accepted"); } else if (c.gid) leaveGroup(c); else toggleBlock(c.id); return; }
   const f = e.target.closest("[data-file]"); if (f) return saveFile(f.dataset.file);
@@ -1209,6 +1235,7 @@ function msgMenu(mid) {
   const id = current, m = msgs(id).find((x) => x.mid === mid); if (!m || m.sys) return;
   const mine = (m.rx || {})[S.me.id];
   const items = [];
+  if (m.kind === "call") return menu("", `<div class="preview-msg">${esc(preview(m))}</div>`, [["🗑️  Delete for me", () => removeMsg(id, mid), "danger"]]);
   if (!m.deleted) items.push(["↩️  Reply", () => startReply(m)]);
   if (!m.deleted && m.text) items.push(["📋  Copy text", () => copy(m.text, "Copied")]);
   if (!m.deleted && m.kind === "file") items.push(["⬇️  Save file", () => saveFile(m.mid)]);
@@ -1842,7 +1869,7 @@ function onCallSignal(c, b) {
     const kind = b.video ? "video call" : "voice call";
     if (Date.now() - (+b.ts || 0) > 60000 || call || !CALL_OK()) {
       if (call && call.id !== id) callSignal(c, { t: "busy", id }).catch(() => {});
-      sysMsg(c.id, `📞 Missed ${kind}`); c.last = { text: `📞 Missed ${kind}`, ts: Date.now(), me: false }; c.unread = (c.unread || 0) + 1; renderList(); if (current === c.id) renderMessages();
+      callLog(c, { out: false, video: !!b.video, cst: "missed" });
       return;
     }
     call = { id, peer: c.id, video: !!b.video, out: false, offer: String(b.sdp || "").slice(0, 20000), t0: 0 };
@@ -1898,6 +1925,15 @@ function hangUp() {
   if (c) callSignal(c, { t: !call.out && !call.t0 ? "decline" : "end", id: call.id }).catch(() => {});
   endCall(!call.out && !call.t0 ? "Declined" : "Call ended");
 }
+// Call history appears as a bubble (left = they called, right = you called); tap it to call back.
+const fmtCallDur = (s) => (s < 60 ? Math.max(1, Math.round(s)) + " sec" : s < 3600 ? Math.round(s / 60) + " min" : Math.floor(s / 3600) + " hr " + Math.round((s % 3600) / 60) + " min");
+function callLog(c, f) {
+  if (!S || !c) return;
+  const m = { mid: rid(), kind: "call", me: !!f.out, ...(f.out ? {} : { from: c.id }), video: !!f.video, dur: Math.round(f.dur || 0), cst: f.cst, ts: Date.now() };
+  msgs(c.id).push(m); c.last = { text: preview(m), ts: m.ts, me: !!f.out };
+  if (f.cst === "missed") c.unread = (c.unread || 0) + 1;
+  persist(); renderList(); if (current === c.id) renderMessages();
+}
 function endCall(text, missed) {
   if (!call) return;
   const k = call; call = null;
@@ -1905,10 +1941,8 @@ function endCall(text, missed) {
   try { k.stream && k.stream.getTracks().forEach((t) => t.stop()); } catch {}
   try { k.pc && k.pc.close(); } catch {}
   applyAudioRoute();
-  const kind = k.video ? "Video call" : "Voice call";
-  const ico = k.video ? "🎥" : "📞";
-  const line = k.t0 ? `${ico} ${kind} · ${fmtDur((Date.now() - k.t0) / 1000)}` : missed ? `${ico} Missed ${kind.toLowerCase()}` : k.out ? `${ico} ${kind} · ${text}` : `${ico} ${kind} · declined`;
-  if (S && conv(k.peer)) { sysMsg(k.peer, line); const c = conv(k.peer); c.last = { text: line, ts: Date.now(), me: k.out }; if (missed) c.unread = (c.unread || 0) + 1; persist(); renderList(); if (current === k.peer) renderMessages(); }
+  const cst = k.t0 ? "ok" : missed ? "missed" : k.out ? (text === "No answer" ? "noanswer" : text === "Declined" ? "declined" : /busy/i.test(text || "") ? "busy" : "cancelled") : "declined";
+  if (S && conv(k.peer)) callLog(conv(k.peer), { out: k.out, video: k.video, dur: k.t0 ? (Date.now() - k.t0) / 1000 : 0, cst });
   setCallStatus(text); $("#call").classList.remove("ringing", "live");
   const ce = document.querySelector("#call .call-e2e"); if (ce) ce.innerHTML = ce.dataset.orig || ce.innerHTML;
   $("#call-btns-in").classList.add("hidden"); $("#call-btns-live").classList.add("hidden");
@@ -2568,6 +2602,9 @@ $("#fab").onclick = () => menu("Start", "", [["💬  New chat", newChatDialog], 
 $("#btn-qr").onclick = myQrDialog; $("#btn-new-group").onclick = newGroupDialog;
 $("#btn-share-empty").onclick = myQrDialog; $("#btn-back").onclick = closeChat;
 $("#btn-plus").onclick = attachSheet;
+$("#btn-cam").onclick = () => { const f = $("#file"); f.setAttribute("capture", "environment"); f.click(); };
+$("#messages").addEventListener("scroll", () => syncJump(), { passive: true });
+$("#jump-down").onclick = () => { const b = $("#messages"); b.scrollTo({ top: b.scrollHeight, behavior: "smooth" }); newBelow = 0; };
 $("#btn-attach").onclick = () => $("#file").click();
 $("#file").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) photoDialog(f); };
 $("#file-doc").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) (f.type.startsWith("image/") && /\.(jpe?g|png|heic|webp)$/i.test(f.name) ? photoDialog(f) : fileDialog(f)); };
@@ -2594,7 +2631,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "Raazdar v7.0 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "Raazdar v7.1 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions

@@ -146,6 +146,7 @@
           </header>
           <div id="find-bar" class="find-bar hidden"><input id="find-input" placeholder="Search in this chat" /><span id="find-n" class="muted small"></span><button class="icon" id="find-close" aria-label="Close search">✕</button></div>
           <div id="messages"></div>
+          <button id="jump-down" class="jump-down hidden" aria-label="Scroll to newest"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg><span></span></button>
           <div id="reply-bar" class="reply-bar hidden"><div class="rb-txt"><b id="rb-who"></b><span id="rb-text"></span></div><button class="icon" id="rb-close" aria-label="Cancel reply">✕</button></div>
           <form id="composer" autocomplete="off">
             <button type="button" class="attach" id="btn-plus" aria-label="Attach"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -153,6 +154,7 @@
             <input type="file" id="file" accept="image/*" class="hidden" />
             <input type="file" id="file-doc" class="hidden" />
             <textarea id="msg-input" rows="1" placeholder="Message" maxlength="4000"></textarea>
+            <button type="button" class="cam" id="btn-cam" aria-label="Take a photo"><svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8L10 4h4l1.7 2h1.8A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.5"/></svg></button>
             <button type="button" class="mic" id="btn-mic" aria-label="Record voice message"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button>
             <button class="send" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M4 12 20 4l-6 16-2.5-6.5z"/></svg></button>
           </form>
