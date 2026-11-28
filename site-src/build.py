@@ -37,7 +37,7 @@ I = {  # line icons
 }
 def ic(n, cls="i"): return f'<svg class="{cls}" viewBox="0 0 24 24">{I[n]}</svg>'
 
-NAV = [("/features", "Features"), ("/security", "Security"), ("/download", "Download"), ("/faq", "FAQ")]
+NAV = [("/features", "Features"), ("/security", "Security"), ("/plus", "Pricing"), ("/download", "Download"), ("/faq", "FAQ")]
 
 HI_MAP = {"/": "/hi", "/faq": "/hi/faq", "/privacy": "/hi/privacy"}
 EN_MAP = {v: k for k, v in HI_MAP.items()}
@@ -131,6 +131,8 @@ def cmp_table():
     return f'<div class="tbl-wrap rv"><table class="cmp"><thead><tr><th></th><th class="us">Raazdar</th><th>Typical messengers</th></tr></thead><tbody>{rows}</tbody></table></div>'
 
 FAQ = [
+ ("Is Raazdar free?", "Yes. Messaging, calls, encryption and every safety feature are free, forever. <a href=\"/plus\">Raazdar Plus</a> adds bigger files and groups and a few extras; <b>Raazdar Work</b> adds an admin console for offices."),
+ ("Does paying link my identity to my account?", "No. You buy a code, then type it into the app. Our server only remembers that the code was used, never who paid or which ID used it. Your plan is a signed pass stored inside your encrypted app."),
  ("Do I really not need a phone number?", "<p>Yes. Raazdar never asks for a phone number, email, name or contacts. When you sign up, your phone creates a random ID and a set of encryption keys. That ID is all anyone, including us, ever sees.</p>"),
  ("Can Raazdar read my messages?", "<p>No. Messages are encrypted on your phone and can only be decrypted on the recipient's phone. Our server only ever holds sealed envelopes it cannot open, and it deletes them once they're delivered (or after 7 days).</p>"),
  ("What happens if I forget my passcode?", "<p>Nobody can recover it, not even us. That's the price of real privacy. Keep an <b>encrypted backup</b> (You → Encrypted backup) somewhere safe; you can restore it with your passcode on any device.</p>"),
@@ -352,6 +354,35 @@ download = f'''
 '''
 write("download.html", page("/download", "Download | Raazdar", "Install Raazdar on iPhone, Android or your computer, or use it over Tor.", download, "/download"))
 
+
+# ------------------------------------------------------------------ PRICING (Plus & Work)
+def tier_card(name, price, per, who, items, cta, href, hot=False):
+    li = "".join(f"<li>{ic('check','i ok')}{x}</li>" for x in items)
+    return f'<div class="card rv price{" hot" if hot else ""}"><h3>{name}</h3><p class="pr"><b>{price}</b> <span>{per}</span></p><p class="muted small">{who}</p><ul class="ticks">{li}</ul><a class="btn {"gold" if hot else "ghost"} sm" href="{href}" rel="noopener">{cta}</a></div>'
+pricing = f"""
+<section class="phead"><div class="wrap"><span class="eyebrow">Pricing</span><h1>Safety is free.<br><span class="gold-text">Extras are not.</span></h1><p>Encryption, panic wipe, Safe Media, calls and disappearing messages are free for everyone, forever. Plus and Work pay for the servers, with no ads and no data selling.</p></div></section>
+<section class="s"><div class="wrap">
+<div class="grid g4 prices">
+{tier_card("Free", "₹0", "forever", "For everyone", ["Post-quantum end-to-end encryption", "Voice &amp; video calls", "Files up to 25 MB", "Groups up to 32 people", "Panic wipe, decoy, disguise", "Safe Media scam shield"], "Open Raazdar", "/signin")}
+{tier_card("✦ Plus", "₹79", "/ month · ₹699 / year", "For people who want more", ["Everything in Free", "Files up to 64 MB, 1 GB a day", "Groups up to 256 people", "Unlimited pinned chats", "Export a chat as text", "Announcement channels", "5 app colours"], "Buy Plus", "{{PAY_URL}}", True)}
+{tier_card("🏢 Work", "₹249", "per colleague / month · ₹2,399 / year", "For law firms, clinics, offices, newsrooms", ["Everything in Plus, for every colleague", "Add &amp; remove colleagues; seats stop at once", "Erase Raazdar on a lost phone (with consent)", "Office rules: timers, no forwarding, no saving", "“External” label against fake-boss scams", "Announcement channel for everyone"], "Buy Work", "{{PAY_URL}}")}
+{tier_card("Self-hosted", "Talk to us", "yearly licence + setup", "Banks, hospitals, government", ["Raazdar on your own server, in India", "Your own domain and Tor address", "Commercial licence (no AGPL obligations)", "Setup, updates and priority support"], "Write to us", "mailto:{{EMAIL}}?subject=Raazdar%20self-hosted")}
+</div>
+<div class="grid g3 how">
+  <div class="card rv"><div class="ico">{ic("mail")}</div><h3>1 · Pay</h3><p>Pay by UPI or card. You get a code like <code>RZD-XXXX-…</code>. For Work, tell us how many colleagues.</p></div>
+  <div class="card rv"><div class="ico">{ic("key")}</div><h3>2 · Redeem</h3><p>In Raazdar open <b>You → Raazdar Plus</b>, type the code and tap <b>Redeem</b>. That's it.</p></div>
+  <div class="card rv"><div class="ico">{ic("shield")}</div><h3>3 · Stay anonymous</h3><p>The code isn't linked to your payment inside Raazdar. Our server only remembers that the code was used, never by whom.</p></div>
+</div>
+<div class="prose"><h2>Questions</h2>
+<p><b>Do you see my messages if I pay?</b> No. Plus and Work use exactly the same encryption. Work admins can't read colleagues' chats either.</p>
+<p><b>What happens when my plan ends?</b> You go back to Free. Nothing is deleted; Plus-only actions just ask you to renew.</p>
+<p><b>Can my company see who I talk to?</b> No. A Work admin sees the colleague directory (names and IDs), who joined, and the office rules. Never chats, contacts outside work or call history.</p>
+<p><b>Refunds?</b> Unused codes are refunded in full within 7 days. Write to <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a>.</p>
+<p><b>GST invoice?</b> Yes, for Work and self-hosted. Prices above are before GST.</p></div>
+</div></section>
+"""
+write("plus.html", page("/plus", "Pricing: Plus & Work | Raazdar", "Raazdar is free with full encryption. Plus adds bigger files and groups; Work adds an admin console for offices. Pay anonymously with a code.", pricing, "/plus"))
+
 # ------------------------------------------------------------------ FAQ
 faq = f'''
 <section class="phead"><div class="wrap"><span class="eyebrow">FAQ</span><h1>Questions &amp; answers</h1><p>Can't find what you need? <a href="/contact">Contact us</a>.</p></div></section>
@@ -370,6 +401,10 @@ DATA_ROWS = [
  ("Encrypted files over 1&nbsp;MB (only when you send one)", "To hold a large photo, video or document until your contact downloads it. Encrypted on your device; the key travels only inside your end-to-end encrypted message", "Our server (memory only)", "Deleted after 7 days, or sooner if the server restarts"),
  ("Call connection (only during a call)", "To relay an encrypted call so that neither person learns the other's IP address. We can't hear or see the call", "Our call relay, in memory only; <b>not logged</b>", "Only for the length of the call"),
  ("Transfer package (only when you move to a new device)", "To carry your passcode-locked account to your new device. Encrypted a second time with a key we never receive", "Our server (memory only)", "Deleted when collected, or after 10 minutes"),
+ ("Plus or Work pass (only if you buy a plan)", "To give you the plan you paid for. The pass names your anonymous ID, the plan and its end date, and is signed by our server", "<b>Your device</b>, encrypted; shown to our server when you connect", "Until it expires or you erase the app"),
+ ("Used voucher numbers", "To stop a code being used twice", "Our server, on disk. <b>Not linked to any ID or payment</b>", "For as long as codes of that series are valid"),
+ ("Payment details (only if you buy a code)", "To take payment and, for businesses, issue a GST invoice", "Our payment provider (e.g. Razorpay/UPI) and our accounts. <b>Never linked to your Raazdar ID</b>", "As required by tax law (usually 8 years)"),
+ ("Organisation membership (Work only)", "To run your organisation: directory of colleagues' names and IDs, office rules, seat certificates", "Your organisation admin's and colleagues' devices, end-to-end encrypted. Our server checks seat certificates in memory only and stores removed seats as random numbers", "Until you leave or are removed"),
  ("Emails you send us", "To answer you or resolve a grievance", "Our email provider", "Up to 12 months after resolution, unless law requires longer"),
 ]
 rows = "".join(f"<tr><td>{a}</td><td>{b}</td><td>{c}</td><td>{d}</td></tr>" for a, b, c, d in DATA_ROWS)
@@ -562,13 +597,14 @@ about = f'''
 <li><b>We publish every government request</b> we receive in our <a href="/transparency">transparency report</a>.</li>
 </ul>
 <h2 id="money">How we make money</h2>
-<p>We earn from <b>organisations</b>, not from your data. Everything below uses the same encryption as the free app, and none of it gives us access to anyone's messages.</p>
+<p>We earn from <b>paid extras and organisations</b>, never from your data. Paid plans use the same encryption as the free app, and none of them gives us access to anyone's messages. See <a href="/plus">pricing</a>.</p>
 <table><thead><tr><th>Offer</th><th>For</th><th>What it is</th></tr></thead><tbody>
-<tr><td><b>Raazdar for Teams</b></td><td>Law firms, hospitals, companies, newsrooms</td><td>A private Raazdar server for your organisation, hosted in India or on your own premises, with an admin console to add and remove staff and wipe lost phones.</td></tr>
-<tr><td><b>Whistleblower channel</b></td><td>Companies needing a vigil mechanism or POSH reporting</td><td>An anonymous reporting page where employees can raise concerns and talk to investigators without ever revealing who they are.</td></tr>
-<tr><td><b>Supporter</b> (optional)</td><td>Individuals who want to help</td><td>Pay what you like with a voucher code that is never linked to your Raazdar ID. You get cosmetic extras like more disguise icons and themes, never extra privacy.</td></tr>
+<tr><td><b>Raazdar Plus</b></td><td>Individuals</td><td>Bigger files and groups, chat export, announcement channels, app colours. Paid with a voucher code that is never linked to your Raazdar ID.</td></tr>
+<tr><td><b>Raazdar Work</b></td><td>Law firms, clinics, offices, newsrooms</td><td>An organisation layer: add and remove colleagues, office rules, “External” labels, remote erase of lost phones (with the colleague's consent), and an announcement channel.</td></tr>
+<tr><td><b>Self-hosted</b></td><td>Banks, hospitals, government</td><td>Raazdar on your own server in India, under a commercial licence, with setup and support.</td></tr>
+<tr><td><b>Whistleblower channel</b></td><td>Companies needing a vigil mechanism or POSH reporting</td><td>An anonymous reporting page where employees can raise concerns without revealing who they are.</td></tr>
 </tbody></table>
-<p>Interested in Teams or the whistleblower channel? Write to <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a>.</p>
+<p>Interested in Work, self-hosting or the whistleblower channel? Write to <a href="mailto:{{{{EMAIL}}}}">{{{{EMAIL}}}}</a>.</p>
 <h2>Who we are</h2>
 <p>{{{{COMPANY}}}}, {{{{ADDRESS}}}}. Grievance Officer: {{{{GRIEVANCE_NAME}}}}. See <a href="/contact">contact</a>.</p>
 </div>
@@ -614,6 +650,7 @@ write("transparency.html", page("/transparency", "Transparency report | Raazdar"
 
 # ------------------------------------------------------------------ CHANGELOG
 CHANGES = [
+ ("7.0", "28 Nov 2026", ["Raazdar Plus: files up to 64 MB, groups up to 256, unlimited pins, chat export, announcement channels and app colours", "Raazdar Work for offices: add and remove colleagues, office rules, “External” labels against fake-boss scams, an announcement channel, and remote erase of lost phones with the colleague's consent", "Pay anonymously with a voucher code: your payment is never linked to your Raazdar ID", "Free stays free: every security feature, and the same 25 MB files and groups you had"]),
  ("6.9", "28 Nov 2026", ["Safety numbers you can mark as verified, with a ✓ on verified contacts", "Call code: 4 pictures that match on both phones when no one is in the middle", "\"Forwarded\" and \"Forwarded many times\" labels", "Android: screen-share alarm, and warnings about remote-control apps and apps that can read your screen"]),
  ("6.8", "28 Nov 2026", ["Safe Media shield: disguised apps (like fake wedding invitations) are detected and blocked", "Every received photo is rebuilt from its pixels, so nothing can hide inside it", "Messages from people you haven't added: photos hidden, files locked and links flagged until you accept"]),
  ("6.7", "27 Nov 2026", ["Automatic uptime and certificate checks", "Security tests run on every change; weekly dependency checks", "Smoother reconnects after a server restart"]),

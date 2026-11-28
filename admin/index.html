@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Raazdar · Owner panel</title>
+<link rel="stylesheet" href="/admin/style.css">
+</head>
+<body>
+<main>
+  <header><b>Raazdar</b> <span>Owner panel</span><button id="out" class="ghost hidden">Sign out</button></header>
+
+  <section id="login" class="card">
+    <h1>Sign in</h1>
+    <p class="muted">Paste the admin key. On the server, run <code>cat /var/lib/raazdar/admin.key</code> to see it.</p>
+    <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Admin key">
+    <button id="go">Open panel</button>
+    <p id="lerr" class="err"></p>
+  </section>
+
+  <div id="panel" class="hidden">
+    <section class="grid" id="stats"></section>
+
+    <section class="card">
+      <h2>Make voucher codes</h2>
+      <p class="muted">Sell these codes (UPI, Razorpay link, bank transfer). The buyer types the code in Raazdar → You → Raazdar Plus. Codes are shown <b>only once</b>: save them right away.</p>
+      <div class="row">
+        <label>Plan<select id="tier"><option value="plus">Plus (one person)</option><option value="work">Work (organisation)</option></select></label>
+        <label>Months<select id="months"><option>1</option><option>3</option><option>6</option><option selected>12</option><option>24</option></select></label>
+        <label id="seatsl" class="hidden">Seats (colleagues)<input id="seats" type="number" min="1" max="5000" value="10"></label>
+        <label>How many codes<input id="count" type="number" min="1" max="200" value="1"></label>
+      </div>
+      <button id="make">Make codes</button>
+      <div id="codes" class="hidden">
+        <textarea id="codelist" rows="6" readonly></textarea>
+        <div class="row"><button id="copy" class="ghost">Copy all</button><button id="csv" class="ghost">Download CSV</button></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Check or cancel a code</h2>
+      <p class="muted">For support and refunds. Cancelling makes an unused code worthless.</p>
+      <input id="ccode" placeholder="RZD-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" spellcheck="false">
+      <div class="row"><button id="check" class="ghost">Check</button><button id="cancel" class="danger">Cancel code</button></div>
+      <p id="cres"></p>
+    </section>
+
+    <section class="card">
+      <h2>Notice to all users</h2>
+      <p class="muted">A short banner shown in everyone's app (maintenance, new version). Leave empty to remove it.</p>
+      <textarea id="notice" rows="2" maxlength="280" placeholder="e.g. Raazdar will restart for 2 minutes at 2 AM for an update."></textarea>
+      <button id="savenotice">Save notice</button>
+    </section>
+
+    <section class="card">
+      <h2>Suggested prices</h2>
+      <table>
+        <tr><th>Plan</th><th>Monthly</th><th>Yearly</th></tr>
+        <tr><td>Plus</td><td>₹79</td><td>₹699</td></tr>
+        <tr><td>Work (per colleague)</td><td>₹249</td><td>₹2,399</td></tr>
+        <tr><td>Self-hosted licence</td><td colspan="2">from ₹1.5 lakh/year + setup</td></tr>
+      </table>
+      <p class="muted">This panel never shows who bought or who uses a plan. The server doesn't know.</p>
+    </section>
+  </div>
+</main>
+<script src="/admin/app.js"></script>
+</body>
+</html>

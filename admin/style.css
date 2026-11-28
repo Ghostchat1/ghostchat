@@ -1,0 +1,22 @@
+:root { --bg:#0a0a0b; --card:#141416; --line:#2a2a2f; --text:#f3efe7; --muted:#8f8a80; --gold:#d6b36a; --ink:#1a1306; --danger:#ff6b6b; --ok:#7fd1a8; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 16px 14px 60px; padding-top: max(16px, env(safe-area-inset-top)); }
+header { display:flex; align-items:center; gap:8px; margin-bottom:16px; font-size:18px; }
+header b { color: var(--gold); } header span { color: var(--muted); flex:1; }
+h1 { margin: 0 0 6px; font-size: 22px; } h2 { margin: 0 0 6px; font-size: 17px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:14px; }
+.grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:10px; margin-bottom:14px; }
+.stat { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px; }
+.stat b { display:block; font-size:22px; color:var(--gold); } .stat span { color:var(--muted); font-size:12.5px; }
+.muted { color: var(--muted); font-size: 13.5px; } .err { color: var(--danger); min-height: 1em; }
+input, select, textarea { width:100%; background:#0f0f11; color:var(--text); border:1px solid var(--line); border-radius:10px; padding:10px; font:inherit; margin:6px 0; }
+textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+label { display:block; font-size:13px; color:var(--muted); flex:1; min-width:140px; }
+.row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+button { background:var(--gold); color:var(--ink); border:0; border-radius:10px; padding:10px 16px; font:inherit; font-weight:600; cursor:pointer; margin-top:6px; }
+button.ghost { background:transparent; color:var(--text); border:1px solid var(--line); }
+button.danger { background:transparent; color:var(--danger); border:1px solid #5a2a2a; }
+code { background:#1f1f23; padding:1px 6px; border-radius:6px; }
+table { width:100%; border-collapse: collapse; margin: 6px 0; } td, th { text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); font-size:14px; }
+.hidden { display:none !important; } .okc { color: var(--ok); }

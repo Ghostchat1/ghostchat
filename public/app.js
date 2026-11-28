@@ -43,7 +43,7 @@ const MAX_PHOTO = 420 * 1024;
 const MAX_ENV = 6 * 1024 * 1024; // must match the server
 const MAX_FILE = () => (STORAGE_MODE === "indexeddb" ? 2 * 1048576 : 400 * 1024); // small vault when the browser only allows localStorage
 const MAX_VOICE_S = 120;
-const INLINE_MAX = 1024 * 1024, BIG_MAX = 25 * 1024 * 1024; // bigger files go through the encrypted media store
+const INLINE_MAX = 1024 * 1024, BIG_MAX = 64 * 1024 * 1024; // bigger files go through the encrypted media store
 
 // ---------------- byte helpers ----------------
 const b64 = (buf) => { const a = buf instanceof Uint8Array ? buf : new Uint8Array(buf); let s = ""; for (let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode(...a.subarray(i, i + 0x8000)); return btoa(s); };
@@ -459,8 +459,9 @@ function connect() {
       ready = true; retry = 1000; setConn();
       const cur = S.spks[S.spks.length - 1];
       if (m.spk !== cur.id) inbox.send(JSON.stringify({ t: "spk", spk: spkPublic(cur) }));
-      syncPush();
+      syncPush(); sendPass();
     } else if (m.t === "msg") onEnvelope(m);
+    else if (m.t === "plan" || m.t === "redeemed" || m.t === "revoked") onPlanFrame(m);
     else if (m.t === "turn") { const w = turnWait; turnWait = null; if (w) w(m); }
     else if (m.t === "uptoken") { const w = upWait; upWait = null; if (w) w(m.token); }
     else if (m.t === "deleted") { if (onDeleted) onDeleted(); }
@@ -536,6 +537,7 @@ async function fanout(g, body, local) { // send to every other member of a group
 }
 async function sendBody(id, local, body, msg) {
   const c = conv(id); if (!c) return;
+  if (c.ann && c.admin !== S.me.id) return toast("Only the admin can post in this channel");
   msgs(id).push(msg);
   c.last = { text: preview(msg), ts: msg.ts, me: true }; c.request = false; persist();
   renderMessages(); renderList();
@@ -547,12 +549,12 @@ async function sendBody(id, local, body, msg) {
 function takeReply() { const r = replyTo; cancelReply(); return r ? { re: r } : {}; }
 async function sendText(text) {
   const c = conv(current); if (!c) return;
-  const ts = Date.now(), local = rid(12), timer = c.timer || 0, re = takeReply();
+  const ts = Date.now(), local = rid(12), timer = timerFor(c), re = takeReply();
   await sendBody(current, local, { k: "text", mid: local, text, name: S.me.name, ts, timer, ...re }, { mid: local, me: true, text, ts, status: "sending", exp: timer ? ts + timer : 0, ...re });
 }
 async function sendKind(id, kind, fields) { // files and voice messages
   const c = conv(id); if (!c) return;
-  const ts = Date.now(), local = rid(12), timer = c.timer || 0, re = takeReply();
+  const ts = Date.now(), local = rid(12), timer = timerFor(c), re = takeReply();
   const { name: fname, got, ...rest } = fields; // "name" in the wire format is the sender's nickname
   await sendBody(id, local, { k: kind, mid: local, ...rest, ...(fname ? { fname } : {}), name: S.me.name, ts, timer, ...re }, { mid: local, me: true, kind, ...fields, ts, status: "sending", exp: timer ? ts + timer : 0, ...re });
 }
@@ -562,7 +564,7 @@ async function sendCtl(id, body) { // reactions & deletions: no bubble of their 
 }
 async function sendPhoto(id, photo, once) {
   const c = conv(id); if (!c) return;
-  const ts = Date.now(), local = rid(12), timer = c.timer || 0;
+  const ts = Date.now(), local = rid(12), timer = timerFor(c);
   const body = { k: "img", mid: local, data: photo.data, w: photo.w, h: photo.h, once, name: S.me.name, ts, timer };
   await sendBody(id, local, body, { mid: local, me: true, kind: "img", once, data: once ? null : photo.data, w: photo.w, h: photo.h, ts, status: "sending", exp: timer ? ts + timer : 0 });
 }
@@ -570,14 +572,14 @@ async function sendPhoto(id, photo, once) {
 // group admin actions — only the admin's group "state" messages are accepted by members
 async function pushGroupState(g, extraTo = []) {
   g.v = (g.v || 0) + 1;
-  const st = { k: "gstate", gid: g.gid, name: g.name, members: g.members, admin: g.admin, timer: g.timer || 0, v: g.v, name_: S.me.name };
+  const st = { k: "gstate", gid: g.gid, name: g.name, members: g.members, admin: g.admin, timer: g.timer || 0, v: g.v, name_: S.me.name, ...(g.ann ? { ann: 1 } : {}), ...(g.org ? { org: g.org } : {}) };
   await Promise.all([...new Set([...others(g), ...extraTo])].map(async (id) => { try { await post(await ensurePeer(id), { ...st, name: g.name, mid: rid() }, null, g.gid); } catch {} }));
 }
-async function createGroup(name, ids) {
+async function createGroup(name, ids, ann) {
   for (const id of ids) await ensurePeer(id);
   const gid = "G" + rid(12);
   S.groups = S.groups || {};
-  const g = (S.groups[gid] = { gid, name, members: [S.me.id, ...ids], admin: S.me.id, timer: 0, v: 0, unread: 0, added: Date.now() });
+  const g = (S.groups[gid] = { gid, name, members: [S.me.id, ...ids], admin: S.me.id, timer: 0, v: 0, unread: 0, added: Date.now(), ...(ann ? { ann: true } : {}) });
   msgs(gid).push({ mid: rid(), sys: true, text: `You created "${name}"`, ts: Date.now() });
   persist(); await pushGroupState(g); renderList(); openChat(gid);
 }
@@ -609,6 +611,7 @@ async function onEnvelope(m, viaMesh) {
     for (const g of Object.values(S.groups || {})) { S.msgs[g.gid] = msgs(g.gid).filter((x) => x.from !== from); g.members = g.members.filter((x) => x !== from); }
     if (current === from) closeChat(); persist(); renderList(); if (current) renderMessages(); return;
   }
+  if (k === "org") { await onOrgMsg(from, c, body); persist(); return; }
   const cid = body.gid && isGroup(body.gid) ? body.gid : from;
   if (k === "rcpt") { for (const id of [].concat(body.mids || []).slice(0, 50)) if (typeof id === "string" && MID_RE.test(id)) markDelivered(cid, id, from); persist(); return; }
 
@@ -622,7 +625,7 @@ async function onEnvelope(m, viaMesh) {
     if (!members.includes(S.me.id)) { if (g) { sysMsg(g.gid, "You were removed from this group"); g.members = []; g.removed = true; } persist(); renderList(); if (current === body.gid) renderMessages(); return; }
     const name = String(body.name || "Group").slice(0, 40), timer = TIMERS.some((t) => t[0] === +body.timer) ? +body.timer : 0;
     if (!g) {
-      S.groups[body.gid] = { gid: body.gid, name, members, admin: from, timer, v: +body.v, unread: 1, request: !S.contacts[from], added: Date.now() };
+      S.groups[body.gid] = { gid: body.gid, name, members, admin: from, timer, v: +body.v, unread: 1, request: !S.contacts[from] && !(S.org && S.org.admin === from), added: Date.now(), ann: !!body.ann, ...(typeof body.org === "string" ? { org: body.org.slice(0, 20) } : {}) };
       sysMsg(body.gid, `${displayName(c)} added you to "${name}"`);
     } else {
       const added = members.filter((x) => !g.members.includes(x)), gone = g.members.filter((x) => !members.includes(x));
@@ -630,7 +633,7 @@ async function onEnvelope(m, viaMesh) {
       if (added.length) sysMsg(g.gid, `${added.map(memberName).join(", ")} joined`);
       if (gone.length) sysMsg(g.gid, `${gone.map(memberName).join(", ")} left`);
       if ((g.timer || 0) !== timer) sysMsg(g.gid, timer ? `Disappearing messages: ${timerLabel(timer)}` : "Disappearing messages off");
-      Object.assign(g, { name, members, timer, v: +body.v });
+      Object.assign(g, { name, members, timer, v: +body.v, ann: !!body.ann });
     }
     for (const id of members) ensurePeer(id).catch(() => {});
     persist(); renderList(); if (current === body.gid) renderMessages(); return;
@@ -645,6 +648,7 @@ async function onEnvelope(m, viaMesh) {
   const target = conv(cid);
   if (!target) return;
   if (isGroup(cid) && !target.members.includes(from)) return; // not a member: ignore
+  if (target.ann && from !== target.admin && k !== "react") return; // announcement channel: only the admin posts
   const list = msgs(cid), mid = safeMid(body.mid);
   if (list.some((x) => x.mid === mid)) return;
   if (k === "react" || k === "del") {
@@ -859,7 +863,7 @@ function renderList() {
 function chatItemMenu(id) {
   const c = conv(id); if (!c) return;
   menu(displayName(c), "", [
-    [c.pinned ? "📌  Unpin chat" : "📌  Pin chat", () => { c.pinned = c.pinned ? 0 : Date.now(); persist(); renderList(); }],
+    [c.pinned ? "📌  Unpin chat" : "📌  Pin chat", () => togglePin(c)],
     [c.unread ? "✓  Mark as read" : "●  Mark as unread", () => { c.unread = c.unread ? 0 : 1; persist(); renderList(); }],
     [c.gid ? "🚪  Leave group" : "🗑️  Delete chat", () => { current = id; c.gid ? leaveGroup(c) : deleteChat(); }, "danger"],
   ]);
@@ -880,6 +884,12 @@ function renderYou() {
       </div>
     </div>
     ${STORAGE_MODE !== "indexeddb" ? `<div class="notice">⚠️ This browser may erase Raazdar when it closes. Keep an encrypted backup.</div>` : ""}
+    <div class="card-h">Plan</div>
+    <div class="card">
+      ${rowItem("star", "Raazdar Plus", esc(planLabel()), 'data-act="plus"')}
+      ${rowItem("group", "Organisation (Work)", S.org ? esc((S.org.role === "admin" ? "Admin · " : "Member · ") + S.org.name) : (S.orgInvites && Object.keys(S.orgInvites).length ? "You have an invite" : "For offices, firms and teams"), 'data-act="org"')}
+      ${rowItem("heart", "App colour", esc((THEMES.find((t) => t[0] === (S.settings.theme || "gold")) || THEMES[0])[1]), 'data-act="theme"')}
+    </div>
     <div class="card-h">Account</div>
     <div class="card">
       ${rowItem("save", "Encrypted backup", S.settings.backupAt ? "Last saved " + fmtTime(S.settings.backupAt) : "Not saved yet", 'data-act="backup"')}
@@ -899,7 +909,7 @@ function renderYou() {
       ${rowItem("info", "Security details", "Encryption, keys and connection", 'data-act="secinfo"')}
       ${rowItem("heart", "Invite a friend", "Share your private invite link", 'data-act="invite"')}
     </div>
-    <p class="ver">Raazdar 6.9 · no phone · no email · no trace</p>`;
+    <p class="ver">Raazdar 7.0 · no phone · no email · no trace</p>`;
   $("#you-name").onclick = renameSelf;
   $("#you-qr").onclick = myQrDialog;
   $("#you-share").onclick = shareInvite;
@@ -971,7 +981,8 @@ function renderSecurity() {
     <div class="card">${rowItem("fire", "Erase everything", "Instantly destroys this account and all chats", 'data-act="wipe"', "danger")}</div>`;
 }
 const ACTIONS = { backup: () => backupDialog(), pass: () => passDialog(), myid: () => myIdDialog(), starred: () => starredDialog(), notif: () => enableNotifs(), mesh: () => meshDialog(),
-  secinfo: () => securityDialog(), privacy: () => privacyDialog(), move: () => moveDialog(), invite: () => shareInvite(), panic: () => panicSettings(), stealth: () => stealthDialog(), lock: () => lockNow(), wipe: () => wipeDialog() };
+  secinfo: () => securityDialog(), privacy: () => privacyDialog(), move: () => moveDialog(), invite: () => shareInvite(), panic: () => panicSettings(), stealth: () => stealthDialog(), lock: () => lockNow(), wipe: () => wipeDialog(),
+  plus: () => planDialog(), org: () => { const inv = Object.keys(S.orgInvites || {}); if (!S.org && inv.length) return orgInviteDialog(inv[0]); orgDialog(); }, theme: () => themeDialog() };
 for (const id of ["#you-body", "#sec-body"]) $(id).addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (b && ACTIONS[b.dataset.act]) ACTIONS[b.dataset.act](); });
 
 function headerFor(c) {
@@ -980,7 +991,10 @@ function headerFor(c) {
   $("#chat-name").textContent = displayName(c);
   if (!c.gid && c.verified && c.verified === c.sign) { const v = document.createElement("span"); v.className = "verified"; v.title = "Safety number verified"; v.textContent = " ✓"; $("#chat-name").appendChild(v); }
   $("#btn-call").classList.toggle("hidden", !!c.gid); $("#btn-vcall").classList.toggle("hidden", !!c.gid);
-  $("#chat-sub").textContent = (c.gid ? c.members.map(memberName).join(", ") : c.id) + (c.timer ? " · ⏱ " + timerLabel(c.timer) : "");
+  const tmr = timerFor(c), ext = S.org && S.org.policy && S.org.policy.external && !c.gid && !isColleague(c.id);
+  if (!c.gid && isColleague(c.id)) { const o = document.createElement("span"); o.className = "tag org"; o.textContent = "🏢 " + S.org.name; $("#chat-name").appendChild(o); }
+  if (ext) { const o = document.createElement("span"); o.className = "tag ext"; o.textContent = "External"; $("#chat-name").appendChild(o); }
+  $("#chat-sub").textContent = (c.ann ? "📢 Announcements · " : "") + (c.gid ? c.members.map(memberName).join(", ") : c.id) + (tmr ? " · ⏱ " + timerLabel(tmr) : "");
 }
 function openChat(id) {
   if (current !== id) { cancelReply(); closeFind(); seen = new Set(); seenFor = null; }
@@ -1096,6 +1110,10 @@ function renderMessages(keepScroll) {
   let html = `<div class="sys">🔒 Post-quantum, sealed-sender encryption. The server can't read these messages or see who sent them.</div>`;
   if (c.request) html += `<div class="sys request-box">🛡️ ${grp ? "Someone you haven't added put you in this group." : "Someone you haven't added messaged you."} They only know your anonymous ID. Until you accept, their photos are hidden and their files stay locked.<br><b>Be careful:</b> fake wedding invitations, bank/KYC alerts, prizes and job offers are common scams. Never install an app sent in a chat.<span class="req-actions"><button class="btn primary small" data-req="accept">Accept</button><button class="btn ghost small" data-req="block">${grp ? "Leave" : "Block"}</button></span></div>`;
   if (c.removed) html += `<div class="sys">You're no longer a member of this group.</div>`;
+  if (c.ann) html += `<div class="sys">📢 Announcement channel: ${c.admin === S.me.id ? "only you can post here" : "only the admin can post here"}.</div>`;
+  if (inOrgChat(c) && S.org.policy && (S.org.policy.timer || S.org.policy.noForward || S.org.policy.noSave)) html += `<div class="sys">🏢 ${esc(S.org.name)} office rules apply in this chat.</div>`;
+  if (!c.gid && S.org && S.org.policy && S.org.policy.external && !isColleague(c.id) && c.id !== S.me.id) html += `<div class="sys ext-warn">⚠️ External: this person is not in ${esc(S.org.name)}. Be careful with anyone claiming to be a colleague or your boss.</div>`;
+  if (!rec) $("#composer").classList.toggle("hidden", !!(c.ann && c.admin !== S.me.id));
   if (!grp && (S.blocked || {})[c.id]) html += `<div class="sys">You blocked this contact. Unblock from the ⋮ menu to receive their messages.</div>`;
   let lastDay = "", hits = 0;
   const q = findQ.toLowerCase();
@@ -1203,6 +1221,7 @@ function msgMenu(mid) {
 }
 // Forwarding: the count travels inside the encrypted message, so "Forwarded many times" works without the server knowing anything.
 function forwardDialog(m) {
+  if (orgRule(conv(current), "noForward")) return toast("Your organisation doesn't allow forwarding from work chats");
   if (m.verdict && m.verdict.level === "danger") return toast("Dangerous files can't be forwarded");
   if (!m.me && conv(current) && conv(current).request) return toast("Accept this chat before forwarding its messages");
   const chats = [...Object.values(S.contacts).filter((c) => !c.hidden && !(S.blocked || {})[c.id] && c.id !== S.me.id), ...Object.values(S.groups || {}).filter((g) => !g.removed)]
@@ -1212,7 +1231,7 @@ function forwardDialog(m) {
 }
 async function sendForward(id, m) {
   const fwd = Math.min(99, (m.fwd || 0) + 1), c = conv(id); if (!c) return;
-  if (m.text) { const ts = Date.now(), local = rid(12), timer = c.timer || 0; await sendBody(id, local, { k: "text", mid: local, text: m.text, name: S.me.name, ts, timer, fwd }, { mid: local, me: true, text: m.text, ts, status: "sending", exp: timer ? ts + timer : 0, fwd }); }
+  if (m.text) { const ts = Date.now(), local = rid(12), timer = timerFor(c); await sendBody(id, local, { k: "text", mid: local, text: m.text, name: S.me.name, ts, timer, fwd }, { mid: local, me: true, text: m.text, ts, status: "sending", exp: timer ? ts + timer : 0, fwd }); }
   else if (m.kind === "img") await sendKind(id, "img", { data: m.data, w: m.w, h: m.h, fwd });
   else if (m.kind === "voice") await sendKind(id, "voice", { data: m.data, mime: m.mime, dur: m.dur, fwd });
   else if (m.blob) await sendKind(id, "file", { blob: m.blob, name: m.name, mime: m.mime, size: m.size, got: !!m.got, fwd });
@@ -1267,7 +1286,7 @@ function attachSheet() {
 function fileDialog(file) {
   const id = current; if (!conv(id)) return;
   const big = file.size > Math.min(INLINE_MAX, MAX_FILE());
-  if (file.size > BIG_MAX) return toast(`Too large. The limit is ${fmtSize(BIG_MAX)}`);
+  if (file.size > lim().file) return hasPlus() ? toast(`Too large. The limit is ${fmtSize(lim().file)}`) : upsell(`Free accounts can send files up to ${fmtSize(PLAN_LIM.free.file)}. With Plus you can send up to ${fmtSize(PLAN_LIM.plus.file)}.`);
   const name = String(file.name || "file").replace(/[\\/\u0000-\u001f]/g, "_").slice(0, 80);
   modal("Send file", `<div class="filecard wide"><span class="fi">${esc((name.split(".").pop() || "FILE").slice(0, 4).toUpperCase())}</span><span><span class="fn">${esc(name)}</span><span class="fs">${fmtSize(file.size)}</span></span></div><p class="muted small mt">Encrypted end to end. Only the people in this chat can open it.</p>`,
     [["Send", async () => {
@@ -1295,7 +1314,8 @@ async function uploadBig(bytes) {
   const r = await fetch(BASE() + "/api/blob", { method: "POST", headers: { "Content-Type": "application/octet-stream", "X-Upload-Token": await uploadToken("blob") }, body: ct });
   const j = await r.json().catch(() => ({}));
   if (r.status === 503) throw new Error("The server is busy, please try again later");
-  if (r.status === 429) throw new Error("You've reached today's limit for large files");
+  if (r.status === 429) throw new Error(hasPlus() ? "You've reached today's limit for large files" : "You've reached today's free limit for large files (200 MB). Plus allows 1 GB a day");
+  if (r.status === 413) throw new Error("This file is bigger than your plan allows");
   if (!r.ok || !j.id) throw new Error("Upload failed");
   await mediaPut(j.id, ct);
   return { id: j.id, k: b64(k), iv: b64(iv), h };
@@ -1325,6 +1345,7 @@ async function hydrateVideos() {
 const SAFE_TYPES = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", txt: "text/plain" };
 async function saveFile(mid) {
   const m = msgs(current).find((x) => x.mid === mid), c = conv(current); if (!m || (!m.data && !m.blob)) return;
+  if (orgRule(c, "noSave") && !m.me) return toast("Your organisation doesn't allow saving files from work chats");
   if (!m.me && c && c.request) return toast("Accept this chat first. Files from people you haven't added stay locked");
   if (m.verdict && m.verdict.block) return shieldDialog(m, true);
   if (m.blob) {
@@ -1505,19 +1526,22 @@ function newGroupDialog() {
   const cs = Object.values(S.contacts);
   modal("New group", `<label class="field"><span>Group name</span><input id="gn" maxlength="40" placeholder="e.g. Team" /></label>
     ${cs.length ? `<p class="small">Members from your chats:</p>` + cs.map((c) => `<label class="opt"><input type="checkbox" class="gm" value="${c.id}" /> ${esc(displayName(c))} <span class="muted small mono">${c.id}</span></label>`).join("") : ""}
-    <p class="small mt">Or add IDs (one per line):</p><textarea id="gids" rows="2" placeholder="XXXX-XXXX-XXXX-XXXX"></textarea><p id="ge" class="err"></p>`,
+    <p class="small mt">Or add IDs (one per line):</p><textarea id="gids" rows="2" placeholder="XXXX-XXXX-XXXX-XXXX"></textarea>
+    <label class="opt"><input type="checkbox" id="gann" /> 📢 Announcement channel: only I can post  ✦</label><p id="ge" class="err"></p>`,
     [["Create group", async () => {
       const name = $("#gn").value.trim(); if (!name) return err("#ge", "Give the group a name");
       const ids = [...new Set([...[...document.querySelectorAll(".gm:checked")].map((x) => x.value), ...parseIds($("#gids").value)])];
-      if (!ids.length) return err("#ge", "Add at least one member"); if (ids.length > 100) return err("#ge", "Max 100 members");
+      if (!ids.length) return err("#ge", "Add at least one member");
+      if (ids.length + 1 > lim().group) { if (!hasPlus()) { upsell(`Free groups hold up to ${PLAN_LIM.free.group} people. Plus groups hold ${PLAN_LIM.plus.group}.`); return; } return err("#ge", `Max ${lim().group} members`); }
+      const ann = $("#gann").checked; if (ann && !hasPlus()) { upsell("Announcement channels, where only you can post, are part of Raazdar Plus."); return; }
       err("#ge", "Creating…");
-      try { await createGroup(name, ids); } catch (e) { return err("#ge", e.message); }
+      try { await createGroup(name, ids, ann); } catch (e) { return err("#ge", e.message); }
     }, "primary"], ["Cancel", () => {}]]);
 }
 function groupMenu(g) {
   const admin = g.admin === S.me.id;
   menu(displayName(g), `<p class="muted small">${g.members.length} members${admin ? " · you're the admin" : ""}</p>`, [
-    ["👥  Members", () => membersDialog(g)],
+    ["👥  Members", () => membersDialog(g)], ["📤  Export chat  ✦", exportChat],
     ["🚩  Report a member", () => { const o = others(g); if (!o.length) return; menu("Report which member?", "", o.map((id) => [memberName(id), () => reportDialog(id)])); }],
     ...(admin && !g.removed ? [["➕  Add members", () => addMembersDialog(g)], ["✏️  Rename group", () => renameGroup(g)], ["⏱  Disappearing messages", timerDialog]] : []),
     [g.removed ? "🗑️  Delete group" : "🚪  Leave group", () => leaveGroup(g), "danger"],
@@ -1539,6 +1563,7 @@ function addMembersDialog(g) {
     [["Add", async () => {
       const ids = [...new Set([...[...document.querySelectorAll(".gm:checked")].map((x) => x.value), ...parseIds($("#gids").value)])].filter((x) => !g.members.includes(x));
       if (!ids.length) return err("#ge", "Pick someone");
+      if (g.members.length + ids.length > lim().group) { if (!hasPlus()) { upsell(`Free groups hold up to ${PLAN_LIM.free.group} people. Plus groups hold ${PLAN_LIM.plus.group}.`); return; } return err("#ge", `Max ${lim().group} members`); }
       try { for (const id of ids) await ensurePeer(id); } catch (e) { return err("#ge", e.message); }
       g.members.push(...ids); sysMsg(g.gid, `You added ${ids.map(memberName).join(", ")}`); persist(); renderMessages(); renderList();
       await pushGroupState(g);
@@ -1715,6 +1740,7 @@ function panicSettings() {
 function mainMenu() {
   menu("Menu", "", [
     ["🪪  My ID & invite link", myIdDialog], ["✏️  Nickname", renameSelf], ["💾  Encrypted backup", backupDialog],
+    ["✦  Raazdar Plus", planDialog], ["🏢  Organisation (Work)", ACTIONS.org],
     ["🔑  Change passcode", passDialog], ["🕵️  Stealth (disguise, decoy)", stealthDialog], ["🚨  Panic settings", panicSettings],
     ["🛡️  Security details", securityDialog], ...(NATIVE ? [["📶  Offline Bluetooth mesh", meshDialog]] : []), ["🔔  Enable notifications", enableNotifs],
     ["🔒  Lock now", lockNow], ["🔥  Erase everything (panic)", wipeDialog, "danger"],
@@ -1724,10 +1750,12 @@ function chatMenu() {
   const c = conv(current); if (!c) return;
   if (c.gid) return groupMenu(c);
   menu(displayName(c), `<p class="muted small mono">${c.id}</p>`, [
-    [c.pinned ? "📌  Unpin chat" : "📌  Pin chat", () => { c.pinned = c.pinned ? 0 : Date.now(); persist(); renderList(); toast(c.pinned ? "Pinned" : "Unpinned"); }],
+    [c.pinned ? "📌  Unpin chat" : "📌  Pin chat", () => togglePin(c)],
+    ...((S.orgInvites || {})[c.id] ? [["🏢  Answer organisation invite", () => orgInviteDialog(c.id)]] : []),
     ["⏱  Disappearing messages", timerDialog], [S.contacts[current] && S.contacts[current].verified ? "✅  Safety number (verified)" : "🛡️  Verify safety number", safetyDialog],
     ["✏️  Rename contact", renameContact],
     [(S.blocked || {})[c.id] ? "✅  Unblock" : "⛔  Block", () => toggleBlock(c.id)],
+    ["📤  Export chat  ✦", exportChat],
     ["🚩  Report", () => reportDialog(c.id)], ["🗑️  Delete chat", deleteChat, "danger"],
   ]);
 }
@@ -2163,11 +2191,372 @@ async function enter(v) {
 let started = false;
 async function start() {
   if (!K) await loadKeys();
-  show("main"); renderList(); await maintainKeys(); connect(); connectDrop(); sweep();
+  show("main"); applyTheme(); renderList(); await maintainKeys(); connect(); connectDrop(); sweep(); fetchNotice();
   if (NATIVE) try { NATIVE.meshStart(S.me.id); } catch {}
   if (!started) { started = true; setInterval(sweep, 5000); setInterval(() => maintainKeys().catch(() => {}), 3600e3); scheduleNoise(); }
   const add = new URLSearchParams(location.search).get("add");
   if (add) { history.replaceState(null, "", "/"); addContact(add).catch((e) => toast(e.message)); }
+}
+
+// ---------------- Raazdar Plus & Raazdar Work ----------------
+// Safety is never paywalled: encryption, safety numbers, Safe Media, panic, disguise and disappearing
+// messages stay free for everyone. Plus adds capacity and convenience. Work adds an organisation layer.
+// Paying stays anonymous: a VOUCHER CODE (bought on the website) becomes a PASS signed by the server.
+// The pass lives only inside this encrypted vault; the app shows it to the server when it connects.
+const PLAN_LIM = { free: { file: 25 * 1048576, group: 32, pins: 3 }, plus: { file: 64 * 1048576, group: 256, pins: Infinity } };
+const BUY_URL = "https://raazdar.app/plus";
+let PLAN = { tier: "free" }; // what the server confirmed for this connection
+function planLocal() {
+  const now = Date.now(), own = S && S.plan && S.plan.pass;
+  if (own && +own.exp > now) return { tier: own.tier, exp: +own.exp, role: own.tier === "work" ? "admin" : "" };
+  const o = S && S.org;
+  if (o && o.role === "member" && o.cert && +o.cert.exp > now) return { tier: "plus", exp: +o.cert.exp, role: "member" };
+  return { tier: "free" };
+}
+const hasPlus = () => planLocal().tier !== "free" && !PLAN.rejected;
+const lim = () => (hasPlus() ? PLAN_LIM.plus : PLAN_LIM.free);
+const fmtDate = (ts) => new Date(ts).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+function planLabel() {
+  const p = planLocal();
+  if (p.tier === "free") return "Free";
+  if (p.role === "admin") return `Work · ${S.org ? S.org.name : "organisation"} · until ${fmtDate(p.exp)}`;
+  if (p.role === "member") return `Work · ${S.org.name} (via your organisation)`;
+  return `Plus · until ${fmtDate(p.exp)}`;
+}
+const wsWait = {};
+function wsAsk(t, payload, reply, ms = 9000) {
+  return new Promise((res, rej) => {
+    if (!inbox || !ready) return rej(new Error("You're offline. Try again when connected"));
+    wsWait[reply] = res; inbox.send(JSON.stringify({ t, ...payload }));
+    setTimeout(() => { if (wsWait[reply] === res) { delete wsWait[reply]; rej(new Error("Couldn't reach the server")); } }, ms);
+  });
+}
+function onPlanFrame(m) { // frames from the server about plans
+  if (m.t === "plan") {
+    PLAN = { ...m, rejected: m.tier === "free" && !!m.error };
+    if (m.error === "removed" && S.org && S.org.role === "member") { orgLeftLocally("Your organisation removed your seat"); }
+    if (tab === "you") renderYou();
+  } else if (wsWait[m.t]) { const w = wsWait[m.t]; delete wsWait[m.t]; w(m); }
+}
+function sendPass() {
+  if (!inbox || !ready || !S) return;
+  const now = Date.now(), own = S.plan && S.plan.pass, o = S.org;
+  if (own && +own.exp > now) inbox.send(JSON.stringify({ t: "pass", pass: own }));
+  else if (o && o.role === "member" && o.cert) inbox.send(JSON.stringify({ t: "pass", pass: o.pass, cert: o.cert, csig: o.csig }));
+  else PLAN = { tier: "free" };
+}
+function upsell(what) {
+  modal("✦ Raazdar Plus", `<p>${esc(what)}</p>
+    <p class="muted small mt">Plus gives you bigger files (64 MB), groups up to 256, unlimited pinned chats, chat export, announcement channels and app colours. Security features stay free for everyone, always.</p>`,
+    [["See Raazdar Plus", () => { planDialog(); return true; }, "primary"], ["Not now", () => {}]]);
+}
+function planDialog() {
+  const p = planLocal(), L = PLAN_LIM;
+  const row = (f, a, b) => `<tr><td>${f}</td><td>${a}</td><td><b>${b}</b></td></tr>`;
+  modal("Raazdar Plus", `
+    <div class="plan-now ${p.tier !== "free" ? "on" : ""}"><span>Your plan</span><b>${esc(planLabel())}</b></div>
+    <table class="plan-t"><tr><th></th><th>Free</th><th>✦ Plus</th></tr>
+      ${row("Large files", fmtSize(L.free.file), fmtSize(L.plus.file))}
+      ${row("Large files per day", "200 MB", "1 GB")}
+      ${row("Group size", L.free.group, L.plus.group)}
+      ${row("Pinned chats", L.free.pins, "Unlimited")}
+      ${row("Export a chat", "—", "✓")}
+      ${row("Announcement channels", "—", "✓")}
+      ${row("App colours", "Gold", "5 colours")}
+      ${row("Encryption, panic, Safe Media, calls", "✓", "✓")}
+    </table>
+    <p class="muted small">Pay on the website and you get a code. Your payment is never linked to your Raazdar ID.</p>
+    <label class="field"><span>Have a code?</span><input id="vcode" placeholder="RZD-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" maxlength="40" autocapitalize="characters" /></label>
+    <p id="ve" class="err"></p>
+    <a class="btn ghost full" href="${BUY_URL}" target="_blank" rel="noopener noreferrer">Buy Plus or Work</a>`,
+    [["Redeem code", async () => { err("#ve", "Checking…"); const r = await redeem($("#vcode").value); if (r !== true) err("#ve", r); return true; }, "primary"], ["Close", () => {}]]);
+}
+async function redeem(code) {
+  code = String(code || "").trim(); if (code.replace(/[^0-9A-Za-z]/g, "").length < 20) return "Type the whole code";
+  // A Work code needs an organisation key; we always offer one (a Plus code simply ignores it).
+  let kp = null, orgPub = S.org && S.org.role === "admin" ? S.org.pub : null;
+  if (!orgPub) { kp = await subtle.generateKey(ECDSA, true, ["sign", "verify"]); orgPub = b64(new Uint8Array(await subtle.exportKey("raw", kp.publicKey))); }
+  let r; try { r = await wsAsk("redeem", { code, org: orgPub, cur: S.plan && S.plan.pass }, "redeemed"); } catch (e) { return e.message; }
+  if (r.error || !r.pass) return r.error || "Couldn't redeem";
+  const was = S.plan && S.plan.pass;
+  S.plan = { pass: r.pass, at: Date.now() };
+  if (r.pass.tier === "work" && !(S.org && S.org.role === "admin")) {
+    if (S.org && S.org.role === "member") { try { await post(await ensurePeer(S.org.admin), { k: "org", op: "leave", mid: rid() }); } catch {} S.org = null; }
+    S.org = { id: await orgIdOf(r.pass.org), name: "My organisation", role: "admin", admin: S.me.id, pub: r.pass.org, key: await subtle.exportKey("jwk", kp.privateKey),
+      policy: { timer: 0, noForward: false, noSave: false, external: true }, dir: { [S.me.id]: S.me.name || "Admin" }, members: {}, created: Date.now() };
+  }
+  persist(); sendPass(); closeModal(); renderYou();
+  if (r.pass.tier === "work") {
+    if (was && was.tier === "work") { await orgRenewAll(); toast(`Work renewed until ${fmtDate(r.pass.exp)}`); orgDialog(); }
+    else orgNameDialog(true);
+  } else toast(`✦ Plus active until ${fmtDate(r.pass.exp)}`);
+  return true;
+}
+const orgIdOf = async (pub) => hex(new Uint8Array(await subtle.digest("SHA-256", unb64(pub)))).slice(0, 20);
+const seatText = (c) => `rzseat1|${c.org}|${c.id}|${c.seat}|${c.cid}|${c.exp}`;
+async function orgKeyObj() { return subtle.importKey("jwk", S.org.key, ECDSA, false, ["sign"]); }
+async function signSeat(cert) { return b64(new Uint8Array(await subtle.sign(SIG, await orgKeyObj(), enc.encode(seatText(cert))))); }
+
+// ---- app colours (Plus) ----
+const THEMES = [["gold", "Gold", null], ["emerald", "Emerald", ["#5fc39a", "#9ae6c3", "#3b8f6c", "#0f2a1e", "#0b2017"]], ["sapphire", "Sapphire", ["#6ea8ff", "#a9cbff", "#3e6fc4", "#14233f", "#0f1b31"]],
+  ["rose", "Rose", ["#ee8aa6", "#f7bccc", "#b85a75", "#3a1a24", "#2c141c"]], ["silver", "Silver", ["#c7ccd4", "#eef0f3", "#8e949d", "#2a2d33", "#202227"]]];
+function applyTheme() {
+  const t = THEMES.find((x) => x[0] === (S && S.settings.theme)) || THEMES[0], st = document.documentElement.style;
+  if (!t[2] || !hasPlus()) { for (const v of ["--gold", "--gold2", "--gold3", "--me1", "--me2"]) st.removeProperty(v); return; }
+  ["--gold", "--gold2", "--gold3", "--me1", "--me2"].forEach((v, i) => st.setProperty(v, t[2][i]));
+}
+function themeDialog() {
+  menu("App colour", `<p class="muted small">${hasPlus() ? "Pick a colour for buttons and your messages." : "Gold is free. Other colours come with ✦ Plus."}</p>`,
+    THEMES.map(([k, l, v]) => [`${(S.settings.theme || "gold") === k ? "● " : "○ "} ${l}${v && !hasPlus() ? "  ✦" : ""}`, () => { if (v && !hasPlus()) return upsell("App colours are part of Raazdar Plus."); S.settings.theme = k; persist(); applyTheme(); }]));
+}
+
+// ---- pinned chats, export (Plus) ----
+function togglePin(c) {
+  if (!c.pinned) { const n = [...Object.values(S.contacts), ...Object.values(S.groups || {})].filter((x) => x.pinned).length; if (n >= lim().pins) return upsell(`Free accounts can pin ${PLAN_LIM.free.pins} chats. Plus pins as many as you like.`); }
+  c.pinned = c.pinned ? 0 : Date.now(); persist(); renderList(); toast(c.pinned ? "Pinned" : "Unpinned");
+}
+function exportChat() {
+  const c = conv(current); if (!c) return;
+  if (!hasPlus()) return upsell("Exporting a chat as a text file is part of Raazdar Plus.");
+  if (orgRule(c, "noSave")) return toast("Your organisation doesn't allow saving work chats");
+  modal("Export chat", `<p class="muted small">Saves the text of this chat as a .txt file on this device. Photos and files aren't included. The file is NOT encrypted: anyone who opens it can read it.</p>`,
+    [["Export", () => {
+      const lines = [`Raazdar chat export: ${displayName(c)}`, `Exported ${new Date().toLocaleString()}`, ""];
+      for (const m of msgs(current)) {
+        if (m.deleted) continue;
+        const who = m.sys ? "—" : m.me ? "You" : memberName(m.from || c.id);
+        lines.push(`[${new Date(m.ts).toLocaleString()}] ${who}: ${m.sys ? m.text : preview(m)}`);
+      }
+      const name = displayName(c).replace(/[^\w\- ]+/g, "").slice(0, 40) || "chat";
+      saveFileData({ name: `Raazdar - ${name}.txt`, data: b64(enc.encode(lines.join("\n"))) });
+    }, "primary"], ["Cancel", () => {}]]);
+}
+
+// ---- Raazdar Work: organisations ----
+// Everything about an organisation travels inside normal end-to-end encrypted messages ({k:"org"}).
+// Members accept commands only from their organisation's admin ID, which the encryption authenticates.
+const ORG_TIMERS = [[0, "No rule"], [86400e3, "24 hours"], [604800e3, "7 days"]];
+const isColleague = (id) => !!(S && S.org && S.org.dir && S.org.dir[id]);
+function inOrgChat(c) {
+  if (!S.org || !c) return false;
+  if (c.gid) return c.org === S.org.id || (c.members.length > 1 && c.members.every(isColleague));
+  return isColleague(c.id);
+}
+const orgRule = (c, r) => !!(S.org && S.org.policy && S.org.policy[r] && inOrgChat(c));
+function timerFor(c) { // an organisation can require disappearing messages in work chats
+  const t = c.timer || 0, need = S.org && S.org.policy && inOrgChat(c) ? +S.org.policy.timer || 0 : 0;
+  return need && (!t || t > need) ? need : t;
+}
+const seatsTotal = () => Math.max(0, ((S.plan && S.plan.pass && S.plan.pass.seats) || 1) - 1);
+const seatsUsed = () => Object.keys(S.org.members || {}).length;
+function orgNameDialog(first) {
+  modal(first ? "Set up your organisation" : "Organisation name", `${first ? `<p class="muted small">Raazdar Work is active with ${seatsTotal()} seats for colleagues, until ${fmtDate(S.plan.pass.exp)}.</p>` : ""}
+    <label class="field"><span>Organisation name</span><input id="on" maxlength="40" value="${esc(first ? "" : S.org.name)}" placeholder="e.g. Sharma & Associates" /></label><p id="oe" class="err"></p>`,
+    [["Save", async () => { const n = $("#on").value.trim(); if (!n) return err("#oe", "Type a name"); S.org.name = n; persist(); await orgBroadcast(); orgDialog(); renderYou(); return true; }, "primary"]]);
+}
+function orgDialog() {
+  const o = S.org, p = planLocal();
+  if (!o) {
+    return modal("Raazdar Work", `<p>Private messaging for your office, firm or team.</p>
+      <ul class="small plan-list"><li>Add and remove colleagues; their seat stops working the moment you remove them</li><li>Erase Raazdar on a lost phone (only if the colleague agreed when joining)</li><li>Office rules: required disappearing messages, no forwarding, no saving files</li><li>“External” label on anyone outside the organisation, against fake-boss scams</li><li>An announcement channel to reach everyone at once</li><li>Every colleague gets all Plus features</li></ul>
+      <p class="muted small">The admin buys a Work code with the number of seats needed and redeems it here. Colleagues use the normal app.</p>`,
+      [["I have a code", () => { planDialog(); return true; }, "primary"], ["See prices", () => { window.open(BUY_URL, "_blank", "noopener"); }], ["Close", () => {}]]);
+  }
+  if (o.role === "member") {
+    const rules = orgRulesText(o.policy);
+    const cols = Object.entries(o.dir || {}).filter(([id]) => id !== S.me.id);
+    modal(`🏢 ${o.name}`, `<p class="muted small">Admin: ${esc(memberName(o.admin))}${o.wipeOk ? " · may erase Raazdar on this device remotely" : ""}</p>
+      ${rules ? `<div class="card-h">Office rules</div><ul class="small plan-list">${rules}</ul>` : ""}
+      <div class="card-h">Colleagues (${cols.length})</div>
+      ${cols.map(([id, n]) => `<button class="opt colleague" data-id="${id}"><span class="flex1">${esc(n || "Colleague")}<br><span class="muted small mono">${id}</span></span>💬</button>`).join("") || `<p class="muted small">No one else yet.</p>`}`,
+      [["Leave organisation", async () => { if (!(await confirmBox("Leave " + o.name + "?", "You lose your work seat and its Plus features."))) return true; try { await post(await ensurePeer(o.admin), { k: "org", op: "leave", mid: rid() }); } catch {} orgLeftLocally("You left the organisation"); }, "danger"], ["Close", () => {}]]);
+    document.querySelectorAll(".colleague").forEach((b) => (b.onclick = () => { closeModal(); openColleague(b.dataset.id); }));
+    return;
+  }
+  // admin console
+  const ms = Object.entries(o.members || {});
+  modal(`🏢 ${o.name}`, `
+    <div class="org-stats"><div><b>${seatsUsed()}/${seatsTotal()}</b><span>seats used</span></div><div><b>${fmtDate(p.exp || 0)}</b><span>valid until</span></div><div><b>${ms.filter(([, m]) => m.state === "active").length}</b><span>joined</span></div></div>
+    <div class="org-actions">
+      <button class="btn primary" id="o-add">➕ Add colleague</button><button class="btn ghost" id="o-ann">📢 Announcement</button>
+      <button class="btn ghost" id="o-rules">📋 Office rules</button><button class="btn ghost" id="o-more">⋯ More</button>
+    </div>
+    <div class="card-h">Colleagues</div>
+    ${ms.length ? ms.map(([id, m]) => `<div class="opt"><span class="flex1">${esc(m.name || "Colleague")} <span class="tag">${m.state === "active" ? "joined" : "invited"}</span>${m.wipe ? ' <span class="tag">erase allowed</span>' : ""}<br><span class="muted small mono">${id} · seat ${m.seat}</span></span>
+      <button class="btn ghost small o-rm" data-id="${id}">Remove</button></div>`).join("") : `<p class="muted small">Add colleagues by their Raazdar ID. Each one gets an invite to accept.</p>`}`,
+    [["Close", () => {}]]);
+  $("#o-add").onclick = () => orgAddDialog();
+  $("#o-ann").onclick = () => { closeModal(); orgAnnouncements(); };
+  $("#o-rules").onclick = () => orgRulesDialog();
+  $("#o-more").onclick = () => menu("Organisation", "", [["✏️  Rename organisation", () => orgNameDialog(false)], ["🔁  Renew or add seats", () => planDialog()], ["🗂  Who can see what", orgPrivacyNote]]);
+  document.querySelectorAll(".o-rm").forEach((b) => (b.onclick = () => orgMemberMenu(b.dataset.id)));
+}
+function orgPrivacyNote() {
+  modal("Who can see what", `<ul class="small plan-list">
+    <li><b>You (admin)</b> see colleagues' names, IDs and whether they joined. You can't read their chats, ever.</li>
+    <li><b>Raazdar's server</b> checks seat certificates when a phone connects. It keeps no list of your colleagues on disk; removed seats are stored only as random numbers.</li>
+    <li><b>Remote erase</b> works only for colleagues who ticked “allow” when they joined.</li></ul>`, [["OK", () => {}]]);
+}
+function orgRulesText(pol = {}) {
+  const r = [];
+  if (pol.timer) r.push(`Work chats disappear after ${timerLabel(pol.timer)}`);
+  if (pol.noForward) r.push("No forwarding out of work chats");
+  if (pol.noSave) r.push("No saving or exporting files from work chats");
+  if (pol.external) r.push("People outside the organisation are labelled “External”");
+  return r.map((x) => `<li>${esc(x)}</li>`).join("");
+}
+function orgRulesDialog() {
+  const pol = S.org.policy;
+  modal("Office rules", `<p class="muted small">Apply to chats between colleagues and to groups made only of colleagues.</p>
+    <p class="small mt">Disappearing messages in work chats</p>${ORG_TIMERS.map(([ms, l]) => `<label class="opt"><input type="radio" name="ot" value="${ms}" ${(+pol.timer || 0) === ms ? "checked" : ""}/> ${l}</label>`).join("")}
+    <label class="opt"><input type="checkbox" id="r-fw" ${pol.noForward ? "checked" : ""}/> Don't allow forwarding out of work chats</label>
+    <label class="opt"><input type="checkbox" id="r-sv" ${pol.noSave ? "checked" : ""}/> Don't allow saving or exporting files</label>
+    <label class="opt"><input type="checkbox" id="r-ex" ${pol.external ? "checked" : ""}/> Label outsiders “External” (stops fake-boss scams)</label>`,
+    [["Save rules", async () => {
+      S.org.policy = { timer: +document.querySelector("input[name=ot]:checked").value, noForward: $("#r-fw").checked, noSave: $("#r-sv").checked, external: $("#r-ex").checked };
+      persist(); await orgBroadcast(); toast("Rules sent to everyone");
+    }, "primary"], ["Cancel", () => {}]]);
+}
+function orgAddDialog() {
+  if (seatsUsed() >= seatsTotal()) return modal("All seats used", `<p>You've used all ${seatsTotal()} seats. Remove someone, or buy more seats and redeem the code.</p>`, [["Add seats", () => { planDialog(); return true; }, "primary"], ["Close", () => {}]]);
+  const cs = Object.values(S.contacts).filter((c) => !(S.org.members || {})[c.id] && c.id !== S.me.id);
+  modal("Add colleague", `<label class="field"><span>Their Raazdar ID</span><input id="oa-id" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="19" /></label>
+    ${cs.length ? `<p class="small">Or pick from your chats:</p>` + cs.slice(0, 20).map((c) => `<label class="opt"><input type="radio" name="oa" value="${c.id}" /> ${esc(displayName(c))}</label>`).join("") : ""}
+    <label class="field"><span>Name in the directory</span><input id="oa-n" maxlength="30" placeholder="e.g. Priya (Accounts)" /></label><p id="oa-e" class="err"></p>`,
+    [["Send invite", async () => {
+      const picked = document.querySelector("input[name=oa]:checked"), raw = ($("#oa-id").value || (picked && picked.value) || "").toUpperCase().replace(/[^A-Z2-9]/g, "");
+      const id = raw.length === 16 ? raw.match(/.{4}/g).join("-") : ""; if (!ID_RE.test(id)) return err("#oa-e", "Type a valid ID");
+      if (id === S.me.id) return err("#oa-e", "That's you"); if ((S.org.members || {})[id]) return err("#oa-e", "Already invited");
+      err("#oa-e", "Sending…");
+      try { await orgInvite(id, $("#oa-n").value.trim() || (S.contacts[id] && displayName(S.contacts[id])) || ""); } catch (e) { return err("#oa-e", e.message); }
+      toast("Invite sent"); orgDialog(); return true;
+    }, "primary"], ["Cancel", () => {}]]);
+}
+async function orgInvite(id, name) {
+  const used = new Set(Object.values(S.org.members).map((m) => m.seat)); let seat = 2; while (used.has(seat)) seat++;
+  const cert = { org: S.org.id, id, seat, cid: rid(12), exp: +S.plan.pass.exp };
+  const csig = await signSeat(cert);
+  if (!S.contacts[id]) S.contacts[id] = { id, ...(await fetchVerifiedKeys(id)), name: "", customName: name || undefined, timer: 0, unread: 0, added: Date.now() };
+  S.org.members[id] = { name, seat, cid: cert.cid, state: "invited", at: Date.now() };
+  sysMsg(id, `🏢 You invited this person to ${S.org.name}`); persist(); renderList();
+  await post(S.contacts[id], { k: "org", op: "invite", mid: rid(), org: { id: S.org.id, name: S.org.name }, policy: S.org.policy, dir: S.org.dir, pass: S.plan.pass, cert, csig, name: S.me.name }, null, id);
+}
+function orgMemberMenu(id) {
+  const m = S.org.members[id]; if (!m) return;
+  menu(m.name || id, `<p class="muted small mono">${id} · seat ${m.seat}</p>`, [
+    ["💬  Open chat", () => openColleague(id)],
+    ["🚫  Remove from organisation", async () => { if (await confirmBox("Remove " + (m.name || id) + "?", "Their seat stops working now and they leave the announcement channel.")) await orgRemove(id); }, "danger"],
+    ...(m.wipe ? [["🔥  Erase Raazdar on their phone", async () => { if (await confirmBox("Erase their Raazdar?", "Use this only for a lost or stolen phone. Everything in Raazdar on that phone is erased and can't be recovered.")) { try { await post(await ensurePeer(id), { k: "org", op: "wipe", mid: rid() }); } catch {} await orgRemove(id); toast("Erase command sent"); } }, "danger"]] : []),
+  ]);
+}
+async function orgRemove(id) {
+  const m = S.org.members[id]; if (!m) return;
+  try { const r = await wsAsk("revoke", { pass: S.plan.pass, cid: m.cid }, "revoked"); if (r.error) throw new Error(r.error); } catch (e) { return toast("Couldn't remove: " + e.message); }
+  delete S.org.members[id]; delete S.org.dir[id];
+  try { await post(await ensurePeer(id), { k: "org", op: "remove", mid: rid() }); } catch {}
+  sysMsg(id, `🏢 Removed from ${S.org.name}`); persist(); await orgBroadcast(); await orgSyncAnn(); if (current) renderMessages(); renderList();
+  if (!$("#modal").classList.contains("hidden")) orgDialog();
+}
+async function orgBroadcast() { // send directory + rules to everyone who joined
+  if (!S.org || S.org.role !== "admin") return;
+  const body = { k: "org", op: "dir", org: { id: S.org.id, name: S.org.name }, policy: S.org.policy, dir: S.org.dir, ann: S.org.ann || null };
+  await Promise.all(Object.entries(S.org.members).filter(([, m]) => m.state === "active").map(async ([id]) => { try { await post(await ensurePeer(id), { ...body, mid: rid() }); } catch {} }));
+}
+async function orgRenewAll() { // a renewed Work pass: send everyone a fresh seat certificate
+  for (const [id, m] of Object.entries(S.org.members)) {
+    const cert = { org: S.org.id, id, seat: m.seat, cid: m.cid, exp: +S.plan.pass.exp };
+    try { await post(await ensurePeer(id), { k: "org", op: "renew", mid: rid(), pass: S.plan.pass, cert, csig: await signSeat(cert) }); } catch {}
+  }
+}
+async function orgSyncAnn() { // the announcement channel always holds every colleague who joined
+  const o = S.org, g = o && o.ann && (S.groups || {})[o.ann]; if (!g) return;
+  const want = [S.me.id, ...Object.entries(o.members).filter(([, m]) => m.state === "active").map(([id]) => id)];
+  const gone = g.members.filter((x) => !want.includes(x));
+  if (gone.length || want.some((x) => !g.members.includes(x))) { g.members = want; g.name = "📢 " + o.name; persist(); await pushGroupState(g, gone); }
+}
+async function orgAnnouncements() {
+  const o = S.org;
+  if (!o.ann || !(S.groups || {})[o.ann]) {
+    const ids = Object.entries(o.members).filter(([, m]) => m.state === "active").map(([id]) => id);
+    if (!ids.length) return toast("No colleague has joined yet");
+    for (const id of ids) await ensurePeer(id);
+    const gid = "G" + rid(12); S.groups = S.groups || {};
+    S.groups[gid] = { gid, name: "📢 " + o.name, members: [S.me.id, ...ids], admin: S.me.id, timer: 0, v: 0, unread: 0, added: Date.now(), ann: true, org: o.id };
+    sysMsg(gid, "Announcement channel: only you can post here. Every colleague who joins is added automatically.");
+    o.ann = gid; persist(); await pushGroupState(S.groups[gid]); await orgBroadcast();
+  }
+  setTab("chats"); openChat(o.ann);
+}
+async function openColleague(id) {
+  try { if (!S.contacts[id]) S.contacts[id] = { id, ...(await fetchVerifiedKeys(id)), name: "", customName: (S.org.dir || {})[id] || undefined, timer: 0, unread: 0, added: Date.now() }; persist(); setTab("chats"); openChat(id); }
+  catch (e) { toast(e.message); }
+}
+function orgLeftLocally(text) {
+  const o = S.org; if (!o) return;
+  if (o.admin) sysMsg(o.admin, "🏢 " + text + ": " + o.name);
+  S.org = null; delete (S.orgInvites || {})[o.admin]; PLAN = { tier: "free" }; persist(); sendPass(); applyTheme(); renderList(); if (tab === "you") renderYou(); toast(text);
+}
+function confirmBox(title, text) { return new Promise((res) => modal(title, `<p>${esc(text)}</p>`, [["Yes", () => res(true), "danger"], ["Cancel", () => res(false)]])); }
+const okOrgPolicy = (p) => ({ timer: ORG_TIMERS.some((t) => t[0] === +(p && p.timer)) ? +p.timer : 0, noForward: !!(p && p.noForward), noSave: !!(p && p.noSave), external: !!(p && p.external) });
+function okDir(d) { const out = {}; if (d && typeof d === "object") for (const [id, n] of Object.entries(d).slice(0, 5000)) if (ID_RE.test(id)) out[id] = String(n || "").slice(0, 30); return out; }
+
+async function onOrgMsg(from, c, body) { // incoming {k:"org"} messages
+  const op = body.op, o = S.org;
+  // ---- to a member, from their admin ----
+  if (op === "invite" && body.org && body.pass && body.cert && body.cert.id === S.me.id && typeof body.csig === "string") {
+    if (o && o.role === "admin") return; // admins can't join another organisation
+    S.orgInvites = S.orgInvites || {};
+    S.orgInvites[from] = { org: { id: String(body.org.id).slice(0, 20), name: String(body.org.name || "Organisation").slice(0, 40) }, policy: okOrgPolicy(body.policy), dir: okDir(body.dir), pass: body.pass, cert: body.cert, csig: body.csig, at: Date.now() };
+    sysMsg(from, `🏢 ${displayName(c)} invited you to join “${S.orgInvites[from].org.name}” on Raazdar Work. Open the ⋮ menu to answer.`);
+    if (!c.request) c.request = false;
+    persist(); renderList(); if (current === from) renderMessages(); orgInviteDialog(from); return;
+  }
+  if (o && o.role === "member" && from === o.admin) {
+    if (op === "dir") { o.name = String((body.org && body.org.name) || o.name).slice(0, 40); o.policy = okOrgPolicy(body.policy); o.dir = okDir(body.dir); o.ann = typeof body.ann === "string" && GID_RE.test(body.ann) ? body.ann : null; persist(); renderList(); if (current) renderMessages(); return; }
+    if (op === "renew" && body.cert && body.cert.id === S.me.id) { o.pass = body.pass; o.cert = body.cert; o.csig = body.csig; persist(); sendPass(); return; }
+    if (op === "remove") return orgLeftLocally("Your organisation removed you");
+    if (op === "wipe" && o.wipeOk) { S.settings.burnRemote = false; return panicWipe(); }
+    return;
+  }
+  // ---- to the admin, from a colleague ----
+  if (o && o.role === "admin" && o.members[from]) {
+    const m = o.members[from];
+    if (op === "accept") { m.state = "active"; m.wipe = !!body.wipe; o.dir[from] = m.name || displayName(c); sysMsg(from, `🏢 Joined ${o.name}`); persist(); await orgBroadcast(); await orgSyncAnn(); renderList(); return; }
+    if (op === "decline" || op === "leave") {
+      try { await wsAsk("revoke", { pass: S.plan.pass, cid: m.cid }, "revoked"); } catch {}
+      delete o.members[from]; delete o.dir[from]; sysMsg(from, op === "leave" ? `🏢 Left ${o.name}` : `🏢 Declined the invite to ${o.name}`);
+      persist(); await orgBroadcast(); await orgSyncAnn(); renderList(); return;
+    }
+  }
+}
+function orgInviteDialog(from) {
+  const inv = (S.orgInvites || {})[from]; if (!inv) return toast("No invite");
+  const rules = orgRulesText(inv.policy);
+  modal(`Join ${inv.org.name}?`, `<p>${esc(memberName(from))} invited you to their organisation on Raazdar Work.</p>
+    <ul class="small plan-list"><li>You get all Plus features while you're a member</li><li>Colleagues see your name and ID in the organisation directory</li><li>The admin <b>can't read your chats</b></li>${rules}</ul>
+    <label class="opt"><input type="checkbox" id="oi-w" /> Allow the admin to erase Raazdar on this phone if it's lost</label>
+    ${S.org && S.org.role === "member" ? `<p class="warn small">You'll leave ${esc(S.org.name)}.</p>` : ""}`,
+    [["Join", async () => {
+      if (S.org && S.org.role === "member" && S.org.admin !== from) { try { await post(await ensurePeer(S.org.admin), { k: "org", op: "leave", mid: rid() }); } catch {} }
+      const wipe = $("#oi-w").checked;
+      S.org = { id: inv.org.id, name: inv.org.name, role: "member", admin: from, policy: inv.policy, dir: inv.dir, pass: inv.pass, cert: inv.cert, csig: inv.csig, wipeOk: wipe, joined: Date.now() };
+      delete S.orgInvites[from]; const c = S.contacts[from]; if (c) c.request = false;
+      persist(); sendPass();
+      try { await post(await ensurePeer(from), { k: "org", op: "accept", mid: rid(), wipe, name: S.me.name }); } catch {}
+      sysMsg(from, `🏢 You joined ${inv.org.name}`); applyTheme(); renderList(); if (current) renderMessages(); toast("Welcome to " + inv.org.name);
+    }, "primary"],
+    ["Decline", async () => { delete S.orgInvites[from]; persist(); try { await post(await ensurePeer(from), { k: "org", op: "decline", mid: rid() }); } catch {} }], ["Later", () => {}]]);
+}
+// owner's notice banner (maintenance, new version) from /api/notice
+async function fetchNotice() {
+  try {
+    const r = await fetch(BASE() + "/api/notice"); const j = await r.json(); const t = String(j.notice || "").slice(0, 280);
+    let b = $("#notice-bar");
+    if (!t || LS.get("noticeSeen") === t) { if (b) b.remove(); return; }
+    if (!b) { b = document.createElement("div"); b.id = "notice-bar"; b.className = "notice-bar"; $("#view-chats .big-title").after(b); }
+    b.innerHTML = `<span>📣 ${esc(t)}</span><button class="icon" aria-label="Dismiss">✕</button>`;
+    b.querySelector("button").onclick = () => { LS.set("noticeSeen", t); b.remove(); };
+  } catch {}
 }
 
 // ---------------- wiring ----------------
@@ -2205,7 +2594,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "Raazdar v6.9 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "Raazdar v7.0 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions

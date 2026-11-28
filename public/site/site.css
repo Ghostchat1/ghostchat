@@ -248,3 +248,14 @@ code { background: var(--panel2); border: 1px solid var(--line); border-radius: 
 .mnav .lang-link { border: 0; }
 html[lang="hi"] body { line-height: 1.75; }
 html[lang="hi"] .hero h1, html[lang="hi"] .s-head h2, html[lang="hi"] .final h2, html[lang="hi"] .phead h1 { line-height: 1.25; letter-spacing: -0.5px; }
+
+/* ---------- pricing ---------- */
+.prices { align-items: stretch; margin-bottom: 26px; }
+.price { display: flex; flex-direction: column; }
+.price h3 { margin-bottom: 4px; } .price .pr { margin: 4px 0 2px; } .price .pr b { font-size: 30px; color: var(--gold2); } .price .pr span { color: var(--muted); font-size: 13.5px; }
+.price .ticks { list-style: none; padding: 0; margin: 12px 0 18px; flex: 1; } .price .ticks li { display: flex; gap: 8px; align-items: flex-start; margin: 7px 0; font-size: 14.5px; }
+.price .ticks svg { width: 18px; height: 18px; flex: none; margin-top: 2px; color: var(--gold); }
+.price.hot { border-color: rgba(214, 179, 106, .6); box-shadow: 0 18px 50px rgba(214, 179, 106, .12); }
+.how { margin: 8px 0 22px; }
+@media (max-width: 1000px) { .prices.g4 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .prices.g4 { grid-template-columns: 1fr; } }

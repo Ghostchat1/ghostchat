@@ -379,3 +379,23 @@ textarea.keybox { width: 100%; resize: none; -webkit-user-select: text; user-sel
 /* iPhone/Android: tab headers always leave room for the lock button, and stay put while the page scrolls */
 .view > .topbar { position: sticky; top: 0; z-index: 4; min-height: calc(54px + var(--safe-t)); background: linear-gradient(to bottom, var(--bg) 72%, transparent); }
 #list-pane::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: calc(52px + var(--safe-b)); background: linear-gradient(to bottom, transparent, var(--bg) 70%); pointer-events: none; z-index: 4; }
+
+/* ---------- Plus & Work ---------- */
+.plan-now { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--panel2); border: 1px solid var(--line); margin-bottom: 10px; }
+.plan-now span { color: var(--muted); font-size: 13px; } .plan-now b { text-align: right; }
+.plan-now.on { border-color: rgba(214, 179, 106, .55); background: linear-gradient(135deg, rgba(214, 179, 106, .16), rgba(214, 179, 106, .04)); }
+.plan-t { width: 100%; border-collapse: collapse; margin: 4px 0 10px; font-size: 13.5px; }
+.plan-t th { text-align: left; color: var(--muted); font-weight: 600; padding: 4px 6px; }
+.plan-t td { padding: 7px 6px; border-top: 1px solid var(--line); } .plan-t td:not(:first-child), .plan-t th:not(:first-child) { text-align: center; white-space: nowrap; }
+.plan-t td:last-child b { color: var(--gold2); }
+.plan-list { padding-left: 18px; margin: 6px 0 10px; } .plan-list li { margin: 4px 0; }
+.btn.full { display: block; width: 100%; text-align: center; text-decoration: none; margin-top: 6px; }
+.org-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+.org-stats div { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 8px; text-align: center; }
+.org-stats b { display: block; color: var(--gold2); font-size: 15px; } .org-stats span { color: var(--muted); font-size: 11.5px; }
+.org-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; } .org-actions .btn { padding: 10px 8px; font-size: 14px; }
+.opt.colleague { width: 100%; background: none; border: 0; text-align: left; display: flex; align-items: center; }
+.tag.org { color: var(--ok); border-color: rgba(127, 209, 168, .45); } .tag.ext { color: var(--danger); border-color: rgba(255, 107, 107, .5); }
+.sys.ext-warn { color: #ffb3b3; border: 1px solid rgba(255, 107, 107, .35); }
+.notice-bar { display: flex; align-items: center; gap: 8px; margin: 4px 14px 10px; padding: 9px 12px; border-radius: 12px; background: #2a2210; color: var(--gold2); font-size: 13.5px; border: 1px solid rgba(214, 179, 106, .35); }
+.notice-bar span { flex: 1; } .notice-bar .icon { background: none; border: 0; color: inherit; }

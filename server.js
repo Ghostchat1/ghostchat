@@ -151,12 +151,11 @@ setInterval(() => { const now = Date.now(); for (const [k, v] of moves) if (v.ex
 // Files over ~1 MB are encrypted on the sender's phone with a one-off key, uploaded here as ciphertext,
 // and the key travels inside the end-to-end encrypted message. We store only unreadable bytes, in RAM,
 // for at most 7 days or until downloaded by every member (max 64 downloads).
-const BLOB_MAX = +process.env.BLOB_MAX || 25 * 1024 * 1024, BLOB_TOTAL = +process.env.BLOB_TOTAL || 300 * 1024 * 1024, BLOB_TTL = 7 * 24 * 3600 * 1000;
+const BLOB_MAX = +process.env.BLOB_MAX || 65 * 1024 * 1024, BLOB_TOTAL = +process.env.BLOB_TOTAL || 300 * 1024 * 1024, BLOB_TTL = 7 * 24 * 3600 * 1000;
 const blobs = new Map(); let blobBytes = 0;
 setInterval(() => { const now = Date.now(); for (const [k, v] of blobs) if (v.exp < now) { blobBytes -= v.buf.length; blobs.delete(k); } }, 10 * 60 * 1000);
 // Audit 2026-11 M2: uploads need a one-time token that only a signed-in ID can get (over its inbox socket),
 // with a daily allowance per ID, so nobody can fill the file store anonymously.
-const UP_DAILY = +process.env.UP_DAILY || 200 * 1024 * 1024, MOVES_DAILY = 6;
 const upTokens = new Map(), upUse = new Map(); // token -> {uid, kind, exp}; uid -> {day, bytes, moves}
 const today = () => Math.floor(Date.now() / 864e5);
 function useOf(uid) { let u = upUse.get(uid); if (!u || u.day !== today()) { u = { day: today(), bytes: 0, moves: 0 }; upUse.set(uid, u); } return u; }
@@ -173,6 +172,102 @@ function readRaw(req, limit) {
     req.on("end", () => resolve(Buffer.concat(chunks))); req.on("error", reject);
   });
 }
+
+// ---------- Raazdar Plus & Work: anonymous vouchers and signed passes ----------
+// Paying never links money to a chat ID. You buy a VOUCHER CODE (on the website, by UPI/card), then type it
+// into the app. The code is HMAC-signed, so the server stores no list of sold codes, only the serial
+// numbers already used. Redeeming returns a PASS signed by this server ({id, tier, expiry}) that the app
+// keeps in its own encrypted vault and shows the server on every connect. The server keeps no table of who
+// pays: after a reboot it simply re-checks the passes phones present.
+// Work (B2B): the organisation admin's pass also carries the organisation's public key and its seat count.
+// The admin's app signs SEAT CERTIFICATES for colleagues; the server checks that chain and the seat number.
+// Revoked seats are stored only as random certificate numbers, never as IDs.
+const STATE_DIR = process.env.STATE_DIRECTORY ? process.env.STATE_DIRECTORY.split(":")[0] : (process.env.LIC_DIR || path.join(__dirname, ".state"));
+const STATE_FILE = path.join(STATE_DIR, "plans.json"), ADMIN_FILE = path.join(STATE_DIR, "admin.key");
+const LIMITS = {
+  free: { blob: +process.env.FREE_BLOB || 25 * 1024 * 1024, daily: +process.env.FREE_DAILY || 200 * 1024 * 1024, moves: 6 }, // what everyone had before Plus: never reduced
+  plus: { blob: +process.env.PLUS_BLOB || 64 * 1024 * 1024, daily: +process.env.PLUS_DAILY || 1024 * 1024 * 1024, moves: 20 },
+};
+const TIERS = { 1: "plus", 2: "work" }, TIER_N = { plus: 1, work: 2 };
+let plans = null, licKey = null;
+function savePlans() {
+  const out = { v: 1, mac: plans.mac, jwk: plans.jwk, counter: plans.counter, spent: [...(plans.spentSet || plans.spent || [])], revoked: [...(plans.revokedSet || plans.revoked || [])], issued: plans.issued, redeemed: plans.redeemed, notice: plans.notice || "" };
+  try { fs.mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 }); fs.writeFileSync(STATE_FILE + ".tmp", JSON.stringify(out), { mode: 0o600 }); fs.renameSync(STATE_FILE + ".tmp", STATE_FILE); } catch {}
+}
+async function loadPlans() {
+  try { plans = JSON.parse(fs.readFileSync(STATE_FILE, "utf8")); } catch {}
+  if (!plans || !plans.mac || !plans.jwk) {
+    const kp = await subtle.generateKey(CURVE, true, ["sign", "verify"]);
+    plans = { v: 1, mac: crypto.randomBytes(32).toString("base64"), jwk: await subtle.exportKey("jwk", kp.privateKey), counter: 0, spent: [], revoked: [], issued: {}, redeemed: {}, notice: "" };
+    savePlans();
+  }
+  plans.spentSet = new Set(plans.spent); plans.revokedSet = new Set(plans.revoked);
+  licKey = await subtle.importKey("jwk", plans.jwk, CURVE, false, ["sign"]);
+  const pubJwk = { kty: "EC", crv: plans.jwk.crv, x: plans.jwk.x, y: plans.jwk.y };
+  plans.pub = await subtle.importKey("jwk", pubJwk, CURVE, false, ["verify"]);
+  try { if (!fs.existsSync(ADMIN_FILE)) fs.writeFileSync(ADMIN_FILE, crypto.randomBytes(24).toString("base64url") + "\n", { mode: 0o600 }); } catch {}
+}
+const plansReady = loadPlans();
+const adminLock = { t: 0, n: 0, until: 0 };
+const VERSION = (() => { try { return (fs.readFileSync(path.join(PUBLIC_DIR, "app.js"), "utf8").match(/Raazdar v[0-9.]+/) || [""])[0]; } catch { return ""; } })();
+// Crockford base32 (no I, L, O, U): easy to read aloud and type
+const CB32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+function cb32(buf) { let bits = 0, val = 0, out = ""; for (const b of buf) { val = (val << 8) | b; bits += 8; while (bits >= 5) { out += CB32[(val >>> (bits - 5)) & 31]; bits -= 5; } } if (bits) out += CB32[(val << (5 - bits)) & 31]; return out; }
+function uncb32(s) {
+  s = String(s || "").toUpperCase().replace(/[^0-9A-Z]/g, ""); if (s.length === 27 && s.startsWith("RZD")) s = s.slice(3);
+  s = s.replace(/O/g, "0").replace(/[IL]/g, "1");
+  let bits = 0, val = 0; const out = [];
+  for (const ch of s) { const i = CB32.indexOf(ch); if (i < 0) return null; val = ((val << 5) | i) & 0xffff; bits += 5; if (bits >= 8) { out.push((val >>> (bits - 8)) & 255); bits -= 8; } }
+  return Buffer.from(out);
+}
+// voucher = version(1) tier(1) months(1) seats(2) serial(4) + 6-byte HMAC  →  15 bytes  →  24 characters
+const vmac = (b) => crypto.createHmac("sha256", Buffer.from(plans.mac, "base64")).update(b).digest().subarray(0, 6);
+function makeVoucher(tier, months, seats) {
+  const b = Buffer.alloc(9); const serial = ++plans.counter;
+  b[0] = 1; b[1] = TIER_N[tier]; b[2] = months; b.writeUInt16BE(seats, 3); b.writeUInt32BE(serial, 5);
+  const tag = vmac(b); // SIV-style: the payload is also scrambled with a key derived from its tag, so codes look random
+  return "RZD-" + cb32(Buffer.concat([xorKs(b, tag), tag])).match(/.{4}/g).join("-");
+}
+function xorKs(b, tag) { const ks = crypto.createHmac("sha256", Buffer.from(plans.mac, "base64")).update(Buffer.concat([Buffer.from("ks"), tag])).digest(); return Buffer.from(b.map((x, i) => x ^ ks[i])); }
+function readVoucher(code) {
+  const raw = uncb32(code); if (!raw || raw.length !== 15) return null;
+  const tag = raw.subarray(9), b = xorKs(raw.subarray(0, 9), tag);
+  if (!crypto.timingSafeEqual(vmac(b), tag)) return null;
+  const tier = TIERS[b[1]], months = b[2], seats = b.readUInt16BE(3), serial = b.readUInt32BE(5);
+  if (b[0] !== 1 || !tier || months < 1 || months > 36 || (tier === "work" && (seats < 1 || seats > 5000))) return null;
+  return { tier, months, seats, serial };
+}
+const passText = (p) => `rzpass1|${p.id}|${p.tier}|${p.exp}|${p.seats || 0}|${p.org || ""}`;
+const seatText = (c) => `rzseat1|${c.org}|${c.id}|${c.seat}|${c.cid}|${c.exp}`;
+async function signPass(p) { return { ...p, sig: b64(await subtle.sign(SIG, licKey, new TextEncoder().encode(passText(p)))) }; }
+async function passOk(p) {
+  if (!p || typeof p !== "object" || !validId(p.id) || !["plus", "work"].includes(p.tier) || !Number.isFinite(+p.exp) || typeof p.sig !== "string") return false;
+  if (p.org !== undefined && (typeof p.org !== "string" || unb64(p.org).length !== RAW_LEN)) return false;
+  try { return await subtle.verify(SIG, plans.pub, unb64(p.sig), new TextEncoder().encode(passText({ ...p, exp: +p.exp }))); } catch { return false; }
+}
+const orgIdOf = (orgPub) => createHash("sha256").update(unb64(orgPub)).digest("hex").slice(0, 20);
+const MONTH = 30.44 * 864e5;
+const seatsInUse = new Map(); // RAM only: "org:seat" -> {id, cid, t} so one seat can't be shared by many IDs at once
+const redeemFails = new Map(); // uid -> {t, n}
+async function planFor(ws, m) { // a phone shows its pass (and, for Work members, its seat certificate)
+  const now = Date.now(), p = m.pass;
+  if (!(await passOk(p)) || +p.exp < now) return { tier: "free", error: p ? "expired" : undefined };
+  if (!m.cert) return p.id === ws.uid ? { tier: p.tier, exp: +p.exp, seats: p.seats, org: p.org ? orgIdOf(p.org) : undefined, role: p.tier === "work" ? "admin" : undefined } : { tier: "free", error: "not yours" };
+  // Work member: pass belongs to the organisation admin; the certificate (signed by the org key) names this ID
+  const c = m.cert;
+  if (p.tier !== "work" || !p.org || !c || typeof c !== "object" || c.id !== ws.uid || !Number.isInteger(c.seat) || c.seat < 2 || c.seat > (p.seats || 0) ||
+      typeof c.cid !== "string" || !/^[A-Za-z0-9_-]{8,32}$/.test(c.cid) || +c.exp > +p.exp || +c.exp < now || c.org !== orgIdOf(p.org)) return { tier: "free", error: "bad seat" };
+  if (!(await verify(unb64(p.org), m.csig, new TextEncoder().encode(seatText({ ...c, exp: +c.exp }))))) return { tier: "free", error: "bad seat" };
+  if (plans.revokedSet.has(c.org + ":" + c.cid)) return { tier: "free", error: "removed" };
+  const key = c.org + ":" + c.seat, cur = seatsInUse.get(key);
+  if (cur && cur.id !== ws.uid && now - cur.t < 864e5 && !plans.revokedSet.has(c.org + ":" + cur.cid)) return { tier: "free", error: "seat in use" };
+  seatsInUse.set(key, { id: ws.uid, cid: c.cid, t: now });
+  return { tier: "plus", work: true, exp: +c.exp, org: c.org, role: "member", seat: c.seat };
+}
+setInterval(() => { const now = Date.now(); for (const [k, v] of seatsInUse) if (now - v.t > 864e5) seatsInUse.delete(k); redeemFails.clear(); }, 3600e3);
+const limitsOf = (tier) => (tier === "plus" || tier === "work" ? LIMITS.plus : LIMITS.free);
+// stats for the owner's admin panel: counts only
+const bump = (o, k) => { o[k] = (o[k] || 0) + 1; };
 
 // ---------- HTTP ----------
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".json": "application/json" };
@@ -191,7 +286,7 @@ function headers(res, host) {
 const SITE_PAGES = { "/": "index.html", "/features": "features.html", "/security": "security.html", "/download": "download.html", "/faq": "faq.html",
   "/privacy": "privacy.html", "/terms": "terms.html", "/contact": "contact.html", "/signin": "signin.html",
   "/about": "about.html", "/transparency": "transparency.html", "/changelog": "changelog.html", "/press": "press.html",
-  "/hi": "hi-index.html", "/hi/faq": "hi-faq.html", "/hi/privacy": "hi-privacy.html" };
+  "/hi": "hi-index.html", "/hi/faq": "hi-faq.html", "/hi/privacy": "hi-privacy.html", "/plus": "plus.html", "/pricing": "plus.html", "/work": "plus.html" };
 // Operator details (company, grievance officer…) live in public/site/config.json and fill {{TOKENS}} in the pages.
 function siteConfig() { try { return JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, "site", "config.json"), "utf8")); } catch { return {}; } }
 function sendFile(res, file, code = 200) {
@@ -247,11 +342,11 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && url.pathname === "/api/blob") {
       const tok = takeToken(req, "blob"); if (!tok) return sendJson(res, 401, { error: "upload token required" });
-      const len = +req.headers["content-length"] || 0;
-      if (len > BLOB_MAX) { const e = new Error("big"); e.code = 413; throw e; }
-      const use = useOf(tok.uid); if (use.bytes + len > UP_DAILY) return sendJson(res, 429, { error: "daily limit" });
+      const len = +req.headers["content-length"] || 0, lim = limitsOf(tok.tier), max = Math.min(BLOB_MAX, lim.blob + 64);
+      if (len > max) { const e = new Error("big"); e.code = 413; throw e; }
+      const use = useOf(tok.uid); if (use.bytes + len > lim.daily) return sendJson(res, 429, { error: "daily limit" });
       if (blobBytes + len > BLOB_TOTAL) return sendJson(res, 503, { error: "busy" });
-      const buf = await readRaw(req, BLOB_MAX);
+      const buf = await readRaw(req, max);
       if (buf.length < 28 || blobBytes + buf.length > BLOB_TOTAL) return sendJson(res, 400, { error: "bad request" });
       const id = randomId().replace(/[+/=]/g, "").slice(0, 32);
       blobs.set(id, { buf, exp: Date.now() + BLOB_TTL, left: 64 }); blobBytes += buf.length; use.bytes += buf.length;
@@ -263,6 +358,55 @@ const server = http.createServer(async (req, res) => {
       if (--b.left <= 0) { blobs.delete(id); blobBytes -= b.buf.length; }
       res.writeHead(200, { "Content-Type": "application/octet-stream", "Content-Length": b.buf.length }); return res.end(b.buf);
     }
+    // ---- owner's admin panel (/admin). Shows counts only: this server holds no user identities. ----
+    if (url.pathname === "/admin" || url.pathname === "/admin/") {
+      res.setHeader("X-Robots-Tag", "noindex, nofollow");
+      return sendFile(res, path.join(__dirname, "admin", "index.html"));
+    }
+    if (req.method === "GET" && /^\/admin\/[a-z]+\.(js|css)$/.test(url.pathname)) return sendFile(res, path.join(__dirname, url.pathname));
+    if (url.pathname.startsWith("/api/admin/")) {
+      await plansReady;
+      if (req.method !== "POST" || req.headers.origin && req.headers.origin !== "https://" + (req.headers.host || "") && req.headers.origin !== "http://" + (req.headers.host || "")) return sendJson(res, 403, { error: "forbidden" });
+      const now = Date.now();
+      if (adminLock.until > now) return sendJson(res, 429, { error: "Locked for a few minutes after wrong keys" });
+      let key = ""; try { key = fs.readFileSync(ADMIN_FILE, "utf8").trim(); } catch {}
+      const given = Buffer.from(String(req.headers["x-admin-key"] || "")), want = Buffer.from(key);
+      if (!key || given.length !== want.length || !crypto.timingSafeEqual(given, want)) {
+        if (now - adminLock.t > 15 * 60e3) { adminLock.t = now; adminLock.n = 0; }
+        if (++adminLock.n >= 8) adminLock.until = now + 15 * 60e3;
+        return sendJson(res, 401, { error: "Wrong admin key" });
+      }
+      const body = await readBody(req, 4096);
+      const op = url.pathname.slice(11);
+      if (op === "stats") {
+        let plus = 0, work = 0, sockets = 0; for (const ws of wss.clients) { sockets++; if (ws.tier === "plus") (ws.org ? work++ : plus++); else if (ws.tier === "work") work++; }
+        return sendJson(res, 200, {
+          version: VERSION, uptime: Math.round(process.uptime()), users: Object.keys(db.users).length, online: online.size, sockets,
+          onlinePlus: plus, onlineWork: work, queueMB: +(queueBytes / 1048576).toFixed(1), filesMB: +(blobBytes / 1048576).toFixed(1), files: blobs.size,
+          ramMB: Math.round(process.memoryUsage().rss / 1048576), ramTotalMB: Math.round(os.totalmem() / 1048576), load: os.loadavg()[0].toFixed(2),
+          issued: plans.issued, redeemed: plans.redeemed, used: plans.spentSet.size, revoked: plans.revokedSet.size, notice: plans.notice || "",
+          limits: LIMITS, calls: !!(process.env.TURN_SECRET && process.env.TURN_HOST),
+        });
+      }
+      if (op === "vouchers") {
+        const tier = body.tier === "work" ? "work" : "plus", months = Math.floor(+body.months), count = Math.floor(+body.count), seats = tier === "work" ? Math.floor(+body.seats) : 0;
+        if (!(months >= 1 && months <= 36) || !(count >= 1 && count <= 200) || (tier === "work" && !(seats >= 1 && seats <= 5000))) return sendJson(res, 400, { error: "Check the numbers" });
+        const codes = []; for (let i = 0; i < count; i++) codes.push(makeVoucher(tier, months, seats));
+        plans.issued[`${tier}-${months}m`] = (plans.issued[`${tier}-${months}m`] || 0) + count; savePlans();
+        return sendJson(res, 200, { codes, tier, months, seats });
+      }
+      if (op === "check") {
+        const v = readVoucher(body.code); if (!v) return sendJson(res, 200, { valid: false });
+        return sendJson(res, 200, { valid: true, ...v, used: plans.spentSet.has(v.tier + ":" + v.serial) });
+      }
+      if (op === "cancel") { // block an unused code (refund, leaked code)
+        const v = readVoucher(body.code); if (!v) return sendJson(res, 400, { error: "Not a valid code" });
+        plans.spentSet.add(v.tier + ":" + v.serial); savePlans(); return sendJson(res, 200, { ok: true });
+      }
+      if (op === "notice") { plans.notice = String(body.text || "").replace(/[<>]/g, "").slice(0, 280); savePlans(); return sendJson(res, 200, { ok: true, notice: plans.notice }); }
+      return sendJson(res, 404, { error: "unknown" });
+    }
+    if (req.method === "GET" && url.pathname === "/api/notice") { await plansReady; return sendJson(res, 200, { notice: plans.notice || "" }); }
     if (req.method === "GET" && url.pathname === "/healthz") { // uptime check: says only "ok", nothing about users
       const okMem = !memTight();
       return sendJson(res, okMem ? 200 : 503, { ok: okMem });
@@ -274,7 +418,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && url.pathname === "/api/move") {
       const tok = takeToken(req, "move"); if (!tok) return sendJson(res, 401, { error: "upload token required" });
-      const use = useOf(tok.uid); if (++use.moves > MOVES_DAILY) return sendJson(res, 429, { error: "daily limit" });
+      const use = useOf(tok.uid); if (++use.moves > limitsOf(tok.tier).moves) return sendJson(res, 429, { error: "daily limit" });
       const { blob } = await readBody(req, MOVE_MAX + 1024);
       if (typeof blob !== "string" || !blob.length || blob.length > MOVE_MAX || !/^[A-Za-z0-9+/=]+$/.test(blob)) return sendJson(res, 400, { error: "bad request" });
       if (moveBytes + blob.length > MOVE_TOTAL) return sendJson(res, 503, { error: "busy" });
@@ -395,7 +539,7 @@ wss.on("connection", (ws) => {
     }
     if (m.t === "uptoken") { // one-time upload permission for a large file ("blob") or a device move ("move")
       const kind = m.kind === "move" ? "move" : "blob", token = randomId().replace(/[+/=]/g, "").slice(0, 32);
-      upTokens.set(token, { uid: ws.uid, kind, exp: Date.now() + 10 * 60 * 1000 });
+      upTokens.set(token, { uid: ws.uid, kind, tier: ws.tier || "free", exp: Date.now() + 10 * 60 * 1000 });
       return ws.send(JSON.stringify({ t: "uptoken", kind, token }));
     }
     if (m.t === "turn") { // short-lived relay credentials for calls, only for signed-in IDs
@@ -417,6 +561,38 @@ wss.on("connection", (ws) => {
       const u = db.users[ws.uid];
       if (u && (await spkOk(unb64(u.sign), m.spk))) { u.spk = pubSpk(m.spk); save(); }
       return;
+    }
+    if (m.t === "pass") { // show a Plus/Work pass; the answer says which plan this connection gets
+      await plansReady;
+      const r = await planFor(ws, m).catch(() => ({ tier: "free" }));
+      ws.tier = r.tier; ws.org = r.org;
+      return ws.send(JSON.stringify({ t: "plan", ...r }));
+    }
+    if (m.t === "redeem") { // turn a voucher code into a pass for this ID
+      await plansReady;
+      const now = Date.now(), f = redeemFails.get(ws.uid) || { n: 0 };
+      if (f.n >= 10) return ws.send(JSON.stringify({ t: "redeemed", error: "Too many wrong codes. Try again in an hour" }));
+      const v = readVoucher(m.code);
+      if (!v) { f.n++; redeemFails.set(ws.uid, f); return ws.send(JSON.stringify({ t: "redeemed", error: "That code isn't valid. Check it and try again" })); }
+      const sk = v.tier + ":" + v.serial;
+      if (plans.spentSet.has(sk)) return ws.send(JSON.stringify({ t: "redeemed", error: "This code has already been used" }));
+      let orgPub;
+      if (v.tier === "work") { orgPub = typeof m.org === "string" && unb64(m.org).length === RAW_LEN ? m.org : null; if (!orgPub) return ws.send(JSON.stringify({ t: "redeemed", error: "bad request" })); }
+      // renewing: time is added to a valid pass of the same kind (and a Work pass keeps its organisation)
+      let base = now, seats = v.seats;
+      const cur = m.cur && (await passOk(m.cur)) && m.cur.id === ws.uid && m.cur.tier === v.tier && +m.cur.exp > now ? m.cur : null;
+      if (cur) { base = +cur.exp; if (v.tier === "work") { orgPub = cur.org; seats = Math.max(seats, cur.seats || 0); } }
+      const p = { id: ws.uid, tier: v.tier, exp: Math.round(base + v.months * MONTH), ...(v.tier === "work" ? { seats: seats + 1, org: orgPub } : {}) }; // +1: the admin's own seat
+      plans.spentSet.add(sk); bump(plans.redeemed, `${v.tier}-${v.months}m`); savePlans();
+      return ws.send(JSON.stringify({ t: "redeemed", pass: await signPass(p) }));
+    }
+    if (m.t === "revoke") { // Work admin removes a colleague's seat (stored only as org + random certificate number)
+      await plansReady;
+      const p = m.pass;
+      if (!(await passOk(p)) || p.id !== ws.uid || p.tier !== "work" || !p.org || typeof m.cid !== "string" || !/^[A-Za-z0-9_-]{8,32}$/.test(m.cid)) return ws.send(JSON.stringify({ t: "revoked", error: "bad request" }));
+      const org = orgIdOf(p.org); plans.revokedSet.add(org + ":" + m.cid);
+      for (const [k, v] of seatsInUse) if (k.startsWith(org + ":") && v.cid === m.cid) seatsInUse.delete(k);
+      savePlans(); return ws.send(JSON.stringify({ t: "revoked", cid: m.cid }));
     }
     if (m.t === "delete_account") {
       for (const x of db.queue[ws.uid] || []) queueBytes -= x.env.length;
