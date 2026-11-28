@@ -29,6 +29,8 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.webkit.WebViewAssetLoader
 import org.json.JSONObject
+import org.json.JSONArray
+import android.provider.Settings
 import java.io.IOException
 
 /**
@@ -246,6 +248,44 @@ class MainActivity : Activity() {
 
     override fun onPause() { super.onPause(); web.onPause() }
     override fun onResume() { super.onResume(); web.onResume() }
+    override fun onStart() { super.onStart(); watchRecording(true) }
+    override fun onStop() { watchRecording(false); super.onStop() }
+
+    // ---- anti-scam device checks (nothing leaves the phone) ----
+    private val remoteApps = linkedMapOf(
+        "com.anydesk.anydeskandroid" to "AnyDesk", "com.teamviewer.quicksupport.market" to "TeamViewer QuickSupport",
+        "com.teamviewer.teamviewer.market.mobile" to "TeamViewer", "com.carriez.flutter_hbb" to "RustDesk",
+        "com.sand.airdroid" to "AirDroid", "com.sand.airdroidbiz" to "AirDroid Business",
+        "com.google.chromeremotedesktop" to "Chrome Remote Desktop", "com.microsoft.rdc.androidx" to "Microsoft Remote Desktop",
+        "com.splashtop.remote.pad.v2" to "Splashtop", "com.realvnc.viewer.android" to "VNC Viewer",
+        "com.rsupport.remotecall" to "RemoteCall", "com.zoho.assist" to "Zoho Assist")
+    @Volatile private var recording = false
+    private var recCb: Any? = null
+    /** Android 15+: tells us when this screen is being recorded or shared (e.g. a scammer's screen-share). */
+    private fun watchRecording(on: Boolean) {
+        if (Build.VERSION.SDK_INT < 35) return
+        try {
+            val wm = windowManager
+            if (on && recCb == null) {
+                val cb = java.util.function.Consumer<Int> { st -> recording = st == 1; runOnUiThread { web.evaluateJavascript("window.onScreenRecording&&onScreenRecording($recording)", null) } }
+                val st = wm.javaClass.getMethod("addScreenRecordingCallback", java.util.concurrent.Executor::class.java, java.util.function.Consumer::class.java).invoke(wm, mainExecutor, cb) as Int
+                recCb = cb; recording = st == 1
+                if (recording) web.evaluateJavascript("window.onScreenRecording&&onScreenRecording(true)", null)
+            } else if (!on && recCb != null) {
+                wm.javaClass.getMethod("removeScreenRecordingCallback", java.util.function.Consumer::class.java).invoke(wm, recCb); recCb = null
+            }
+        } catch (e: Exception) { }
+    }
+    fun safetyScan(): String {
+        val pm = packageManager
+        @Suppress("DEPRECATION")
+        val remote = remoteApps.filter { (p, _) -> try { pm.getPackageInfo(p, 0); true } catch (e: Exception) { false } }.values
+        val a11y = (Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: "")
+            .split(':').map { it.substringBefore('/') }.filter { it.isNotBlank() && it != packageName }.distinct()
+            .map { p -> try { pm.getApplicationLabel(pm.getApplicationInfo(p, 0)).toString() } catch (e: Exception) { p } }
+        return JSONObject().put("recording", recording).put("recordingSupported", Build.VERSION.SDK_INT >= 35)
+            .put("remote", JSONArray(remote.toList())).put("a11y", JSONArray(a11y)).toString()
+    }
     override fun onDestroy() {
         try { mesh.stop() } catch (e: Exception) { }
         web.destroy()

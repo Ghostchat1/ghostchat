@@ -655,6 +655,7 @@ async function onEnvelope(m, viaMesh) {
   }
   const ts = Date.now(), timer = +body.timer || 0, exp = timer ? ts + timer : 0;
   const re = body.re && typeof body.re === "object" ? { re: { mid: safeMid(body.re.mid), who: ID_RE.test(body.re.who) ? body.re.who : "", text: String(body.re.text || "").slice(0, 140) } } : {};
+  const fwd = Math.max(0, Math.min(99, Math.floor(+body.fwd || 0))); if (fwd) re.fwd = fwd; // how many times this was forwarded
   let msg, cleanImg = null;
   if (k === "img" && typeof body.data === "string" && body.data.length < 700000) { // Safe Media: rebuild every photo from its pixels
     cleanImg = await cleanImage(body.data);
@@ -898,7 +899,7 @@ function renderYou() {
       ${rowItem("info", "Security details", "Encryption, keys and connection", 'data-act="secinfo"')}
       ${rowItem("heart", "Invite a friend", "Share your private invite link", 'data-act="invite"')}
     </div>
-    <p class="ver">Raazdar 6.8 · no phone · no email · no trace</p>`;
+    <p class="ver">Raazdar 6.9 · no phone · no email · no trace</p>`;
   $("#you-name").onclick = renameSelf;
   $("#you-qr").onclick = myQrDialog;
   $("#you-share").onclick = shareInvite;
@@ -922,6 +923,25 @@ function starredDialog() {
 }
 
 // ---- Security center ----
+// ---- scam protection: screen sharing / remote control / apps that can read the screen ----
+window.onScreenRecording = (on) => {
+  let b = $("#rec-warn");
+  if (!b) { b = document.createElement("div"); b.id = "rec-warn"; b.className = "rec-warn hidden"; b.innerHTML = `⚠️ <b>Your screen is being recorded or shared.</b> If someone asked you to share your screen, stop now. Raazdar blacks out its own screen, but scammers use screen-sharing to steal OTPs and bank details.<button aria-label="Dismiss">✕</button>`; document.body.appendChild(b); b.querySelector("button").onclick = () => b.classList.add("hidden"); }
+  b.classList.toggle("hidden", !on);
+};
+function deviceScan() { try { return NATIVE && NATIVE.safetyScan ? JSON.parse(NATIVE.safetyScan()) : null; } catch { return null; } }
+function scamCard() {
+  const d = deviceScan(), rows = [];
+  if (d) {
+    rows.push(d.remote.length ? `<div class="check todo"><span class="ck">${IC.dot}</span><span class="ct">Remote-control app installed: ${d.remote.map(esc).join(", ")}<small>Scammers ask people to install these to take over their phone. If you didn't install it yourself for a reason you trust, uninstall it.</small></span></div>`
+      : `<div class="check ok"><span class="ck">${IC.ok}</span><span class="ct">No remote-control apps<small>No AnyDesk, TeamViewer, RustDesk or similar found</small></span></div>`);
+    rows.push(d.a11y.length ? `<div class="check todo"><span class="ck">${IC.dot}</span><span class="ct">Apps that can read and tap your screen: ${d.a11y.map(esc).join(", ")}<small>Banking malware abuses this "Accessibility" permission. If you don't recognise an app, turn it off in Settings → Accessibility, or uninstall it.</small></span></div>`
+      : `<div class="check ok"><span class="ck">${IC.ok}</span><span class="ct">No apps reading your screen<small>No accessibility services are switched on</small></span></div>`);
+    rows.push(d.recordingSupported ? `<div class="check ${d.recording ? "todo" : "ok"}"><span class="ck">${d.recording ? IC.dot : IC.ok}</span><span class="ct">${d.recording ? "Your screen is being recorded or shared right now" : "Screen-share alarm is on"}<small>Raazdar warns you the moment anyone records or shares your screen</small></span></div>` : "");
+  } else rows.push(`<div class="check ok"><span class="ck">${IC.ok}</span><span class="ct">Scam checks<small>Install the Raazdar Android app to also check for remote-control apps, screen-reading apps and screen sharing</small></span></div>`);
+  return `<div class="card-h">Scam protection</div><div class="card">${rows.join("")}
+    <div class="check ok"><span class="ck">${IC.ok}</span><span class="ct">Safe Media shield<small>Disguised apps blocked, photos rebuilt, strangers' files locked until you accept</small></span></div></div>`;
+}
 function renderSecurity() {
   if (!S) return;
   const checks = [
@@ -940,6 +960,7 @@ function renderSecurity() {
       <div><h3>${pct >= 85 ? "Fortress mode" : pct >= 60 ? "Well protected" : "Basic protection"}</h3><p>${ok} of ${checks.length} protections active. Finish the rest for maximum safety.</p></div>
     </div>
     <div class="card">${checks.map(([on, t, d, act, btn]) => `<div class="check ${on ? "ok" : "todo"}"><span class="ck">${on ? IC.ok : IC.dot}</span><span class="ct">${t}<small>${d}</small></span>${!on && act ? `<button data-act="${act}">${btn}</button>` : ""}</div>`).join("")}</div>
+    ${scamCard()}
     <div class="card-h">Protection</div>
     <div class="card">
       ${rowItem("siren", "Panic settings", "Duress passcode, auto-erase, wipe gestures", 'data-act="panic"')}
@@ -957,6 +978,7 @@ function headerFor(c) {
   const key = chatKey(c);
   const av = $("#chat-avatar"); av.className = "avatar" + (c.gid ? " group" : ""); av.innerHTML = identicon(key);
   $("#chat-name").textContent = displayName(c);
+  if (!c.gid && c.verified && c.verified === c.sign) { const v = document.createElement("span"); v.className = "verified"; v.title = "Safety number verified"; v.textContent = " ✓"; $("#chat-name").appendChild(v); }
   $("#btn-call").classList.toggle("hidden", !!c.gid); $("#btn-vcall").classList.toggle("hidden", !!c.gid);
   $("#chat-sub").textContent = (c.gid ? c.members.map(memberName).join(", ") : c.id) + (c.timer ? " · ⏱ " + timerLabel(c.timer) : "");
 }
@@ -1087,7 +1109,7 @@ function renderMessages(keepScroll) {
     const who = grp && !m.me && m.from ? `<span class="who ${colorClass(m.from)}t">${esc(memberName(m.from))}</span>` : "";
     const quote = m.re && !m.deleted ? `<span class="quote" data-jump="${esc(m.re.mid)}"><b>${esc(m.re.who === S.me.id ? "You" : memberName(m.re.who))}</b>${esc(m.re.text)}</span>` : "";
     const fresh = seenFor === current && !seen.has(m.mid); seen.add(m.mid);
-    html += `<div class="msg ${m.me ? "me" : "them"} ${m.kind === "img" && !m.deleted ? "img" : ""} ${fresh ? "pop" : ""}" data-m="${esc(m.mid)}">${who}${quote}${bubbleBody(m)}<span class="foot">${m.star ? `<span class="star-ico">${IC.star}</span>` : ""}${m.exp ? "⏱" : ""}${new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${tick}</span></div>`;
+    html += `<div class="msg ${m.me ? "me" : "them"} ${m.kind === "img" && !m.deleted ? "img" : ""} ${fresh ? "pop" : ""}" data-m="${esc(m.mid)}">${who}${m.fwd && !m.deleted ? `<div class="fwd">${m.fwd >= 5 ? "↪↪ Forwarded many times" : "↪ Forwarded"}</div>` : ""}${quote}${bubbleBody(m)}<span class="foot">${m.star ? `<span class="star-ico">${IC.star}</span>` : ""}${m.exp ? "⏱" : ""}${new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${tick}</span></div>`;
     const rx = Object.entries(m.rx || {});
     if (rx.length) {
       const counts = {}; for (const [, e] of rx) counts[e] = (counts[e] || 0) + 1;
@@ -1172,11 +1194,30 @@ function msgMenu(mid) {
   if (!m.deleted) items.push(["↩️  Reply", () => startReply(m)]);
   if (!m.deleted && m.text) items.push(["📋  Copy text", () => copy(m.text, "Copied")]);
   if (!m.deleted && m.kind === "file") items.push(["⬇️  Save file", () => saveFile(m.mid)]);
+  if (!m.deleted && !m.once && (m.text || (m.kind === "img" && m.data) || m.kind === "voice" || (m.kind === "file" && (m.data || m.blob)))) items.push(["↪️  Forward", () => forwardDialog(m)]);
   if (!m.deleted) items.push([m.star ? "☆  Unstar" : "⭐  Star", () => { m.star = !m.star; persist(); renderMessages(true); }]);
   items.push(["🗑️  Delete for me", () => { removeMsg(id, mid); }, "danger"]);
   if (m.me && !m.deleted) items.push(["🔥  Delete for everyone", () => deleteForAll(id, m), "danger"]);
   menu("", `${m.deleted ? "" : `<div class="emoji-row">${REACTS.map((e) => `<button data-e="${e}" class="${mine === e ? "on" : ""}">${e}</button>`).join("")}</div>`}<div class="preview-msg">${esc(preview(m))}</div>`, items);
   document.querySelectorAll(".emoji-row button").forEach((b) => b.onclick = () => { closeModal(); react(id, m, b.dataset.e); });
+}
+// Forwarding: the count travels inside the encrypted message, so "Forwarded many times" works without the server knowing anything.
+function forwardDialog(m) {
+  if (m.verdict && m.verdict.level === "danger") return toast("Dangerous files can't be forwarded");
+  if (!m.me && conv(current) && conv(current).request) return toast("Accept this chat before forwarding its messages");
+  const chats = [...Object.values(S.contacts).filter((c) => !c.hidden && !(S.blocked || {})[c.id] && c.id !== S.me.id), ...Object.values(S.groups || {}).filter((g) => !g.removed)]
+    .sort((a, b) => ((b.last || {}).ts || 0) - ((a.last || {}).ts || 0)).slice(0, 30);
+  if (!chats.length) return toast("No chats to forward to");
+  menu("Forward to…", (m.fwd || 0) + 1 >= 5 ? `<p class="muted small">This has been forwarded many times. Check it's true before sharing it further.</p>` : "", chats.map((c) => [`${c.gid ? "👥" : "👤"}  ${displayName(c)}`, () => sendForward(c.gid || c.id, m)]));
+}
+async function sendForward(id, m) {
+  const fwd = Math.min(99, (m.fwd || 0) + 1), c = conv(id); if (!c) return;
+  if (m.text) { const ts = Date.now(), local = rid(12), timer = c.timer || 0; await sendBody(id, local, { k: "text", mid: local, text: m.text, name: S.me.name, ts, timer, fwd }, { mid: local, me: true, text: m.text, ts, status: "sending", exp: timer ? ts + timer : 0, fwd }); }
+  else if (m.kind === "img") await sendKind(id, "img", { data: m.data, w: m.w, h: m.h, fwd });
+  else if (m.kind === "voice") await sendKind(id, "voice", { data: m.data, mime: m.mime, dur: m.dur, fwd });
+  else if (m.blob) await sendKind(id, "file", { blob: m.blob, name: m.name, mime: m.mime, size: m.size, got: !!m.got, fwd });
+  else await sendKind(id, "file", { data: m.data, name: m.name, mime: m.mime, size: m.size, fwd });
+  toast(`Forwarded to ${displayName(c)}`);
 }
 function react(id, m, e) {
   m.rx = m.rx || {};
@@ -1684,7 +1725,7 @@ function chatMenu() {
   if (c.gid) return groupMenu(c);
   menu(displayName(c), `<p class="muted small mono">${c.id}</p>`, [
     [c.pinned ? "📌  Unpin chat" : "📌  Pin chat", () => { c.pinned = c.pinned ? 0 : Date.now(); persist(); renderList(); toast(c.pinned ? "Pinned" : "Unpinned"); }],
-    ["⏱  Disappearing messages", timerDialog], ["🛡️  Verify safety number", safetyDialog],
+    ["⏱  Disappearing messages", timerDialog], [S.contacts[current] && S.contacts[current].verified ? "✅  Safety number (verified)" : "🛡️  Verify safety number", safetyDialog],
     ["✏️  Rename contact", renameContact],
     [(S.blocked || {})[c.id] ? "✅  Unblock" : "⛔  Block", () => toggleBlock(c.id)],
     ["🚩  Report", () => reportDialog(c.id)], ["🗑️  Delete chat", deleteChat, "danger"],
@@ -1803,8 +1844,22 @@ async function acceptCall() {
     await callSignal(c, { t: "answer", id, sdp: call.pc.localDescription.sdp });
   } catch { endCall("Call failed"); }
 }
+// Call code: both phones turn the two encryption fingerprints of THIS call into 4 pictures. If you both see the
+// same pictures, nobody is relaying the call in the middle. (Fingerprints already travel end-to-end encrypted.)
+const CALL_EMOJI = ["🦊","🐘","🦉","🐢","🐬","🦋","🐝","🦁","🐼","🐧","🦀","🐙","🦒","🐫","🦓","🐿️","🍉","🍋","🍇","🍒","🥥","🌽","🥕","🍄","🌵","🌻","🌙","⭐","🔥","❄️","🌈","⚡","🎈","🎸","🥁","🎲","🧩","🪁","⚽","🏀","🚲","🚀","⛵","🚂","🏠","⛺","🗿","🔔","🔑","📚","✏️","🎁","💎","🧭","⏰","☂️","👑","🎩","🧢","👟","🧸","🪴","🍩","🍕"];
+{ const ce = document.querySelector("#call .call-e2e"); if (ce) ce.dataset.orig = ce.innerHTML; }
+async function callCode() {
+  try {
+    const fp = (sdp) => ((String(sdp || "").match(/a=fingerprint:\S+ ([0-9A-Fa-f:]+)/) || [])[1] || "").toUpperCase();
+    const a = fp(call.pc.localDescription && call.pc.localDescription.sdp), b = fp(call.pc.remoteDescription && call.pc.remoteDescription.sdp);
+    if (!a || !b) return "";
+    const h = new Uint8Array(await subtle.digest("SHA-256", enc.encode("raazdar-call|" + [a, b].sort().join("|"))));
+    return [0, 1, 2, 3].map((i) => CALL_EMOJI[h[i] & 63]).join(" ");
+  } catch { return ""; }
+}
 function onCallConnected() {
   if (!call || call.t0) return;
+  callCode().then((code) => { const e = document.querySelector("#call .call-e2e"); if (e && code && call) { e.innerHTML = `🔒 Call code <b class="callcode">${code}</b><small>Read the pictures to each other. Same on both screens = no one in the middle.</small>`; } });
   clearTimeout(call.timeout); call.t0 = Date.now(); $("#call").classList.add("live");
   applyAudioRoute(); setTimeout(applyAudioRoute, 800);
   call.tick = setInterval(() => setCallStatus(fmtDur((Date.now() - call.t0) / 1000)), 1000); setCallStatus("0:00");
@@ -1826,6 +1881,7 @@ function endCall(text, missed) {
   const line = k.t0 ? `📞 ${kind} · ${fmtDur((Date.now() - k.t0) / 1000)}` : missed ? `📞 Missed ${kind.toLowerCase()}` : k.out ? `📞 ${kind} · ${text}` : `📞 ${kind} · declined`;
   if (S && conv(k.peer)) { sysMsg(k.peer, line); const c = conv(k.peer); c.last = { text: line, ts: Date.now(), me: k.out }; if (missed) c.unread = (c.unread || 0) + 1; persist(); renderList(); if (current === k.peer) renderMessages(); }
   setCallStatus(text); $("#call").classList.remove("ringing", "live");
+  const ce = document.querySelector("#call .call-e2e"); if (ce) ce.innerHTML = ce.dataset.orig || ce.innerHTML;
   $("#call-btns-in").classList.add("hidden"); $("#call-btns-live").classList.add("hidden");
   setTimeout(() => { if (!call) { $("#call").classList.add("hidden"); $("#call-remote").srcObject = null; $("#call-local").srcObject = null; } }, 1300);
 }
@@ -1896,9 +1952,14 @@ async function safetyNumber(c) {
   return g.slice(0, 6).join(" ") + "\n" + g.slice(6).join(" ");
 }
 async function safetyDialog() {
-  const c = S.contacts[current];
-  modal("Safety number", `<p class="muted small">Compare with ${esc(displayName(c))} in person. If both screens match, no one is intercepting your chat.</p><div class="safety" id="sn"></div>`, [["Close", () => {}]]);
-  $("#sn").innerText = await safetyNumber(c);
+  const c = S.contacts[current]; if (!c) return;
+  const ver = c.verified === c.sign, sn = await safetyNumber(c);
+  modal(ver ? "✅ Verified contact" : "Safety number", `<p class="muted small">Meet ${esc(displayName(c))} in person or on a video call, and compare these 60 digits. Each of you sees the same number only if you're truly talking to each other. If they match, tap <b>Mark as verified</b>.</p>
+    <div class="safety" id="sn"></div>
+    <p class="muted small">This covers your messages <b>and</b> calls with this person. During a call you'll also see a 4-picture call code you can read out to each other.</p>`,
+    ver ? [["Close", () => {}, "primary"], ["Remove verification", () => { delete c.verified; sysMsg(c.id, `You removed the verification of ${displayName(c)}`); persist(); renderMessages(); }]]
+        : [["Mark as verified", () => { c.verified = c.sign; sysMsg(c.id, `✅ You verified ${displayName(c)}'s safety number`); persist(); renderMessages(); }, "primary"], ["Close", () => {}]]);
+  $("#sn").innerText = sn;
 }
 function renameContact() {
   const c = S.contacts[current];
@@ -2143,7 +2204,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "Raazdar v6.8 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "Raazdar v6.9 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions
