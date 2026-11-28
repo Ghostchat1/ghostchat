@@ -654,6 +654,12 @@ async function onEnvelope(m, viaMesh) {
   if (target.ann && from !== target.admin && k !== "react") return; // announcement channel: only the admin posts
   const list = msgs(cid), mid = safeMid(body.mid);
   if (list.some((x) => x.mid === mid)) return;
+  if (k === "pin") { const ref = String(body.ref || ""); if (list.some((x) => x.mid === ref)) { target.pinMsg = body.on ? ref : target.pinMsg === ref ? null : target.pinMsg; persist(); if (current === cid) renderMessages(true); } return; }
+  if (k === "edit") {
+    const ref = String(body.ref || ""), m = list.find((x) => x.mid === ref);
+    if (m && !m.me && m.from === from && typeof m.text === "string" && !m.deleted && Date.now() - m.ts < EDIT_MS + 5 * 60e3) { m.text = String(body.text || "").slice(0, 4000); m.edited = true; persist(); renderList(); if (current === cid) renderMessages(true); }
+    return;
+  }
   if (k === "react" || k === "del") {
     const ref = String(body.ref || ""), m = list.find((x) => x.mid === ref); if (!m) return;
     if (k === "react") { const e = String(body.e || "").slice(0, 8); m.rx = m.rx || {}; if (e && !/[<>&"']/.test(e)) m.rx[from] = e; else delete m.rx[from]; }
@@ -919,7 +925,7 @@ function renderYou() {
       ${rowItem("info", "Help and feedback", "FAQ, contact, what's new", 'data-act="help"')}
       ${rowItem("heart", "Invite a friend", "Share your private invite link", 'data-act="invite"')}
     </div>
-    <p class="ver">Raazdar 7.2 · no phone · no email · no trace</p>`;
+    <p class="ver">Raazdar 7.3 · no phone · no email · no trace</p>`;
   $("#you-name").onclick = renameSelf;
   $("#you-qr").onclick = myQrDialog;
   $("#you-share").onclick = shareInvite;
@@ -1008,7 +1014,7 @@ function headerFor(c) {
   $("#chat-sub").textContent = (c.ann ? "📢 Announcements · " : "") + (c.gid ? c.members.map(memberName).join(", ") : c.id) + (tmr ? " · ⏱ " + timerLabel(tmr) : "");
 }
 function openChat(id) {
-  if (current !== id) { cancelReply(); closeFind(); seen = new Set(); seenFor = null; }
+  if (current !== id) { endSelect(); cancelReply(); closeFind(); seen = new Set(); seenFor = null; }
   const c = conv(id);
   if (current !== id) { const real = msgs(id).filter((m) => !m.sys && !m.me); unreadN = Math.min(c.unread || 0, real.length); unreadMark = unreadN ? real[real.length - unreadN].mid : null; }
   current = id; c.unread = 0; persist();
@@ -1017,7 +1023,7 @@ function openChat(id) {
   const ud = $("#unread-div"); if (ud) ud.scrollIntoView({ block: "start" });
   if (matchMedia("(min-width: 800px)").matches) $("#msg-input").focus();
 }
-function closeChat() { current = null; cancelReply(); closeFind(); stopVoice(); $("#main").classList.remove("in-chat"); $("#chat").classList.add("hidden"); $("#no-chat").classList.remove("hidden"); renderList(); }
+function closeChat() { endSelect(); current = null; cancelReply(); closeFind(); stopVoice(); $("#main").classList.remove("in-chat"); $("#chat").classList.add("hidden"); $("#no-chat").classList.remove("hidden"); renderList(); }
 const TICK = { sending: "🕓", sent: "✓", delivered: "✓✓", failed: "⚠" };
 const fmtSize = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
 const fmtDur = (s) => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
@@ -1138,6 +1144,11 @@ function renderMessages(keepScroll) {
   if (inOrgChat(c) && S.org.policy && (S.org.policy.timer || S.org.policy.noForward || S.org.policy.noSave)) html += `<div class="sys">🏢 ${esc(S.org.name)} office rules apply in this chat.</div>`;
   if (!c.gid && S.org && S.org.policy && S.org.policy.external && !isColleague(c.id) && c.id !== S.me.id) html += `<div class="sys ext-warn">⚠️ External: this person is not in ${esc(S.org.name)}. Be careful with anyone claiming to be a colleague or your boss.</div>`;
   if (!rec) $("#composer").classList.toggle("hidden", !!(c.ann && c.admin !== S.me.id));
+  const pm = c.pinMsg && msgs(current).find((x) => x.mid === c.pinMsg && !x.deleted); let pb = $("#pin-bar");
+  if (pm) {
+    if (!pb) { pb = document.createElement("button"); pb.id = "pin-bar"; pb.className = "pin-bar"; $("#messages").before(pb); }
+    pb.innerHTML = `${IC.pin}<span><b>Pinned message</b>${esc(preview(pm)).slice(0, 90)}</span>`; pb.onclick = () => jumpTo(pm.mid);
+  } else if (pb) pb.remove();
   if (!grp && (S.blocked || {})[c.id]) html += `<div class="sys">You blocked this contact. Unblock from the ⋮ menu to receive their messages.</div>`;
   let lastDay = "", hits = 0;
   const q = findQ.toLowerCase();
@@ -1152,7 +1163,7 @@ function renderMessages(keepScroll) {
     const who = grp && !m.me && m.from ? `<span class="who ${colorClass(m.from)}t">${esc(memberName(m.from))}</span>` : "";
     const quote = m.re && !m.deleted ? `<span class="quote" data-jump="${esc(m.re.mid)}"><b>${esc(m.re.who === S.me.id ? "You" : memberName(m.re.who))}</b>${esc(m.re.text)}</span>` : "";
     const fresh = seenFor === current && !seen.has(m.mid); seen.add(m.mid);
-    html += `<div class="msg ${m.me ? "me" : "them"} ${m.kind === "img" && !m.deleted ? "img" : ""} ${fresh ? "pop" : ""}" data-m="${esc(m.mid)}">${who}${m.fwd && !m.deleted ? `<div class="fwd">${m.fwd >= 5 ? "↪↪ Forwarded many times" : "↪ Forwarded"}</div>` : ""}${quote}${bubbleBody(m)}<span class="foot">${m.star ? `<span class="star-ico">${IC.star}</span>` : ""}${m.exp ? "⏱" : ""}${new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${tick}</span></div>`;
+    html += `<div class="msg ${m.me ? "me" : "them"} ${m.kind === "img" && !m.deleted ? "img" : ""} ${fresh ? "pop" : ""} ${selecting && selected.has(m.mid) ? "picked" : ""}" data-m="${esc(m.mid)}">${who}${m.fwd && !m.deleted ? `<div class="fwd">${m.fwd >= 5 ? "↪↪ Forwarded many times" : "↪ Forwarded"}</div>` : ""}${quote}${bubbleBody(m)}<span class="foot">${m.edited && !m.deleted ? `<span class="edited">Edited</span>` : ""}${m.star ? `<span class="star-ico">${IC.star}</span>` : ""}${m.exp ? "⏱" : ""}${new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${tick}</span></div>`;
     const rx = Object.entries(m.rx || {});
     if (rx.length) {
       const counts = {}; for (const [, e] of rx) counts[e] = (counts[e] || 0) + 1;
@@ -1180,6 +1191,7 @@ function jumpTo(mid) {
 }
 $("#messages").addEventListener("click", (e) => {
   if (longFired) return;
+  if (selecting) { const mm = e.target.closest(".msg"); if (mm) { e.preventDefault(); e.stopPropagation(); toggleSel(mm.dataset.m); } return; }
   const j = e.target.closest("[data-jump]"); if (j) return jumpTo(j.dataset.jump);
   const p = e.target.closest("[data-play]"); if (p) return toggleVoice(p.dataset.play);
   const cb = e.target.closest("[data-callback]"); if (cb) { const c = conv(current); if (c && !c.gid) { if (!CALL_OK()) return toast(IS_ONION ? "Calls need the normal address, not Tor" : "Calls aren't supported in this browser"); startCall(cb.dataset.callback === "video"); } return; }
@@ -1240,20 +1252,95 @@ function onLongPress(root, selector, cb) {
   root.addEventListener("contextmenu", (e) => { const el = e.target.closest(selector); if (el) { e.preventDefault(); cb(el); } });
 }
 const REACTS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+const MORE_EMOJI = ["😀","😁","🤣","😊","😍","😘","😎","🤔","😴","😡","😭","😱","🥳","🤝","👏","🙌","💪","🔥","✨","🎉","💯","✅","❌","👀","💔","🤗","🙄","😇","🤦","🤷","👌","✌️","🌹","🎂","☕","🍛","🇮🇳","🕉️","🪔","🙂"];
+const EDIT_MS = 15 * 60e3; // like WhatsApp: your own text can be edited for 15 minutes
+const canForward = (m) => !m.deleted && !m.once && (m.text || (m.kind === "img" && m.data) || m.kind === "voice" || (m.kind === "file" && (m.data || m.blob)));
 function msgMenu(mid) {
   const id = current, m = msgs(id).find((x) => x.mid === mid); if (!m || m.sys) return;
-  const mine = (m.rx || {})[S.me.id];
+  if (selecting) return toggleSel(mid);
+  const mine = (m.rx || {})[S.me.id], c = conv(id);
+  if (m.kind === "call") return menu("", `<div class="preview-msg">${esc(preview(m))}</div>`, [["🗑️  Delete", () => deleteSheet([m]), "danger"], ["☑️  Select", () => startSelect(mid)]]);
   const items = [];
-  if (m.kind === "call") return menu("", `<div class="preview-msg">${esc(preview(m))}</div>`, [["🗑️  Delete for me", () => removeMsg(id, mid), "danger"]]);
   if (!m.deleted) items.push(["↩️  Reply", () => startReply(m)]);
-  if (!m.deleted && m.text) items.push(["📋  Copy text", () => copy(m.text, "Copied")]);
-  if (!m.deleted && m.kind === "file") items.push(["⬇️  Save file", () => saveFile(m.mid)]);
-  if (!m.deleted && !m.once && (m.text || (m.kind === "img" && m.data) || m.kind === "voice" || (m.kind === "file" && (m.data || m.blob)))) items.push(["↪️  Forward", () => forwardDialog(m)]);
-  if (!m.deleted) items.push([m.star ? "☆  Unstar" : "⭐  Star", () => { m.star = !m.star; persist(); renderMessages(true); }]);
-  items.push(["🗑️  Delete for me", () => { removeMsg(id, mid); }, "danger"]);
-  if (m.me && !m.deleted) items.push(["🔥  Delete for everyone", () => deleteForAll(id, m), "danger"]);
-  menu("", `${m.deleted ? "" : `<div class="emoji-row">${REACTS.map((e) => `<button data-e="${e}" class="${mine === e ? "on" : ""}">${e}</button>`).join("")}</div>`}<div class="preview-msg">${esc(preview(m))}</div>`, items);
-  document.querySelectorAll(".emoji-row button").forEach((b) => b.onclick = () => { closeModal(); react(id, m, b.dataset.e); });
+  if (canForward(m)) items.push(["↪️  Forward", () => forwardDialog(m)]);
+  if (!m.deleted && m.text) items.push(["📋  Copy", () => copy(m.text, "Copied")]);
+  if (m.me && !m.deleted && m.text && !m.kind && Date.now() - m.ts < EDIT_MS && !(c && c.ann && c.admin !== S.me.id)) items.push(["✏️  Edit", () => startEdit(m)]);
+  items.push(["🗑️  Delete", () => deleteSheet([m]), "danger"]);
+  items.push(["⋯  More…", () => menu("", `<div class="preview-msg">${esc(preview(m))}</div>`, [
+    ...(!m.deleted ? [[c && c.pinMsg === m.mid ? "📌  Unpin" : "📌  Pin", () => pinMsg(id, m)]] : []),
+    ["ℹ️  Info", () => msgInfo(m)],
+    ...(!m.deleted ? [[m.star ? "☆  Unstar" : "⭐  Star", () => { m.star = !m.star; persist(); renderMessages(true); }]] : []),
+    ...(!m.deleted && m.kind === "file" ? [["⬇️  Save file", () => saveFile(m.mid)]] : []),
+    ["☑️  Select", () => startSelect(mid)],
+    ["🗑️  Delete", () => deleteSheet([m]), "danger"]])]);
+  menu("", `${m.deleted ? "" : `<div class="emoji-row">${REACTS.map((e) => `<button data-e="${e}" class="${mine === e ? "on" : ""}">${e}</button>`).join("")}<button class="emo-more" aria-label="More reactions">＋</button></div>`}<div class="preview-msg">${esc(preview(m))}</div>`, items);
+  document.querySelectorAll(".emoji-row button[data-e]").forEach((b) => b.onclick = () => { closeModal(); react(id, m, b.dataset.e); });
+  const more = document.querySelector(".emo-more");
+  if (more) more.onclick = () => { modal("React", `<div class="emo-grid">${MORE_EMOJI.map((e) => `<button data-e="${e}">${e}</button>`).join("")}</div>`, [["Close", () => {}]]); document.querySelectorAll(".emo-grid button").forEach((b) => (b.onclick = () => { closeModal(); react(id, m, b.dataset.e); })); };
+}
+// ---- delete sheet: "for everyone" only when every chosen message is yours
+function deleteSheet(list) {
+  const id = current, all = list.every((m) => m.me && !m.deleted && m.kind !== "call");
+  modal(list.length > 1 ? `Delete ${list.length} messages?` : "Delete message?", "", [
+    ...(all ? [["Delete for everyone", () => { for (const m of list) deleteForAll(id, m); endSelect(); }, "danger"]] : []),
+    ["Delete for me", () => { for (const m of list) removeMsg(id, m.mid); endSelect(); }, "danger"], ["Cancel", () => {}]]);
+}
+// ---- edit
+let editing = null;
+function startEdit(m) {
+  cancelReply(); editing = m; const i = $("#msg-input");
+  $("#rb-who").textContent = "Editing message"; $("#rb-text").textContent = m.text.slice(0, 140); $("#reply-bar").classList.remove("hidden");
+  i.value = m.text; i.focus(); syncComposer();
+}
+async function sendEdit(text) {
+  const m = editing, id = current; editing = null; cancelReply(); if (!m || text === m.text) return;
+  if (Date.now() - m.ts > EDIT_MS) return toast("Messages can only be edited for 15 minutes");
+  m.text = text; m.edited = true; persist(); renderMessages(true); renderList();
+  sendCtl(id, { k: "edit", mid: rid(), ref: m.mid, text, name: S.me.name });
+}
+// ---- pin (for both people / the whole group)
+function pinMsg(id, m) {
+  const c = conv(id); if (!c) return; const on = c.pinMsg !== m.mid;
+  c.pinMsg = on ? m.mid : null; persist(); renderMessages(true);
+  sendCtl(id, { k: "pin", mid: rid(), ref: m.mid, on, name: S.me.name }); toast(on ? "Pinned for everyone in this chat" : "Unpinned");
+}
+function msgInfo(m) {
+  const c = conv(current), t = (x) => new Date(x).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  let body = `<div class="preview-msg">${esc(preview(m))}</div><div class="card">`;
+  if (m.me) {
+    body += rowItem("ok", "Sent", t(m.ts));
+    if (c && c.gid) { const dl = m.dl || []; body += rowItem("read", `Delivered to ${dl.length} of ${others(c).length}`, dl.map(memberName).join(", ") || "Not yet"); }
+    else body += rowItem("read", "Delivered", m.status === "delivered" ? "Yes, to their device" : m.status === "failed" ? "Not sent" : "Not yet");
+  } else body += rowItem("ok", "Received", t(m.ts));
+  if (m.edited) body += rowItem("edit", "Edited", "");
+  if (m.exp) body += rowItem("timer", "Disappears", t(m.exp));
+  body += `</div><p class="muted small mt">Raazdar shows when a message reached the other phone, never when it was read. That keeps your reading habits private.</p>`;
+  modal("Message info", body, [["Close", () => {}]]);
+}
+// ---- select several messages
+let selecting = false; const selected = new Set();
+function startSelect(mid) { selecting = true; selected.clear(); if (mid) selected.add(mid); $("#chat").classList.add("selecting"); renderMessages(true); syncSelBar(); }
+function endSelect() { if (!selecting) return; selecting = false; selected.clear(); $("#chat").classList.remove("selecting"); renderMessages(true); syncSelBar(); }
+function toggleSel(mid) { if (selected.has(mid)) selected.delete(mid); else selected.add(mid); const el = document.querySelector(`.msg[data-m="${CSS.escape(mid)}"]`); if (el) el.classList.toggle("picked", selected.has(mid)); syncSelBar(); }
+function syncSelBar() {
+  let bar = $("#sel-bar");
+  if (!selecting) { if (bar) bar.remove(); return; }
+  if (!bar) {
+    bar = document.createElement("div"); bar.id = "sel-bar"; bar.className = "sel-bar";
+    bar.innerHTML = `<button class="icon" id="sel-x" aria-label="Cancel">✕</button><span id="sel-n" class="flex1"></span><button class="icon" id="sel-star" aria-label="Star">${IC.star}</button><button class="icon" id="sel-fwd" aria-label="Forward">${IC.reply}</button><button class="icon danger" id="sel-del" aria-label="Delete">${IC.trash}</button>`;
+    $("#chat").appendChild(bar);
+    $("#sel-x").onclick = endSelect;
+    $("#sel-del").onclick = () => { const l = msgs(current).filter((m) => selected.has(m.mid)); if (l.length) deleteSheet(l); };
+    $("#sel-star").onclick = () => { const l = msgs(current).filter((m) => selected.has(m.mid) && !m.deleted); const on = !l.every((m) => m.star); l.forEach((m) => (m.star = on)); persist(); toast(on ? "Starred" : "Unstarred"); endSelect(); };
+    $("#sel-fwd").onclick = () => { const l = msgs(current).filter((m) => selected.has(m.mid) && canForward(m)); if (!l.length) return toast("Nothing here can be forwarded"); forwardMany(l); };
+  }
+  $("#sel-n").textContent = selected.size + " selected";
+}
+function forwardMany(list) {
+  if (orgRule(conv(current), "noForward")) return toast("Your organisation doesn't allow forwarding from work chats");
+  const chats = [...Object.values(S.contacts).filter((c) => !c.hidden && !(S.blocked || {})[c.id] && c.id !== S.me.id), ...Object.values(S.groups || {}).filter((g) => !g.removed && !(g.ann && g.admin !== S.me.id))]
+    .sort((a, b) => ((b.last || {}).ts || 0) - ((a.last || {}).ts || 0)).slice(0, 30);
+  menu(`Forward ${list.length} to…`, "", chats.map((c) => [`${c.gid ? "👥" : "👤"}  ${displayName(c)}`, async () => { endSelect(); for (const m of list) await sendForward(c.gid || c.id, m); }]));
 }
 // Forwarding: the count travels inside the encrypted message, so "Forwarded many times" works without the server knowing anything.
 function forwardDialog(m) {
@@ -1293,11 +1380,12 @@ function deleteForAll(id, m) {
 }
 let replyTo = null;
 function startReply(m) {
+  if (editing) { editing = null; $("#msg-input").value = ""; }
   replyTo = { mid: m.mid, who: m.me ? S.me.id : m.from || current, text: preview(m).slice(0, 140) };
   $("#rb-who").textContent = replyTo.who === S.me.id ? "Replying to yourself" : "Replying to " + memberName(replyTo.who);
   $("#rb-text").textContent = replyTo.text; $("#reply-bar").classList.remove("hidden"); $("#msg-input").focus();
 }
-function cancelReply() { replyTo = null; const r = $("#reply-bar"); if (r) r.classList.add("hidden"); }
+function cancelReply() { replyTo = null; const r = $("#reply-bar"); if (r) r.classList.add("hidden"); if (typeof editing !== "undefined" && editing) { editing = null; const i = $("#msg-input"); i.value = ""; syncComposer(); } }
 
 // ---------------- in-chat search ----------------
 function openFind() { $("#find-bar").classList.remove("hidden"); $("#find-input").value = ""; $("#find-n").textContent = ""; $("#find-input").focus(); }
@@ -2789,12 +2877,12 @@ const input = $("#msg-input");
 const syncComposer = () => $("#composer").classList.toggle("has-text", !!input.value.trim());
 input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 140) + "px"; syncComposer(); });
 input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && matchMedia("(min-width: 800px)").matches) { e.preventDefault(); $("#composer").requestSubmit(); } });
-$("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.trim(); if (!t) return; if (conv(current)?.removed) return toast("You're no longer in this group"); input.value = ""; input.style.height = "auto"; syncComposer(); sendText(t); input.focus(); };
+$("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.trim(); if (!t) return; if (conv(current)?.removed) return toast("You're no longer in this group"); input.value = ""; input.style.height = "auto"; syncComposer(); if (editing) sendEdit(t); else sendText(t); input.focus(); };
 
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "Raazdar v7.2 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "Raazdar v7.3 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions
