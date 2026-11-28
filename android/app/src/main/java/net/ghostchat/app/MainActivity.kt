@@ -158,6 +158,38 @@ class MainActivity : Activity() {
 
     // ---- call audio: earpiece by default for voice calls, like a normal phone call ----
     private var proxLock: PowerManager.WakeLock? = null
+    // Incoming call: the phone's own ringtone and vibration, following its ring/vibrate/silent setting
+    private var ringtone: android.media.Ringtone? = null
+    fun ring(on: Boolean) {
+        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val vib = getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+        try { ringtone?.stop() } catch (_: Exception) {}
+        ringtone = null
+        try { vib?.cancel() } catch (_: Exception) {}
+        if (!on) return
+        if (am.ringerMode == AudioManager.RINGER_MODE_SILENT) return
+        if (am.ringerMode == AudioManager.RINGER_MODE_NORMAL) {
+            try {
+                val uri = android.media.RingtoneManager.getActualDefaultRingtoneUri(this, android.media.RingtoneManager.TYPE_RINGTONE)
+                    ?: android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE)
+                ringtone = android.media.RingtoneManager.getRingtone(this, uri)?.apply {
+                    audioAttributes = android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+                    if (Build.VERSION.SDK_INT >= 28) isLooping = true
+                    play()
+                }
+            } catch (_: Exception) {}
+        }
+        try {
+            val pattern = longArrayOf(0, 600, 400, 600, 1400)
+            if (Build.VERSION.SDK_INT >= 26) vib?.vibrate(android.os.VibrationEffect.createWaveform(pattern, 0))
+            else {
+                @Suppress("DEPRECATION")
+                vib?.vibrate(pattern, 0)
+            }
+        } catch (_: Exception) {}
+    }
+
     fun setCallAudio(mode: String) {
         val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         if (mode == "earpiece" || mode == "speaker") {

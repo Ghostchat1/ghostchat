@@ -25,7 +25,7 @@ async def onboard(pg, n):
 async def back(pg):
     if await pg.is_visible("#btn-back"): await pg.click("#btn-back")
 async def addc(pg, i):
-    await back(pg); await pg.click("#fab"); await pg.click(".menu-item:has-text('New chat')"); await pg.fill("#add-id", i)
+    await back(pg); await pg.click("#fab"); await pg.click("[data-nc=contact]"); await pg.fill("#add-id", i)
     await pg.click("#modal-actions button:has-text('Start chat')"); await pg.wait_for_selector("#chat:not(.hidden)")
 async def send(pg, t): await pg.fill("#msg-input", t); await pg.click(".send")
 

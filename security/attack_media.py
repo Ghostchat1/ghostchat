@@ -31,7 +31,7 @@ async def main():
             c=await b.new_context(); await c.add_init_script(CONSENT); pg=await c.new_page(); pg.on("pageerror",lambda e: errs.append(str(e))); return pg
         a=await mk(); bp=await mk()
         aid=await onboard(a,"Stranger"); bid=await onboard(bp,"Victim")
-        await a.click("#fab"); await a.click(".menu-item:has-text('New chat')"); await a.fill("#add-id",bid); await a.click("#modal-actions button:has-text('Start chat')")
+        await a.click("#fab"); await a.click("[data-nc=contact]"); await a.fill("#add-id",bid); await a.click("#modal-actions button:has-text('Start chat')")
         await a.fill("#msg-input","Shaadi ka card dekho https://bit.ly/shaadi-card"); await a.press("#msg-input","Enter")
         for kind in ["disguised","apk","rlo","pdf","trojanimg","fakeimg"]:
             await a.evaluate(SEND, [bid, kind, {}]); await a.wait_for_timeout(700)

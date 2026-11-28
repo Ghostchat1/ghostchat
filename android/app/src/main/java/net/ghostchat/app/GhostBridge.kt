@@ -51,6 +51,9 @@ class GhostBridge(private val a: MainActivity) {
     @JavascriptInterface
     fun callAudio(mode: String) { a.runOnUiThread { a.setCallAudio(mode) } }
 
+    @JavascriptInterface
+    fun ring(on: Boolean) { a.runOnUiThread { a.ring(on) } }
+
     /** Scam-protection check: remote-control apps, apps that can read the screen, screen recording. */
     @JavascriptInterface
     fun safetyScan(): String = a.safetyScan()

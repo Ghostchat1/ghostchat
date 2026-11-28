@@ -183,7 +183,8 @@ const FALLBACK = {
 if (!window.indexedDB) { IDB.get = FALLBACK.get; IDB.set = FALLBACK.set; }
 // Large-file ciphertext (still encrypted; its key lives only inside the locked vault)
 const MEDIA_MEM = new Map();
-const IDB_RAW = { get: IDB.get.bind(IDB), set: IDB.set.bind(IDB) };
+IDB.del = async function (k) { if (!window.indexedDB) return; const db = await this.open(); return new Promise((res) => { const t = db.transaction("kv", "readwrite"); t.objectStore("kv").delete(k); t.oncomplete = t.onerror = () => res(); }); };
+const IDB_RAW = { get: IDB.get.bind(IDB), set: IDB.set.bind(IDB), del: (k) => IDB.del(k) };
 async function mediaGet(id) { if (STORAGE_MODE === "indexeddb") { try { return await IDB_RAW.get("m:" + id); } catch {} } return MEDIA_MEM.get(id); }
 async function mediaPut(id, ct) { MEDIA_MEM.set(id, ct); if (STORAGE_MODE === "indexeddb") { try { await IDB_RAW.set("m:" + id, ct); MEDIA_MEM.delete(id); } catch {} } }
 let S = null, vaultKey = null, vaultSalt = null, slot = "a"; // S = decrypted state, memory only
@@ -701,9 +702,9 @@ function setStatus(cid, mid, status, quiet) {
   m.status = status; if (!quiet) persist();
   if (current === cid) renderMessages();
 }
-function notify() {
+function notify(what) {
   if (document.hidden && "Notification" in window && Notification.permission === "granted") {
-    try { new Notification(LS.get("disguise") ? "Calculator" : "Raazdar", { body: "New activity", tag: "gc" }); } catch {}
+    try { new Notification(LS.get("disguise") ? "Calculator" : "Raazdar", { body: LS.get("disguise") ? "New activity" : what || "New activity", tag: what ? "gc-call" : "gc", requireInteraction: !!what }); } catch {}
   }
 }
 function sweep() {
@@ -767,11 +768,13 @@ let current = null;
 const colorClass = (id) => "c" + ([...id].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 8);
 const initials = (c) => { const n = displayName(c); return n.startsWith("Anonymous") ? "?" : n.trim().slice(0, 1).toUpperCase(); };
 const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
-function fmtTime(ts) {
+function fmtTime(ts) { // 10:39 PM · Yesterday · Tuesday · 21/11/26
   const d = new Date(ts), now = new Date();
   if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const y = new Date(now); y.setDate(now.getDate() - 1);
-  return d.toDateString() === y.toDateString() ? "Yesterday" : d.toLocaleDateString([], { day: "numeric", month: "short" });
+  const t0 = new Date(now); t0.setHours(0, 0, 0, 0); const d0 = new Date(d); d0.setHours(0, 0, 0, 0); const diff = Math.round((t0 - d0) / 864e5);
+  if (diff === 1) return "Yesterday";
+  if (diff > 1 && diff < 7) return d.toLocaleDateString([], { weekday: "long" });
+  return d.toLocaleDateString([], { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 function show(id) { for (const s of ["onboard", "lock", "main", "calc"]) $("#" + s).classList.toggle("hidden", s !== id); }
 
@@ -834,9 +837,9 @@ const rowItem = (icon, label, sub, attrs = "", cls = "") =>
 let tab = "chats", listFilter = "all";
 function setTab(t) {
   tab = t;
-  for (const v of ["chats", "security", "you"]) $("#view-" + v).classList.toggle("hidden", v !== t);
+  for (const v of ["chats", "calls", "security", "you"]) $("#view-" + v).classList.toggle("hidden", v !== t);
   document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
-  if (t === "you") renderYou(); else if (t === "security") renderSecurity(); else renderList();
+  if (t === "you") renderYou(); else if (t === "security") renderSecurity(); else if (t === "calls") { renderCalls(); S.settings.callsSeen = Date.now(); persist(); renderList(); } else renderList();
 }
 const chatKey = (c) => c.gid || c.id;
 function renderList() {
@@ -846,6 +849,8 @@ function renderList() {
   const unreadChats = all.filter((c) => c.unread).length, unreadMsgs = all.reduce((n, c) => n + (c.unread || 0), 0);
   $("#unread-n").textContent = unreadChats || "";
   const tb = $("#tab-badge"); tb.textContent = unreadMsgs > 99 ? "99+" : unreadMsgs; tb.classList.toggle("hidden", !unreadMsgs);
+  const missed = allCalls().filter((x) => x.m.cst === "missed" && x.m.ts > (S.settings.callsSeen || 0)).length, cbd = $("#calls-badge");
+  if (cbd) { cbd.textContent = missed; cbd.classList.toggle("hidden", !missed || tab === "calls"); }
   $("#tab-av").innerHTML = identicon(S.me.id);
   const items = all.filter((c) => (!q || displayName(c).toLowerCase().includes(q) || (c.id || "").toLowerCase().includes(q)) &&
       (listFilter === "all" || (listFilter === "unread" && c.unread) || (listFilter === "groups" && c.gid) || (listFilter === "pinned" && c.pinned)))
@@ -856,7 +861,7 @@ function renderList() {
       ${avatarHtml(key, !!c.gid)}
       <div class="meta">
         <div class="row"><span class="name">${esc(displayName(c))}${(S.blocked || {})[c.id] ? '<span class="tag">BLOCKED</span>' : c.request ? '<span class="tag">NEW</span>' : ""}</span><span class="time">${c.last ? fmtTime(c.last.ts) : ""}</span></div>
-        <div class="row"><span class="last">${c.last ? (c.last.me ? "You: " : "") + esc(c.last.text) : '<span class="muted">' + (c.gid ? c.members.length + " members" : esc(c.id)) + "</span>"}</span>
+        <div class="row"><span class="last ${c.last && /^(📞|🎥) Missed/.test(c.last.text) ? "miss" : ""}">${c.last ? (c.last.me && !/^(📞|🎥) /.test(c.last.text) ? "You: " : "") + esc(c.last.text) : '<span class="muted">' + (c.gid ? c.members.length + " members" : esc(c.id)) + "</span>"}</span>
           <span class="icons">${c.timer ? IC.timer : ""}${c.pinned ? IC.pin : ""}${c.unread ? `<span class="badge">${c.unread}</span>` : ""}</span></div>
       </div>
     </div>`; }).join("");
@@ -902,6 +907,8 @@ function renderYou() {
     <div class="card-h">Messages</div>
     <div class="card">
       ${rowItem("star", "Starred messages", "", 'data-act="starred"')}
+      ${rowItem("bell", "Broadcast", "One message to many, sent privately", 'data-act="broadcast"')}
+      ${rowItem("save", "Storage and data", "Space used, clear downloaded files", 'data-act="storage"')}
       ${rowItem("bell", "Notifications", S.settings.push ? "On · never show names or text" : "Off · never show names or text", 'data-act="notif"')}
       ${NATIVE ? rowItem("bt", "Offline Bluetooth mesh", "", 'data-act="mesh"') : ""}
     </div>
@@ -909,9 +916,10 @@ function renderYou() {
     <div class="card">
       ${rowItem("shield", "Privacy & your data", "Your rights, consent, grievance officer", 'data-act="privacy"')}
       ${rowItem("info", "Security details", "Encryption, keys and connection", 'data-act="secinfo"')}
+      ${rowItem("info", "Help and feedback", "FAQ, contact, what's new", 'data-act="help"')}
       ${rowItem("heart", "Invite a friend", "Share your private invite link", 'data-act="invite"')}
     </div>
-    <p class="ver">Raazdar 7.1 · no phone · no email · no trace</p>`;
+    <p class="ver">Raazdar 7.2 · no phone · no email · no trace</p>`;
   $("#you-name").onclick = renameSelf;
   $("#you-qr").onclick = myQrDialog;
   $("#you-share").onclick = shareInvite;
@@ -984,6 +992,7 @@ function renderSecurity() {
 }
 const ACTIONS = { backup: () => backupDialog(), pass: () => passDialog(), myid: () => myIdDialog(), starred: () => starredDialog(), notif: () => enableNotifs(), mesh: () => meshDialog(),
   secinfo: () => securityDialog(), privacy: () => privacyDialog(), move: () => moveDialog(), invite: () => shareInvite(), panic: () => panicSettings(), stealth: () => stealthDialog(), lock: () => lockNow(), wipe: () => wipeDialog(),
+  broadcast: () => broadcastDialog(), storage: () => storageDialog(), help: () => helpDialog(),
   plus: () => planDialog(), org: () => { const inv = Object.keys(S.orgInvites || {}); if (!S.org && inv.length) return orgInviteDialog(inv[0]); orgDialog(); }, theme: () => themeDialog() };
 for (const id of ["#you-body", "#sec-body"]) $(id).addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (b && ACTIONS[b.dataset.act]) ACTIONS[b.dataset.act](); });
 
@@ -1198,7 +1207,7 @@ function menu(title, sub, items) {
   const a = $("#modal-actions");
   for (const [l, fn, cls] of items) { const b = document.createElement("button"); b.className = "menu-item " + (cls || ""); b.textContent = l; b.onclick = () => { closeModal(); fn(); }; a.appendChild(b); }
 }
-function closeModal() { $("#modal").classList.add("hidden"); $("#modal-body").innerHTML = ""; }
+function closeModal() { $("#modal").classList.add("hidden", "tall"); $("#modal").classList.remove("tall"); $("#modal-body").innerHTML = ""; }
 $("#modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeModal(); });
 let toastT;
 function toast(t) { const el = $("#toast"); el.textContent = t; el.classList.remove("hidden"); clearTimeout(toastT); toastT = setTimeout(() => el.classList.add("hidden"), 2600); }
@@ -1803,7 +1812,17 @@ function getTurn() {
 const relayOk = (cfg) => cfg.relay === true || /^(localhost|127\.0\.0\.1)$/.test(new URL(BASE()).hostname);
 async function newPC(cfg) {
   const pc = new RTCPeerConnection({ iceServers: cfg.iceServers || [], iceTransportPolicy: cfg.relay === true ? "relay" : "all" });
-  pc.ontrack = (e) => { const v = $("#call-remote"); if (v && v.srcObject !== e.streams[0]) v.srcObject = e.streams[0]; };
+  pc.ontrack = (e) => {
+    const v = $("#call-remote"); if (!v) return;
+    let st = e.streams[0];
+    // iPhone Safari only lets us pick earpiece vs speaker for a stream that also carries video, so a voice
+    // call's audio is paired with a blank 2×2 picture (never shown, never sent)
+    if (IS_IOS && call && !call.video && st && !st.getVideoTracks().length) {
+      try { if (!blankTrack) { const cv = document.createElement("canvas"); cv.width = cv.height = 2; cv.getContext("2d").fillRect(0, 0, 2, 2); blankTrack = cv.captureStream(1).getVideoTracks()[0]; } st = new MediaStream([...st.getAudioTracks(), blankTrack]); } catch {}
+    }
+    if (v.srcObject !== st) { v.srcObject = st; v.play && v.play().catch(() => {}); }
+    webRoute();
+  };
   pc.onconnectionstatechange = () => {
     if (!call || call.pc !== pc) return;
     if (pc.connectionState === "connected") onCallConnected();
@@ -1819,7 +1838,7 @@ function iceDone(pc) {
     pc.addEventListener("icegatheringstatechange", () => { if (pc.iceGatheringState === "complete") { clearTimeout(t); r(); } });
   });
 }
-const getMedia = (video) => navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: video ? { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } } : false });
+const getMedia = (video) => { try { if (navigator.audioSession) navigator.audioSession.type = "play-and-record"; } catch {} return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: video ? { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } } : false }); };
 const callSignal = (c, body) => post(c, { k: "call", mid: rid(), ...body });
 const setCallStatus = (t) => { const e = $("#call-status"); if (e) e.textContent = t; };
 function showCall(status, incoming) {
@@ -1832,18 +1851,41 @@ function showCall(status, incoming) {
   if (call.stream) $("#call-local").srcObject = call.stream;
 }
 let ringT = null, ringCtx = null;
+// Ringing. Phones only let a web page make sound after the user has touched it once, so the audio
+// engine is "unlocked" on the first tap and kept ready. The Android app plays the phone's own ringtone.
+function audioCtx() { try { ringCtx = ringCtx || new (window.AudioContext || window.webkitAudioContext)(); if (ringCtx.state === "suspended") ringCtx.resume(); } catch {} return ringCtx; }
+function unlockAudio() {
+  const ctx = audioCtx(); if (!ctx) return;
+  try { const b = ctx.createBuffer(1, 1, 22050), src = ctx.createBufferSource(); src.buffer = b; src.connect(ctx.destination); src.start(0); } catch {}
+}
+document.addEventListener("pointerdown", unlockAudio, true); document.addEventListener("touchend", unlockAudio, true);
+function tone(notes, gain) { // notes: [[freq, start, length], …]
+  const ctx = audioCtx(); if (!ctx) return;
+  for (const [f, at, len] of notes) {
+    const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime + at;
+    o.type = "sine"; o.frequency.value = f; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gain, t + 0.02); g.gain.setValueAtTime(gain, t + len - 0.05); g.gain.linearRampToValueAtTime(0, t + len);
+    o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + len + 0.02);
+  }
+}
+let ringBackT = null;
 function ringStart() {
   ringStop();
-  const beep = () => {
-    try { navigator.vibrate && navigator.vibrate([400, 200, 400]); } catch {}
-    try {
-      ringCtx = ringCtx || new (window.AudioContext || window.webkitAudioContext)();
-      for (const [f, at] of [[880, 0], [660, 0.25]]) { const o = ringCtx.createOscillator(), g = ringCtx.createGain(); o.frequency.value = f; g.gain.value = 0.06; o.connect(g).connect(ringCtx.destination); o.start(ringCtx.currentTime + at); o.stop(ringCtx.currentTime + at + 0.2); }
-    } catch {}
+  if (NATIVE && NATIVE.ring) { try { NATIVE.ring(true); return; } catch {} }
+  const ring = () => {
+    try { navigator.vibrate && navigator.vibrate([500, 300, 500]); } catch {}
+    tone([[988, 0, 0.16], [784, 0.18, 0.16], [988, 0.36, 0.16], [1175, 0.54, 0.32], [988, 1.2, 0.16], [784, 1.38, 0.16], [988, 1.56, 0.16], [1175, 1.74, 0.32]], 0.32);
   };
-  beep(); ringT = setInterval(beep, 2200);
+  ring(); ringT = setInterval(ring, 3200);
 }
-function ringStop() { clearInterval(ringT); ringT = null; try { navigator.vibrate && navigator.vibrate(0); } catch {} }
+function ringStop() {
+  clearInterval(ringT); ringT = null; try { navigator.vibrate && navigator.vibrate(0); } catch {}
+  if (NATIVE && NATIVE.ring) try { NATIVE.ring(false); } catch {}
+}
+function ringBackStart() { // what the caller hears while the other phone rings
+  ringBackStop(); const t = () => tone([[400, 0, 0.4], [450, 0, 0.4], [400, 0.6, 0.4], [450, 0.6, 0.4]], 0.08);
+  t(); ringBackT = setInterval(t, 3000);
+}
+function ringBackStop() { clearInterval(ringBackT); ringBackT = null; }
 async function startCall(video) {
   const c = conv(current); if (!c || c.gid || call) return;
   if (!CALL_OK()) return toast(IS_ONION ? "Calls are off on the Tor address because they would reveal your IP. Use the normal web address for calls" : "Calls aren't supported in this browser");
@@ -1860,7 +1902,7 @@ async function startCall(video) {
   await call.pc.setLocalDescription(await call.pc.createOffer()); await iceDone(call.pc);
   if (!call || call.id !== id) return;
   try { await callSignal(c, { t: "offer", id, video, sdp: call.pc.localDescription.sdp, ts: Date.now(), name: S.me.name }); } catch { return endCall("Couldn't place the call"); }
-  setCallStatus("Ringing…");
+  setCallStatus("Ringing…"); ringBackStart();
   call.timeout = setTimeout(() => { if (call && call.id === id && !call.t0) { callSignal(c, { t: "end", id }).catch(() => {}); endCall("No answer"); } }, 45000);
 }
 function onCallSignal(c, b) {
@@ -1873,7 +1915,7 @@ function onCallSignal(c, b) {
       return;
     }
     call = { id, peer: c.id, video: !!b.video, out: false, offer: String(b.sdp || "").slice(0, 20000), t0: 0 };
-    showCall(`Incoming ${kind}`, true); ringStart(); notify();
+    showCall(`Incoming ${kind}`, true); ringStart(); notify(`Incoming ${kind}`);
     call.timeout = setTimeout(() => { if (call && call.id === id && !call.t0) endCall("Missed call", true); }, 45000);
     return;
   }
@@ -1915,7 +1957,7 @@ async function callCode() {
 function onCallConnected() {
   if (!call || call.t0) return;
   callCode().then((code) => { const e = document.querySelector("#call .call-e2e"); if (e && code && call) { e.innerHTML = `🔒 Call code <b class="callcode">${code}</b><small>Read the pictures to each other. Same on both screens = no one in the middle.</small>`; } });
-  clearTimeout(call.timeout); call.t0 = Date.now(); $("#call").classList.add("live");
+  clearTimeout(call.timeout); call.t0 = Date.now(); $("#call").classList.add("live"); ringBackStop();
   applyAudioRoute(); setTimeout(applyAudioRoute, 800);
   call.tick = setInterval(() => setCallStatus(fmtDur((Date.now() - call.t0) / 1000)), 1000); setCallStatus("0:00");
 }
@@ -1937,7 +1979,7 @@ function callLog(c, f) {
 function endCall(text, missed) {
   if (!call) return;
   const k = call; call = null;
-  ringStop(); clearTimeout(k.timeout); clearInterval(k.tick);
+  ringStop(); ringBackStop(); clearTimeout(k.timeout); clearInterval(k.tick);
   try { k.stream && k.stream.getTracks().forEach((t) => t.stop()); } catch {}
   try { k.pc && k.pc.close(); } catch {}
   applyAudioRoute();
@@ -1951,11 +1993,27 @@ function endCall(text, missed) {
 // Earpiece vs loudspeaker. Voice calls start on the earpiece and video calls on the speaker, like a normal phone.
 // The Android app can choose the earpiece; iPhone Safari is asked for a phone-call style audio session.
 const CAN_ROUTE = !!(NATIVE && NATIVE.callAudio);
+let blankTrack = null, webOuts = null;
+// Browser routing (iPhone Safari 18+ and some Android browsers): choose earpiece / speaker / Bluetooth by device
+async function webRoute() {
+  const el = $("#call-remote"); if (!call || !el || !el.setSinkId || CAN_ROUTE) return false;
+  try {
+    const outs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audiooutput" && d.deviceId);
+    webOuts = outs.length > 1 ? outs : null; if (!webOuts) return false;
+    const bt = outs.find((d) => /airpod|bluetooth|headphone|headset|beats|buds/i.test(d.label));
+    const spk = outs.find((d) => /speaker/i.test(d.label)), ear = outs.find((d) => /iphone|receiver|earpiece|handset|phone/i.test(d.label) && !/speaker/i.test(d.label));
+    const want = call.speaker ? spk : bt || ear;
+    if (want && el.sinkId !== want.deviceId) await el.setSinkId(want.deviceId);
+    const b = $("#cb-spk"); if (b && spk && (ear || bt)) b.classList.remove("hidden");
+    return true;
+  } catch { return false; }
+}
 function applyAudioRoute() {
   const mode = call && call.stream ? (call.speaker ? "speaker" : "earpiece") : "off";
   try { if (CAN_ROUTE) NATIVE.callAudio(mode); } catch {}
   try { if (navigator.audioSession) navigator.audioSession.type = mode === "off" ? "auto" : "play-and-record"; } catch {}
-  const b = $("#cb-spk"); if (b) { b.classList.toggle("hidden", !CAN_ROUTE); b.classList.toggle("on", !!(call && call.speaker)); }
+  const b = $("#cb-spk"); if (b) { b.classList.toggle("hidden", !CAN_ROUTE && !webOuts); b.classList.toggle("on", !!(call && call.speaker)); }
+  if (call) webRoute();
 }
 function toggleSpeaker() { if (!call) return; call.speaker = !call.speaker; applyAudioRoute(); }
 function toggleTrack(kind, btn) {
@@ -2593,13 +2651,118 @@ async function fetchNotice() {
   } catch {}
 }
 
+
+// ---------------- Calls tab ----------------
+function allCalls() {
+  const out = [];
+  for (const [cid, list] of Object.entries(S.msgs || {})) { if (isGroup(cid) || !S.contacts[cid]) continue; for (const m of list) if (m.kind === "call") out.push({ cid, m }); }
+  return out.sort((a, b) => b.m.ts - a.m.ts);
+}
+function renderCalls() {
+  const list = allCalls().slice(0, 300);
+  $("#calls-body").innerHTML = list.length ? `<div class="calls-list">${list.map(({ cid, m }) => { const c = S.contacts[cid]; return `
+    <div class="call-item ${m.cst === "missed" ? "miss" : ""}" data-cid="${esc(cid)}" data-v="${m.video ? 1 : 0}">
+      ${avatarHtml(cid, false)}
+      <div class="meta"><span class="name">${esc(displayName(c))}</span><span class="sub"><i>${m.me ? "↗" : "↙"}</i>${m.me ? "Outgoing" : m.cst === "missed" ? "Missed" : "Incoming"}${m.cst === "ok" ? " · " + fmtCallDur(m.dur || 0) : m.cst === "noanswer" ? " · no answer" : m.cst === "declined" ? " · declined" : ""}</span></div>
+      <span class="when">${fmtTime(m.ts)}</span>
+      <button class="icon cb-again" aria-label="Call back">${m.video ? IC_CALLV : IC_CALLP}</button>
+    </div>`; }).join("")}</div>`
+    : `<div class="empty"><p class="empty-h">No calls yet</p><p class="muted">Voice and video calls are end-to-end encrypted and relayed, so the other person never sees your IP address.</p><button class="btn primary small" id="calls-new">Start a call</button></div>`;
+  const nb = $("#calls-new"); if (nb) nb.onclick = () => newChatSheet(true);
+  document.querySelectorAll(".call-item").forEach((el) => {
+    el.onclick = (e) => { const cid = el.dataset.cid; setTab("chats"); openChat(cid); if (e.target.closest(".cb-again")) callNow(el.dataset.v === "1"); };
+  });
+}
+function callNow(video) { if (!CALL_OK()) return toast(IS_ONION ? "Calls need the normal address, not Tor" : "Calls aren't supported in this browser"); startCall(video); }
+function clearCallLog() {
+  modal("Clear call log?", `<p class="muted">Removes every call from your history and chats on this device.</p>`, [["Clear", () => { for (const id of Object.keys(S.msgs)) S.msgs[id] = S.msgs[id].filter((m) => m.kind !== "call"); persist(); renderCalls(); renderList(); }, "danger"], ["Cancel", () => {}]]);
+}
+
+// ---------------- New chat sheet (like WhatsApp's) ----------------
+function newChatSheet(forCall) {
+  const cs = Object.values(S.contacts).filter((c) => c.id !== S.me.id && !c.request);
+  const freq = cs.map((c) => [c, msgs(c.id).filter((m) => !m.sys && m.ts > Date.now() - 30 * 864e5).length]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([c]) => c);
+  const az = cs.slice().sort((a, b) => displayName(a).localeCompare(displayName(b)));
+  const row = (c) => `<button class="nc-row" data-id="${c.id}">${avatarHtml(c.id, false)}<span class="flex1"><b>${esc(displayName(c))}</b><span class="muted small mono">${c.id}</span></span>${forCall ? `<span class="nc-call" data-v="0">${IC_CALLP}</span><span class="nc-call" data-v="1">${IC_CALLV}</span>` : ""}</button>`;
+  let letter = "";
+  modal(forCall ? "New call" : "New chat", `
+    <input id="nc-q" class="nc-search" placeholder="Search a name, or paste a Raazdar ID" autocomplete="off" />
+    ${forCall ? "" : `<div class="card nc-actions">
+      ${rowItem("group", "New group", "", 'data-nc="group"')}
+      ${rowItem("user", "New contact", "Add someone by their ID or QR link", 'data-nc="contact"')}
+      ${rowItem("bell", "New broadcast", "Send one message to many people, privately", 'data-nc="broadcast"')}
+      ${rowItem("qr", "My QR code", "", 'data-nc="qr"')}
+    </div>`}
+    ${freq.length ? `<div class="card-h">Frequently contacted</div><div class="card nc-list">${freq.map(row).join("")}</div>` : ""}
+    ${az.length ? `<div class="card-h">Contacts on Raazdar</div><div class="card nc-list" id="nc-all">${az.map((c) => { const l = (displayName(c)[0] || "#").toUpperCase(); const h = l !== letter ? `<div class="nc-letter">${esc((letter = l))}</div>` : ""; return h + row(c); }).join("")}</div>` : `<p class="muted small mt">No contacts yet. Share your ID or QR code.</p>`}`,
+    [["Close", () => {}]]);
+  $("#modal").classList.add("tall");
+  const q = $("#nc-q");
+  q.oninput = () => {
+    const v = q.value.trim().toLowerCase(); let any = false;
+    document.querySelectorAll("#nc-all .nc-row").forEach((b) => { const hit = !v || b.textContent.toLowerCase().includes(v); b.classList.toggle("hidden", !hit); any = any || hit; });
+    document.querySelectorAll(".nc-letter").forEach((x) => x.classList.toggle("hidden", !!v));
+    const m = q.value.toUpperCase().match(ID_FIND); let go = $("#nc-go");
+    if (m && !forCall) { if (!go) { go = document.createElement("button"); go.id = "nc-go"; go.className = "btn primary full"; q.after(go); } go.textContent = "Start chat with " + m[0]; go.onclick = () => { closeModal(); addContact(m[0]).catch((e) => toast(e.message)); }; }
+    else if (go) go.remove();
+  };
+  document.querySelectorAll("[data-nc]").forEach((b) => (b.onclick = () => { const a = b.dataset.nc; closeModal(); if (a === "group") newGroupDialog(); else if (a === "contact") newChatDialog(); else if (a === "broadcast") broadcastDialog(); else myQrDialog(); }));
+  document.querySelectorAll(".nc-row").forEach((b) => (b.onclick = (e) => {
+    const id = b.dataset.id, cv = e.target.closest(".nc-call"); closeModal(); setTab("chats"); openChat(id);
+    if (forCall) callNow(cv ? cv.dataset.v === "1" : false);
+  }));
+}
+// Broadcast: the same message sent separately to each person (they reply to you privately, never see each other)
+function broadcastDialog() {
+  const cs = Object.values(S.contacts).filter((c) => c.id !== S.me.id && !c.request && !(S.blocked || {})[c.id]).sort((a, b) => displayName(a).localeCompare(displayName(b)));
+  if (cs.length < 2) return toast("You need at least 2 contacts for a broadcast");
+  const max = hasPlus() ? 256 : 50;
+  modal("New broadcast", `<p class="muted small">Each person gets it as a normal private message from you. They don't see who else got it. Up to ${max} people${hasPlus() ? "" : " (256 with ✦ Plus)"}.</p>
+    <textarea id="bc-t" rows="3" maxlength="4000" placeholder="Message"></textarea>
+    <p class="small mt"><button class="btn ghost small" id="bc-all">Select all</button></p>
+    ${cs.map((c) => `<label class="opt"><input type="checkbox" class="bc" value="${c.id}" /> ${esc(displayName(c))}</label>`).join("")}<p id="bc-e" class="err"></p>`,
+    [["Send", async () => {
+      const t = $("#bc-t").value.trim(), ids = [...document.querySelectorAll(".bc:checked")].map((x) => x.value);
+      if (!t) return err("#bc-e", "Type a message"); if (ids.length < 1) return err("#bc-e", "Pick people");
+      if (ids.length > max) { if (!hasPlus()) { upsell(`Free broadcasts reach up to 50 people. Plus reaches 256.`); return true; } return err("#bc-e", `Max ${max}`); }
+      const keep = current;
+      for (const id of ids) { current = id; await sendText(t).catch(() => {}); }
+      current = keep; renderList(); toast(`Sent privately to ${ids.length} people`);
+    }, "primary"], ["Cancel", () => {}]]);
+  $("#bc-all").onclick = () => document.querySelectorAll(".bc").forEach((x, i) => (x.checked = i < max));
+}
+
+// ---------------- Storage and data / Help ----------------
+async function storageDialog() {
+  let files = 0, bytes = 0, chats = 0;
+  for (const list of Object.values(S.msgs)) { chats++; for (const m of list) if (m.blob && m.got) { files++; bytes += m.size || 0; } }
+  let quota = ""; try { const e = await navigator.storage.estimate(); quota = `${fmtSize(e.usage || 0)} used by Raazdar on this device`; } catch {}
+  modal("Storage and data", `<div class="org-stats"><div><b>${chats}</b><span>chats</span></div><div><b>${files}</b><span>downloaded files</span></div><div><b>${fmtSize(bytes)}</b><span>file space</span></div></div>
+    <p class="muted small">${esc(quota)}. Everything is encrypted with your passcode. Clearing downloaded files frees space; you can download them again for up to 7 days after they were sent.</p>`,
+    [["Clear downloaded files", async () => {
+      for (const list of Object.values(S.msgs)) for (const m of list) if (m.blob && m.got && !m.me) { try { await IDB_RAW.del("m:" + m.blob.id); } catch {} MEDIA_MEM.delete(m.blob.id); m.got = false; }
+      for (const u of videoUrls.values()) URL.revokeObjectURL(u); videoUrls.clear(); persist(); if (current) renderMessages(true); toast("Downloaded files cleared");
+    }, "danger"], ["Close", () => {}]]);
+}
+function helpDialog() {
+  modal("Help and feedback", `<div class="card">
+    ${rowItem("info", "Questions & answers", "raazdar.app/faq", 'data-h="/faq"')}
+    ${rowItem("shield", "Security & how it works", "raazdar.app/security", 'data-h="/security"')}
+    ${rowItem("user", "Contact us / grievances", "Privacy requests, abuse reports, help", 'data-h="/contact"')}
+    ${rowItem("star", "What's new", "Release notes", 'data-h="/changelog"')}</div>`, [["Close", () => {}]]);
+  document.querySelectorAll("[data-h]").forEach((b) => (b.onclick = () => window.open("https://raazdar.app" + b.dataset.h, "_blank", "noopener")));
+}
 // ---------------- wiring ----------------
 document.querySelectorAll(".tab").forEach((b) => b.onclick = () => setTab(b.dataset.tab));
 $("#chips").onclick = (e) => { const c = e.target.closest(".chip"); if (!c) return; listFilter = c.dataset.f; document.querySelectorAll(".chip").forEach((x) => x.classList.toggle("on", x === c)); renderList(); };
 $("#btn-chat-menu").onclick = chatMenu; $("#chat-head").onclick = chatMenu; $("#btn-lock").onclick = lockNow;
 holdToWipe($("#btn-lock")); holdToWipe($("#lock-logo")); holdToWipe($("#calc-clear"));
-$("#fab").onclick = () => menu("Start", "", [["💬  New chat", newChatDialog], ["👥  New group", newGroupDialog], ["🔳  Show my QR code", myQrDialog]]);
-$("#btn-qr").onclick = myQrDialog; $("#btn-new-group").onclick = newGroupDialog;
+$("#fab").onclick = () => newChatSheet();
+$("#btn-qr").onclick = myQrDialog;
+$("#btn-new-group").onclick = () => menu("", "", [
+  ["✓  Read all", () => { for (const c of [...Object.values(S.contacts), ...Object.values(S.groups || {})]) c.unread = 0; persist(); renderList(); toast("All chats marked as read"); }],
+  ["👥  New group", newGroupDialog], ["📣  New broadcast", broadcastDialog], ["⭐  Starred messages", starredDialog], ["🔒  Lock now", lockNow]]);
+$("#btn-calls-menu").onclick = () => menu("", "", [["📞  New call", () => newChatSheet(true)], ["🗑️  Clear call log", clearCallLog, "danger"]]);
 $("#btn-share-empty").onclick = myQrDialog; $("#btn-back").onclick = closeChat;
 $("#btn-plus").onclick = attachSheet;
 $("#btn-cam").onclick = () => { const f = $("#file"); f.setAttribute("capture", "environment"); f.click(); };
@@ -2631,7 +2794,7 @@ $("#composer").onsubmit = (e) => { e.preventDefault(); const t = input.value.tri
 (async function boot() {
   if (!subtle || !self.PQ) {
     const miss = [!self.PQ && "crypto bundle (pq.js) didn't load", !subtle && (IS_ONION ? "crypto engine" : "secure connection (use the .onion address in Tor/Onion Browser)")].filter(Boolean);
-    document.body.textContent = "Raazdar v7.1 can't start here. Missing: " + miss.join("; ") + ".";
+    document.body.textContent = "Raazdar v7.2 can't start here. Missing: " + miss.join("; ") + ".";
     return;
   }
   try { for (const k of Object.keys(localStorage)) if (/^gc2?_/.test(k)) localStorage.removeItem(k); } catch {} // old versions

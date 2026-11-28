@@ -416,3 +416,23 @@ textarea.keybox { width: 100%; resize: none; -webkit-user-select: text; user-sel
 .jump-down.has-n span { display: grid; }
 .cam { background: none; border: 0; width: 40px; height: 46px; color: var(--gold); display: grid; place-items: center; flex-shrink: 0; }
 #composer.has-text .cam { display: none; }
+
+/* ---------- Calls tab, new chat sheet ---------- */
+.chat-item .last.miss { color: #ff9a9a; }
+.calls-list { padding: 0 8px calc(96px + var(--safe-b)); }
+.call-item { display: flex; align-items: center; gap: 12px; padding: 9px 8px; border-radius: 14px; position: relative; cursor: pointer; }
+.call-item:active { background: var(--panel); }
+.call-item .meta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.call-item .name { font-weight: 600; font-size: 16.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.call-item.miss .name { color: #ff8f8f; }
+.call-item .sub { color: var(--muted); font-size: 13.5px; } .call-item .sub i { font-style: normal; margin-right: 5px; color: var(--gold2); } .call-item.miss .sub i { color: var(--danger); }
+.call-item .when { color: var(--muted); font-size: 12.5px; }
+.call-item .cb-again { background: none; border: 0; color: var(--gold); width: 40px; height: 40px; display: grid; place-items: center; }
+#modal.tall .sheet { max-height: 92vh; }
+.nc-search { width: 100%; margin-bottom: 10px; border-radius: 14px; }
+.nc-actions { margin-bottom: 8px; }
+.nc-row { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: 0; padding: 8px 10px; text-align: left; color: inherit; }
+.nc-row b { display: block; font-weight: 600; } .nc-row .avatar { width: 42px; height: 42px; flex: none; }
+.nc-row + .nc-row { border-top: 1px solid var(--line); }
+.nc-call { color: var(--gold); width: 38px; height: 38px; display: grid; place-items: center; }
+.nc-letter { color: var(--muted); font-size: 12px; font-weight: 700; padding: 8px 12px 2px; }

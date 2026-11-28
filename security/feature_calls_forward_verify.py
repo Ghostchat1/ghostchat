@@ -14,7 +14,7 @@ async def main():
             c=await b.new_context(permissions=["camera","microphone"]); await c.add_init_script(CONSENT); pg=await c.new_page(); pg.on("pageerror",lambda e: errs.append(str(e))); return pg
         a=await mk(); bp=await mk()
         aid=await onboard(a,"Caller"); bid=await onboard(bp,"Callee")
-        await a.click("#fab"); await a.click(".menu-item:has-text('New chat')"); await a.fill("#add-id",bid); await a.click("#modal-actions button:has-text('Start chat')")
+        await a.click("#fab"); await a.click("[data-nc=contact]"); await a.fill("#add-id",bid); await a.click("#modal-actions button:has-text('Start chat')")
         await a.fill("#msg-input","hi"); await a.press("#msg-input","Enter")
         await bp.wait_for_selector(".chat-item",timeout=30000); await bp.click(".chat-item")
         # video call
